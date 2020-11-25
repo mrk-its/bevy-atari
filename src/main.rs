@@ -68,9 +68,11 @@ out vec4 o_Target;
 layout(std140) uniform MyMaterial_color { // set = 1 binding = 1
     vec4 color;
 };
+
 layout(std140) uniform MyMaterial_charset { // set = 1 binding = 2
     uvec4 charset[64];
 };
+
 int text[5] = int[](50,37,33,36,57);
 
 vec4 encodeSRGB(vec4 linearRGB_in) {
@@ -81,17 +83,14 @@ vec4 encodeSRGB(vec4 linearRGB_in) {
     return vec4(mix(a, b, c), linearRGB_in.a);
 }
 
+#define get_byte(data, offset) (data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3))
+
 void main() {
     int x = 7 - int(v_Uv[0] * 8.0);
     int y = int(v_Uv[1] * 8.0);
 
     int offs = text[instance_id] * 8 + y; // char byte offset
-    int vec_offs = offs >> 4;
-    int comp = (offs >> 2) & 3;
-    int bit_offs = (offs & 3) * 8;
-
-
-    uint byte = (charset[vec_offs][comp] >> bit_offs);
+    uint byte = get_byte(charset, offs);
 
     if(((byte >> x) & uint(1)) != uint(0)) {
         o_Target = encodeSRGB(color);

@@ -221,7 +221,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_atascii"
+name = "bevy_atari"
 version = "0.1.0"
 dependencies = [
  "bevy",
