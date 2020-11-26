@@ -18,23 +18,6 @@ def read_word(f):
 def read_filename(f):
     return f.read(read_word(f))
 
-def read_atari_state(f):
-    state = {}
-    magic = f.read(8)
-    assert magic == b"ATARI800"
-
-    state['version'] = read_byte(f)
-    assert state['version'] >= 8
-
-    state['verbose'] = read_byte(f)
-
-    state['atari800'] = atari800_state_read(f)
-    state['cartridge'] = cartridge_state_read(f)
-    state['sio'] = sio_state_read(f)
-    state['antic'] = antic_state_read(f)
-    state['cpu'] = cpu_state_read(f, state)
-    return state
-
 def cartridge_state_read(f):
     saved_type = read_int(f)
     print(f"saved_type: {saved_type}")
@@ -101,16 +84,22 @@ def memory_state_read(f, state):
         memory['under_atarixl_os'] = f.read(16384)
         if verbose:
             memory['xegame'] = f.read(0x2000)
-    if verbose:
-        memory['num_xe_banks'] = read_int(f)
+
+    memory['num_xe_banks'] = read_int(f)
 
     ram_size = memory['base_ram_kb'] + memory['num_xe_banks'] * 16
     if ram_size == 320:
         xe_type = read_int(f)
         ram_size += xe_type
+    assert ram_size in (64, 128)
 
     memory['portb'] = read_byte(f)
     memory['cart_a0bf_enabled'] = read_int(f)
+
+    if ram_size > 64:
+        atarixe_memory_size = (1 + (ram_size - 64) // 16) * 16384
+        memory['atarixe_memory'] = f.read(atarixe_memory_size)
+        memory['enable_mapram'] = read_int(f)
 
     return memory
 
@@ -120,23 +109,50 @@ def cpu_state_read(f, state):
     cpu['reg_p'] = read_byte(f)
     cpu['reg_s'] = read_byte(f)
     cpu['reg_x'] = read_byte(f)
+    cpu['reg_y'] = read_byte(f)
     cpu['irq'] = read_byte(f)
     cpu['memory'] = memory_state_read(f, state)
     cpu['pc'] = read_word(f)
     return cpu
 
+def read_atari_state(f):
+    state = {}
+    magic = f.read(8)
+    assert magic == b"ATARI800"
+
+    state['version'] = read_byte(f)
+    assert state['version'] >= 8
+
+    state['verbose'] = read_byte(f)
+
+    state['atari800'] = atari800_state_read(f)
+    state['cartridge'] = cartridge_state_read(f)
+    state['sio'] = sio_state_read(f)
+    state['antic'] = antic_state_read(f)
+    state['cpu'] = cpu_state_read(f, state)
+    return state
+
+
 def show_state(state):
     state_copy = copy.deepcopy(state)
-    state_copy['cpu']['memory'] = "..."
+    memory = state_copy['cpu']['memory']
+    for k, v in list(memory.items()):
+        if isinstance(v, bytes):
+            memory[k] = f"[{len(v) // 1024} kb]"
     pprint.pprint(state_copy)
+
+def memory_dump(data):
+    for byte in data:
+        print("{:02x} ".format(byte), end="")
+    print()
 
 if __name__ == "__main__":
     with gzip.open(sys.argv[1]) as f:
         state = read_atari_state(f)
         show_state(state)
         dlist = state['antic']['dlist']
-        dlist_data = state['cpu']['memory']['data'][dlist:dlist+256]
+        memory = state['cpu']['memory']['data']
+        dlist_data = memory[dlist:dlist+256]
 
-        for byte in dlist_data:
-            print("{:02x} ".format(byte), end="")
+        memory_dump(dlist_data)
         print()
