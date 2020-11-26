@@ -18,7 +18,7 @@ fn main() {
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_asset::<MyMaterial>()
     .add_asset::<StandardMaterial>()
-    .add_resource(bevy::render::pass::ClearColor(Color::rgb_u8(0x03, 0x52, 0xa8)))
+    // .add_resource(bevy::render::pass::ClearColor(Color::rgb_u8(0x03, 0x52, 0xa8)))
     .add_startup_system(setup)
     .run();
 }
@@ -26,9 +26,13 @@ fn main() {
 #[derive(RenderResources, Default, TypeUuid)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
 struct MyMaterial {
-    pub color: Color,
+    pub fg_color: Color,
+    pub bg_color: Color,
+    pub line_width: u32,
     #[render_resources(buffer)]
     pub charset: Vec<u8>,
+    #[render_resources(buffer)]
+    pub data: Vec<u8>,
 }
 
 const VERTEX_SHADER: &str = r#"
@@ -65,37 +69,46 @@ in vec2 v_Uv;
 flat in int instance_id;
 out vec4 o_Target;
 
-layout(std140) uniform MyMaterial_color { // set = 1 binding = 1
-    vec4 color;
+layout(std140) uniform MyMaterial_fg_color { // set = 1 binding = 1
+    vec4 fg_color;
 };
 
-layout(std140) uniform MyMaterial_charset { // set = 1 binding = 2
+layout(std140) uniform MyMaterial_bg_color { // set = 1 binding = 2
+    vec4 bg_color;
+};
+
+layout(std140) uniform MyMaterial_line_width { // set = 1 binding = 3
+    int line_width;
+};
+
+layout(std140) uniform MyMaterial_charset { // set = 1 binding = 4
     uvec4 charset[64];
 };
 
-int text[5] = int[](50,37,33,36,57);
+layout(std140) uniform MyMaterial_data { // set = 1 binding = 5
+    uvec4 data[3];
+};
 
-vec4 encodeSRGB(vec4 linearRGB_in) {
-    vec3 linearRGB = linearRGB_in.rgb;
-    vec3 a = 12.92 * linearRGB;
-    vec3 b = 1.055 * pow(linearRGB, vec3(1.0 / 2.4)) - 0.055;
-    vec3 c = step(vec3(0.0031308), linearRGB);
-    return vec4(mix(a, b, c), linearRGB_in.a);
-}
 
-#define get_byte(data, offset) (data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3))
+#define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
 
 void main() {
-    int x = 7 - int(v_Uv[0] * 8.0);
+    float w = v_Uv[0] * float(line_width);
+    int n = int(w);
+    float frac = w - float(n);
+    int x = 7 - int(frac * 8.0);
     int y = int(v_Uv[1] * 8.0);
 
-    int offs = text[instance_id] * 8 + y; // char byte offset
-    uint byte = get_byte(charset, offs);
 
-    if(((byte >> x) & uint(1)) != uint(0)) {
-        o_Target = encodeSRGB(color);
+    int char = get_byte(data, n);
+    int inv = char >> 7;
+    int offs = (char & 0x7f) * 8 + y;
+    int byte = get_byte(charset, offs);
+
+    if((((byte >> x) & 1) ^ inv) != 0) {
+        o_Target = fg_color;
     } else {
-        discard;
+        o_Target = bg_color;
     }
 }
 "#;
@@ -106,7 +119,6 @@ fn setup(
     mut shaders: ResMut<Assets<Shader>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<MyMaterial>>,
-    mut standard_materials: ResMut<Assets<StandardMaterial>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
     let atari_rom = include_bytes!("../altirra.rom");
@@ -137,62 +149,56 @@ fn setup(
     render_graph
         .add_node_edge("my_material", base::node::MAIN_PASS)
         .unwrap();
+    let fg_color_linear = Color::rgb_linear(0x69 as f32 / 255.0, 0xb8 as f32 / 255.0, 0xff as f32 / 255.0);
+    let bg_color_linear = Color::rgb_linear(0x03 as f32 / 255.0, 0x52 as f32 / 255.0, 0xa8 as f32 / 255.0);
+    let mut data = vec![0; 48];
+    &data.as_mut_slice()[2..7].copy_from_slice(&[50, 37, 33, 36, 57]);
+   // &data.as_mut_slice()[0..5].copy_from_slice("READY".as_bytes());
+    let mut data2 = vec![0; 48];
+    &data2.as_mut_slice()[2..3].copy_from_slice(&[128]);
 
     // Create a new material
     let material = materials.add(MyMaterial {
-        color: Color::rgb_u8(0x69, 0xb8, 0xff),
+        fg_color: fg_color_linear,
+        bg_color: bg_color_linear,
+        line_width: 40,
+        charset: charset.clone(),
+        data: data,
+    });
+    let material2 = materials.add(MyMaterial {
+        fg_color: fg_color_linear,
+        bg_color: bg_color_linear,
+        line_width: 40,
         charset,
+        data: data2,
     });
 
-    let material2 = standard_materials.add(StandardMaterial {
-        albedo: Color::rgb_u8(0x69, 0xb8, 0xff),
-        albedo_texture: None,
-        shaded: false,
-    });
-
-    let mut mesh = Mesh::from(shape::Quad { size: Vec2::new(1.0, 1.0), flip: false});
-    mesh.set_instances(5);
-
-    let mut mesh2 = Mesh::from(shape::Quad { size: Vec2::new(1.0, 1.0), flip: false});
-    mesh2.set_instances(1);
+    let mesh = Mesh::from(shape::Quad { size: Vec2::new(40.0, 1.0), flip: false});
+    let mesh_handle = meshes.add(mesh);
 
     // Setup our world
     commands
         .spawn(MeshBundle {
-            mesh: meshes.add(mesh),
+            mesh: mesh_handle.clone_weak(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                pipeline_handle
+                pipeline_handle.clone_weak(),
             )]),
             transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             ..Default::default()
         })
         .with(material)
-        // .spawn(MeshBundle {
-        //     mesh: meshes.add(mesh2),
-        //     render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-        //         pipeline_handle,
-        //     )]),
-        //     transform: Transform::from_translation(Vec3::new(0.0, -1.0, 0.0)),
-        //     ..Default::default()
-        // })
-        // .with(material)
-        .spawn(PbrBundle {
-            mesh: meshes.add(Mesh::from(shape::Quad { size: Vec2::new(1.0, 1.0), flip: false})),
-            material: material2,
-            transform: Transform {
-                translation: Vec3::new(0.0, -1.0, 0.0),
-                ..Default::default()
-            },
-            draw: Draw {
-                is_transparent: false,
-                ..Default::default()
-            },
+        .spawn(MeshBundle {
+            mesh: mesh_handle,
+            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                pipeline_handle,
+            )]),
+            transform: Transform::from_translation(Vec3::new(0.0, -1.0, 0.0)),
             ..Default::default()
         })
-        // camera
+        .with(material2)
         .spawn(Camera3dBundle {
-            transform: Transform::from_translation(Vec3::new(-3.0, 0.0, 3.0))
-                .looking_at(Vec3::new(2.0, 0.0, 0.0), Vec3::unit_y()),
+            transform: Transform::from_translation(Vec3::new(-0.0, 0.0, 30.0))
+                .looking_at(Vec3::new(0.0, 0.0, 0.0), Vec3::unit_y()),
             ..Default::default()
         });
 }
