@@ -4,6 +4,7 @@ mod palette;
 use bevy::{
     prelude::*,
     render::{
+        pass::ClearColor,
         mesh::shape,
         pipeline::{CullMode, PipelineDescriptor, RenderPipeline},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph},
@@ -23,7 +24,7 @@ fn main() {
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_asset::<AnticLine>()
         .add_asset::<StandardMaterial>()
-        // .add_resource(bevy::render::pass::ClearColor(Color::rgb_u8(0x03, 0x52, 0xa8)))
+        .add_resource(ClearColor(Color::rgb_u8(0x0, 0x0, 0x0)))
         .add_startup_system(setup)
         .run();
 }
@@ -87,21 +88,21 @@ fn setup(
         .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
 
-    fn color(index: usize) -> Color {
+    fn atari_color(index: usize) -> Color {
         Color::rgb_u8(PALETTE[index][0], PALETTE[index][1], PALETTE[index][2])
     }
 
     let color_set = ColorSet {
-        c0: color(COLPF2),
-        c1: color(COLPF2 & 0xf0 | COLPF1 & 0x0f),
-        c0_0: color(COLBK),
-        c1_0: color(COLPF0),
-        c2_0: color(COLPF1),
-        c3_0: color(COLPF2),
-        c0_1: color(COLBK),
-        c1_1: color(COLPF0),
-        c2_1: color(COLPF1),
-        c3_1: color(COLPF3),
+        c0: atari_color(COLPF2),
+        c1: atari_color(COLPF2 & 0xf0 | COLPF1 & 0x0f),
+        c0_0: atari_color(COLBK),
+        c1_0: atari_color(COLPF0),
+        c2_0: atari_color(COLPF1),
+        c3_0: atari_color(COLPF2),
+        c0_1: atari_color(COLBK),
+        c1_1: atari_color(COLPF0),
+        c2_1: atari_color(COLPF1),
+        c3_1: atari_color(COLPF3),
     };
 
     info!("dlist: {:?}", &MEMORY[ANTIC_DLIST..ANTIC_DLIST + 256]);
@@ -211,8 +212,8 @@ fn setup(
 
     // Setup our world
     commands.spawn(Camera3dBundle {
-        transform: Transform::from_translation(Vec3::new(-0.0, -10.0, 30.0))
-            .looking_at(Vec3::new(0.0, -10.0, 0.0), Vec3::unit_y()),
+        transform: Transform::from_translation(Vec3::new(-10.0, -14.0, 30.0))
+            .looking_at(Vec3::new(-2.0, -14.0, 0.0), Vec3::unit_y()),
         ..Default::default()
     });
 }
