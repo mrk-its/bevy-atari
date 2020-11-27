@@ -1,11 +1,12 @@
 mod color_set;
+mod system;
 mod palette;
 
 use bevy::{
     prelude::*,
     render::{
-        pass::ClearColor,
         mesh::shape,
+        pass::ClearColor,
         pipeline::{CullMode, PipelineDescriptor, RenderPipeline},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph},
         renderer::RenderResources,
@@ -15,6 +16,7 @@ use bevy::{
 };
 
 use color_set::ColorSet;
+use system::{AtariSystem, W65C02S};
 use palette::jakub::PALETTE;
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
@@ -25,7 +27,10 @@ fn main() {
     app.add_asset::<AnticLine>()
         .add_asset::<StandardMaterial>()
         .add_resource(ClearColor(Color::rgb_u8(0x0, 0x0, 0x0)))
+        .add_resource(AtariSystem::new())
+        .add_resource(W65C02S::new())
         .add_startup_system(setup)
+        .add_system(atari_system)
         .run();
 }
 
@@ -52,6 +57,15 @@ const COLPF0: usize = 114;
 const COLPF1: usize = 100;
 const COLPF2: usize = 104;
 const COLPF3: usize = 160;
+
+fn atari_system(mut cpu: ResMut<W65C02S>, mut atari_system: ResMut<AtariSystem>) {
+    for i in 0..35568 {
+        cpu.step(&mut *atari_system);
+        if i == 0 {
+            info!("6502 PC: {:04x}", cpu.get_pc());
+        }
+    }
+}
 
 fn setup(
     commands: &mut Commands,
