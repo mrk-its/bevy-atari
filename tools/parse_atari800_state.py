@@ -69,6 +69,62 @@ def antic_state_read(f):
     antic['ypos'] = read_int(f)
     return antic
 
+def gtia_state_read(f):
+    gtia = {}
+    gtia['HPOSP0'] = read_byte(f)
+    gtia['HPOSP1'] = read_byte(f)
+    gtia['HPOSP2'] = read_byte(f)
+    gtia['HPOSP3'] = read_byte(f)
+    gtia['HPOSM0'] = read_byte(f)
+    gtia['HPOSM1'] = read_byte(f)
+    gtia['HPOSM2'] = read_byte(f)
+    gtia['HPOSM3'] = read_byte(f)
+
+    gtia['PF0PM'] = read_byte(f)
+    gtia['PF1PM'] = read_byte(f)
+    gtia['PF2PM'] = read_byte(f)
+    gtia['PF3PM'] = read_byte(f)
+
+    gtia['M0PL'] = read_byte(f)
+    gtia['M1PL'] = read_byte(f)
+    gtia['M2PL'] = read_byte(f)
+    gtia['M3PL'] = read_byte(f)
+    gtia['P0PL'] = read_byte(f)
+    gtia['P1PL'] = read_byte(f)
+    gtia['P2PL'] = read_byte(f)
+    gtia['P3PL'] = read_byte(f)
+
+    gtia['SIZEP0'] = read_byte(f)
+    gtia['SIZEP1'] = read_byte(f)
+    gtia['SIZEP2'] = read_byte(f)
+    gtia['SIZEP3'] = read_byte(f)
+    gtia['SIZEM'] = read_byte(f)
+
+    gtia['GRAFP0'] = read_byte(f)
+    gtia['GRAFP1'] = read_byte(f)
+    gtia['GRAFP2'] = read_byte(f)
+    gtia['GRAFP3'] = read_byte(f)
+    gtia['GRAFM'] = read_byte(f)
+
+    gtia['COLPM0'] = read_byte(f)
+    gtia['COLPM1'] = read_byte(f)
+    gtia['COLPM2'] = read_byte(f)
+    gtia['COLPM3'] = read_byte(f)
+    gtia['COLPF0'] = read_byte(f)
+    gtia['COLPF1'] = read_byte(f)
+    gtia['COLPF2'] = read_byte(f)
+    gtia['COLPF3'] = read_byte(f)
+    gtia['COLBK'] = read_byte(f)
+
+    gtia['PRIOR'] = read_byte(f)
+    gtia['VDELAY'] = read_byte(f)
+    gtia['GRACTL'] = read_byte(f)
+    gtia['CONSOL_MASK'] = read_byte(f)
+    gtia['SPEAKER'] = read_int(f)
+    read_int(f) # next_console_value? ignored
+    gtia['TRIG_LATCH'] = read_int(f)
+    return gtia
+
 def memory_state_read(f, state):
     verbose = state['verbose']
     memory = {}
@@ -99,6 +155,8 @@ def memory_state_read(f, state):
     if ram_size > 64:
         atarixe_memory_size = (1 + (ram_size - 64) // 16) * 16384
         memory['atarixe_memory'] = f.read(atarixe_memory_size)
+
+    if state['atari800']['machine_size'] == Atari800_MACHINE_XLXE and ram_size > 20:
         memory['enable_mapram'] = read_int(f)
 
     return memory
@@ -130,6 +188,7 @@ def read_atari_state(f):
     state['sio'] = sio_state_read(f)
     state['antic'] = antic_state_read(f)
     state['cpu'] = cpu_state_read(f, state)
+    state['gtia'] = gtia_state_read(f)
     return state
 
 
@@ -152,6 +211,8 @@ if __name__ == "__main__":
         show_state(state)
         dlist = state['antic']['dlist']
         memory = state['cpu']['memory']['data']
+        with open('memory.dat', 'wb') as fm:
+            fm.write(memory)
         dlist_data = memory[dlist:dlist+256]
 
         memory_dump(dlist_data)
