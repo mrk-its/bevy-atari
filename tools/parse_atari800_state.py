@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import copy
 import gzip
 import pprint
