@@ -58,12 +58,20 @@ const COLPF1: usize = 100;
 const COLPF2: usize = 104;
 const COLPF3: usize = 160;
 
-fn atari_system(mut cpu: ResMut<W65C02S>, mut atari_system: ResMut<AtariSystem>) {
-    for i in 0..35568 {
+#[derive(Debug, Default)]
+struct PerfMetrics {
+    frame_cnt: usize,
+    cpu_cycle_cnt: usize,
+}
+
+fn atari_system(mut cpu: ResMut<W65C02S>, mut atari_system: ResMut<AtariSystem>, mut perf_metrics: Local<PerfMetrics>) {
+    for _ in 0..35568 {
         cpu.step(&mut *atari_system);
-        if i == 0 {
-            info!("6502 PC: {:04x}", cpu.get_pc());
-        }
+        perf_metrics.cpu_cycle_cnt += 1;
+    }
+    perf_metrics.frame_cnt += 1;
+    if perf_metrics.frame_cnt % 60 == 0 {
+        info!("{:?}", *perf_metrics);
     }
 }
 
