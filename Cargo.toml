@@ -29,10 +29,26 @@ winit = {version = "0.23.0", features = ["web-sys", "x11"], default-features = f
 w65c02s = "0.9.2"
 
 [patch.'https://github.com/bevyengine/bevy']
-bevy = {git = "https://github.com/mrk-its/bevy", branch="instancing", default-features=false}
+bevy = {path = "../bevy", default-features=false}
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+debug-assertions = false
+overflow-checks = false
+incremental = true
+codegen-units = 16
 
 [profile.dev]
-opt-level = 1
+opt-level = 2
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = false
+panic = 'unwind'
+incremental = true
+codegen-units = 16
+rpath = false
 
 # [profile.release.package."*"]
 # codegen-units = 1
@@ -41,5 +57,5 @@ opt-level = 1
 [profile.release]
 codegen-units = 1
 lto = true
-# opt-level = 3
+opt-level = 3
 # opt-level = 's'

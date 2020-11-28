@@ -1,5 +1,5 @@
-pub use w65c02s::*;
 pub use bevy::prelude::info;
+pub use w65c02s::*;
 
 pub struct AtariSystem {
     ram: [u8; 65536],
@@ -12,10 +12,7 @@ impl AtariSystem {
         // initialize the message
         ram[0x0001..0x000F].copy_from_slice(b"Hello World!\n\0");
         // initialize the program
-        ram[0x0200..0x0204].copy_from_slice(&[
-            op::NOP,
-            op::JMP_ABS, 0, 2,
-        ]);
+        ram[0x0200..0x0204].copy_from_slice(&[op::NOP, op::JMP_ABS, 0, 2]);
         // initialize the reset vector to point to $0200
         ram[0xFFFC..0xFFFE].copy_from_slice(&[0x00, 0x02]);
         AtariSystem { ram }
@@ -37,8 +34,7 @@ impl System for AtariSystem {
         if addr == 0 {
             // writing address $0000 outputs on an ASCII-only "serial port"
             info!("{}", String::from_utf8_lossy(&[value]));
-        }
-        else {
+        } else {
             // all other writes write to RAM
             self.ram[addr as usize] = value
         }

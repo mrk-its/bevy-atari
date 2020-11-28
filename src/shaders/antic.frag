@@ -9,22 +9,22 @@ layout(std140) uniform AnticLine_line_width { // set = 1 binding = 1
     int line_width;
 };
 
-layout(std140) uniform AnticLine_charset { // set = 1 binding = 2
+layout(std140) uniform AnticLine_mode { // set = 1 binding = 2
+    int mode;
+};
+
+layout(std140) uniform AnticLine_charset { // set = 1 binding = 3
     uvec4 charset[64];
 };
 
-layout(std140) uniform AnticLine_data { // set = 1 binding = 3
+layout(std140) uniform AnticLine_data { // set = 1 binding = 4
     uvec4 data[3];
 };
 
-layout(std140) uniform AnticLine_color_set { // set = 1 binding = 4
+layout(std140) uniform AnticLine_color_set { // set = 1 binding = 5
     vec4 regs_2[2]; // pf2, pf1 - for monochrome modes
     vec4 regs_4_0[4]; // bak, pf0, pf1, pf2 - for 4-color modes
     vec4 regs_4_1[4]; // bak, pf0, pf1, pf3 - for negative chars in mode 4 & 5
-};
-
-layout(std140) uniform AnticLine_mode { // set = 1 binding = 5
-    int mode;
 };
 
 #define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)

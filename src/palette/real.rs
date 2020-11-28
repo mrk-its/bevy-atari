@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub const PALETTE: &[[u8; 3]] = &[
     [0x32, 0x31, 0x32],
     [0x3f, 0x3e, 0x3f],

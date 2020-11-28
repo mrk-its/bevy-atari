@@ -1,6 +1,6 @@
 mod color_set;
-mod system;
 mod palette;
+mod system;
 
 use bevy::{
     prelude::*,
@@ -16,8 +16,8 @@ use bevy::{
 };
 
 use color_set::ColorSet;
-use system::{AtariSystem, W65C02S};
 use palette::jakub::PALETTE;
+use system::{AtariSystem, W65C02S};
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
@@ -64,7 +64,11 @@ struct PerfMetrics {
     cpu_cycle_cnt: usize,
 }
 
-fn atari_system(mut cpu: ResMut<W65C02S>, mut atari_system: ResMut<AtariSystem>, mut perf_metrics: Local<PerfMetrics>) {
+fn atari_system(
+    mut cpu: ResMut<W65C02S>,
+    mut atari_system: ResMut<AtariSystem>,
+    mut perf_metrics: Local<PerfMetrics>,
+) {
     for _ in 0..35568 {
         cpu.step(&mut *atari_system);
         perf_metrics.cpu_cycle_cnt += 1;
@@ -185,7 +189,7 @@ fn setup(
                     .spawn(MeshBundle {
                         mesh: mesh_handle.clone(),
                         render_pipelines: RenderPipelines::from_pipelines(vec![
-                            RenderPipeline::new(pipeline_handle.clone()),
+                            RenderPipeline::new(pipeline_handle.clone_weak()),
                         ]),
                         transform: Transform::from_translation(Vec3::new(
                             0.0,
@@ -213,7 +217,7 @@ fn setup(
                     .spawn(MeshBundle {
                         mesh: mesh_handle.clone(),
                         render_pipelines: RenderPipelines::from_pipelines(vec![
-                            RenderPipeline::new(pipeline_handle.clone()),
+                            RenderPipeline::new(pipeline_handle.clone_weak()),
                         ]),
                         transform: Transform::from_translation(Vec3::new(
                             0.0,
