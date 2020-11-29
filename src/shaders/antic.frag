@@ -13,19 +13,20 @@ layout(std140) uniform AnticLine_mode { // set = 1 binding = 2
     int mode;
 };
 
-layout(std140) uniform AnticLine_charset { // set = 1 binding = 3
-    uvec4 charset[64];
-};
-
-layout(std140) uniform AnticLine_data { // set = 1 binding = 4
+layout(std140) uniform AnticLine_data { // set = 1 binding = 3
     uvec4 data[3];
 };
 
-layout(std140) uniform AnticLine_color_set { // set = 1 binding = 5
+layout(std140) uniform AnticLine_color_set { // set = 1 binding = 4
     vec4 regs_2[2]; // pf2, pf1 - for monochrome modes
     vec4 regs_4_0[4]; // bak, pf0, pf1, pf2 - for 4-color modes
     vec4 regs_4_1[4]; // bak, pf0, pf1, pf3 - for negative chars in mode 4 & 5
 };
+
+layout(std140) uniform AnticCharset_charset { // set = 2 binding = 1
+    uvec4 charset[64];
+};
+
 
 #define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
 vec4 encodeSRGB(vec4 linearRGB_in)
@@ -38,10 +39,10 @@ vec4 encodeSRGB(vec4 linearRGB_in)
 }
 
 #define encodeColor(x) encodeSRGB(x)
-
+//#define encodeColor(x) (x)
 void main() {
     if(mode == 0xa) {
-        float w = v_Uv[0] * float(line_width) / 2.0;
+        float w = v_Uv[0] * float(line_width / 16);
         int n = int(w); // byte offset
         float frac = w - float(n);
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
@@ -49,11 +50,22 @@ void main() {
         int byte = get_byte(data, n);
         int index = (byte >> bit_offs) & 3;
         o_Target = encodeColor(regs_4_0[index]);
+        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
-        // o_Target = vec4(1.0, 0.0, 0.0, 1.0);
-    };
+    } else if(mode == 0x0c) {
+        float w = v_Uv[0] * float(line_width / 16);
+        int n = int(w); // byte offset
+        float frac = w - float(n);
+        int bit_offs = 7-int(frac * 8.0); // bit offset in byte
 
-    float w = v_Uv[0] * float(line_width);
+        int byte = get_byte(data, n);
+        int index = (byte >> bit_offs) & 1;
+        o_Target = encodeColor(regs_4_0[index]);
+        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
+        return;
+    }
+
+    float w = v_Uv[0] * float(line_width / 8);
     int n = int(w);
     float frac = w - float(n);
     int x = 7 - int(frac * 8.0);
@@ -66,5 +78,5 @@ void main() {
 
     int index = (((byte >> x) & 1) ^ inv);
     o_Target = encodeColor(regs_2[index]);
-    //o_Target = vec4(1.0, 0.0, 0.0, 1.0);
+    // o_Target = vec4(1.0, 0.0, 0.0, 1.0);
 }

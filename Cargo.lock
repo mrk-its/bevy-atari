@@ -197,9 +197,8 @@ dependencies = [
  "anyhow",
  "bevy_app",
  "bevy_ecs",
- "bevy_property",
+ "bevy_reflect",
  "bevy_tasks",
- "bevy_type_registry",
  "bevy_utils",
  "crossbeam-channel",
  "downcast-rs",
@@ -211,7 +210,6 @@ dependencies = [
  "ron",
  "serde",
  "thiserror",
- "uuid",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -223,6 +221,8 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_webgl2",
+ "disasm6502",
+ "rand",
  "w65c02s",
  "winit",
 ]
@@ -235,9 +235,8 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
- "bevy_property",
+ "bevy_reflect",
  "bevy_tasks",
- "bevy_type_registry",
  "bevy_utils",
 ]
 
@@ -250,7 +249,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "uuid",
 ]
 
 [[package]]
@@ -262,7 +260,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_utils",
  "parking_lot",
- "uuid",
 ]
 
 [[package]]
@@ -303,10 +300,10 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_pbr",
+ "bevy_reflect",
  "bevy_render",
  "bevy_scene",
  "bevy_transform",
- "bevy_type_registry",
  "gltf",
  "image",
  "thiserror",
@@ -337,14 +334,13 @@ dependencies = [
  "bevy_log",
  "bevy_math",
  "bevy_pbr",
- "bevy_property",
+ "bevy_reflect",
  "bevy_render",
  "bevy_scene",
  "bevy_sprite",
  "bevy_tasks",
  "bevy_text",
  "bevy_transform",
- "bevy_type_registry",
  "bevy_ui",
  "bevy_utils",
  "bevy_wgpu",
@@ -369,6 +365,7 @@ dependencies = [
 name = "bevy_math"
 version = "0.3.0"
 dependencies = [
+ "bevy_reflect",
  "glam",
 ]
 
@@ -382,35 +379,38 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
- "bevy_property",
+ "bevy_reflect",
  "bevy_render",
  "bevy_transform",
- "bevy_type_registry",
  "bevy_window",
 ]
 
 [[package]]
-name = "bevy_property"
+name = "bevy_reflect"
 version = "0.3.0"
 dependencies = [
+ "bevy_app",
  "bevy_ecs",
- "bevy_math",
- "bevy_property_derive",
+ "bevy_reflect_derive",
  "bevy_utils",
+ "downcast-rs",
  "erased-serde",
- "ron",
+ "glam",
+ "parking_lot",
  "serde",
  "smallvec",
+ "thiserror",
 ]
 
 [[package]]
-name = "bevy_property_derive"
+name = "bevy_reflect_derive"
 version = "0.3.0"
 dependencies = [
  "find-crate 0.5.0",
  "proc-macro2",
  "quote",
  "syn",
+ "uuid",
 ]
 
 [[package]]
@@ -425,9 +425,8 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
- "bevy_property",
+ "bevy_reflect",
  "bevy_transform",
- "bevy_type_registry",
  "bevy_utils",
  "bevy_window",
  "bitflags",
@@ -442,7 +441,6 @@ dependencies = [
  "smallvec",
  "spirv-reflect",
  "thiserror",
- "uuid",
 ]
 
 [[package]]
@@ -453,8 +451,7 @@ dependencies = [
  "bevy_app",
  "bevy_asset",
  "bevy_ecs",
- "bevy_property",
- "bevy_type_registry",
+ "bevy_reflect",
  "bevy_utils",
  "parking_lot",
  "ron",
@@ -472,12 +469,13 @@ dependencies = [
  "bevy_core",
  "bevy_ecs",
  "bevy_math",
+ "bevy_reflect",
  "bevy_render",
  "bevy_transform",
- "bevy_type_registry",
  "bevy_utils",
  "guillotiere",
  "rectangle-pack",
+ "serde",
  "thiserror",
 ]
 
@@ -505,9 +503,9 @@ dependencies = [
  "bevy_core",
  "bevy_ecs",
  "bevy_math",
+ "bevy_reflect",
  "bevy_render",
  "bevy_sprite",
- "bevy_type_registry",
  "bevy_utils",
  "glyph_brush_layout",
  "thiserror",
@@ -520,24 +518,9 @@ dependencies = [
  "bevy_app",
  "bevy_ecs",
  "bevy_math",
- "bevy_property",
- "bevy_type_registry",
+ "bevy_reflect",
  "bevy_utils",
  "smallvec",
-]
-
-[[package]]
-name = "bevy_type_registry"
-version = "0.3.0"
-dependencies = [
- "bevy_app",
- "bevy_derive",
- "bevy_ecs",
- "bevy_property",
- "bevy_utils",
- "parking_lot",
- "serde",
- "uuid",
 ]
 
 [[package]]
@@ -551,13 +534,14 @@ dependencies = [
  "bevy_ecs",
  "bevy_input",
  "bevy_math",
+ "bevy_reflect",
  "bevy_render",
  "bevy_sprite",
  "bevy_text",
  "bevy_transform",
- "bevy_type_registry",
  "bevy_utils",
  "bevy_window",
+ "serde",
  "stretch",
 ]
 
@@ -569,12 +553,12 @@ dependencies = [
  "getrandom 0.2.0",
  "instant",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
 name = "bevy_webgl2"
 version = "0.3.0"
-source = "git+https://github.com/mrk-its/bevy_webgl2#0b667aba8a689317518d61553e2336182d446a0a"
 dependencies = [
  "bevy",
  "cfg-if 1.0.0",
@@ -614,7 +598,6 @@ dependencies = [
  "bevy_ecs",
  "bevy_math",
  "bevy_utils",
- "uuid",
  "web-sys",
 ]
 
@@ -976,6 +959,12 @@ dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "disasm6502"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2c97d27df44e4411700e35ff83a2ff832415e5c20db9aae13a534a7e93eeae7"
 
 [[package]]
 name = "discard"

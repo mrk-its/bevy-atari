@@ -6,6 +6,7 @@ use bevy::render::{
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
+use crate::palette::default::PALETTE;
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
@@ -25,3 +26,8 @@ pub struct ColorSet {
 }
 unsafe impl Byteable for ColorSet {}
 impl_render_resource_bytes!(ColorSet);
+
+pub fn atari_color(index: u8) -> Color {
+    let index = index as usize;
+    Color::rgb(PALETTE[index][0] as f32 / 255.0, PALETTE[index][1] as f32 / 255.0, PALETTE[index][2] as f32 / 255.0)
+}
