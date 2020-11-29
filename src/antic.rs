@@ -96,6 +96,7 @@ impl Antic {
                 self.create_mode_line(dli, mode, 1, 0)
             }
             0x2 => self.create_mode_line(dli, mode, 8, 32),
+            0x4 => self.create_mode_line(dli, mode, 8, 32),
             0xa => self.create_mode_line(dli, mode, 4, 16),
             0xc => self.create_mode_line(dli, mode, 1, 16),
             _ => panic!("unsupported antic video mode {:x}", mode),
