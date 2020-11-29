@@ -28,6 +28,7 @@ pub struct ModeLineDescr {
     pub height: usize,
     pub n_bytes: usize,
     pub data_offset: usize,
+    pub chbase: u8,
 }
 
 impl Antic {
@@ -60,6 +61,7 @@ impl Antic {
             scan_line: self.scan_line,
             width: self.playfield_width(),
             data_offset: self.video_memory,
+            chbase: self.regs[CHBASE],
         }
     }
     pub fn dlist(&self) -> usize {

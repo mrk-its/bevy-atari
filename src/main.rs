@@ -39,6 +39,7 @@ struct AnticLine {
     #[render_resources(buffer)]
     pub data: Vec<u8>,
     pub color_set: ColorSet,
+    pub chbase: u32,
 }
 #[derive(RenderResources, Default, TypeUuid)]
 #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
@@ -89,6 +90,7 @@ fn create_mode_line(
             ..Default::default()
         })
         .with(AnticLine {
+            chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
             color_set: color_set,
             line_width: mode_line.width as u32,
@@ -235,7 +237,7 @@ fn setup(
         .unwrap();
 
     let charset_start = atari_system.antic.read(antic::CHBASE) as usize * 256;
-    let charset: Vec<_> = (&atari_system.ram[charset_start..charset_start + 1024])
+    let charset: Vec<_> = atari_system.ram
         .iter()
         .cloned()
         .collect();

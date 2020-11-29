@@ -23,8 +23,12 @@ layout(std140) uniform AnticLine_color_set { // set = 1 binding = 4
     vec4 regs_4_1[4]; // bak, pf0, pf1, pf3 - for negative chars in mode 4 & 5
 };
 
+layout(std140) uniform AnticLine_chbase { // set = 1 binding = 5
+    int chbase;
+};
+
 layout(std140) uniform AnticCharset_charset { // set = 2 binding = 1
-    uvec4 charset[64];
+    uvec4 charset[64 * 64];
 };
 
 
@@ -63,6 +67,25 @@ void main() {
         o_Target = encodeColor(regs_4_0[index]);
         // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
+    } else if(mode == 0x04) {
+        float w = v_Uv[0] * float(line_width / 8);
+        int n = int(w);
+        float frac = w - float(n);
+        int x = 6 - int(frac * 4.0) * 2;
+        int y = int(v_Uv[1] * 7.9);
+
+        int char = get_byte(data, n);
+        int inv = char >> 7;
+        int offs = (char & 0x7f) * 8 + y;
+        int byte = get_byte(charset, offs);
+
+        int index = (byte >> x) & 3;
+        if(inv == 0) {
+            o_Target = encodeColor(regs_4_0[index]);
+        } else {
+            o_Target = encodeColor(regs_4_1[index]);
+        }
+        return;
     }
 
     float w = v_Uv[0] * float(line_width / 8);
@@ -74,7 +97,7 @@ void main() {
     int char = get_byte(data, n);
     int inv = char >> 7;
     int offs = (char & 0x7f) * 8 + y;
-    int byte = get_byte(charset, offs);
+    int byte = get_byte(charset, (chbase << 8) + offs);
 
     int index = (((byte >> x) & 1) ^ inv);
     o_Target = encodeColor(regs_2[index]);
