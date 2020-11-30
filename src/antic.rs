@@ -126,7 +126,7 @@ impl Antic {
         //     addr, value, self.scan_line
         // );
         match addr {
-            NMIRES => self.regs[NMIRES] = 0x1f,
+            NMIRES => self.regs[NMIST] = 0x1f,
             _ => self.regs[addr] = value,
         }
     }
