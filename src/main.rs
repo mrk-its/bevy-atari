@@ -1,5 +1,4 @@
 pub mod antic;
-mod color_set;
 pub mod gtia;
 mod render_resources;
 mod palette;
@@ -22,9 +21,8 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
-use color_set::ColorSet;
 use system::{AtariSystem, W65C02S};
-use render_resources::{Charset, LineData};
+use render_resources::{Charset, LineData, Palette, GTIAColors};
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
@@ -38,15 +36,14 @@ struct AnticLine {
     pub line_width: u32,
     pub mode: u32,
     pub data: LineData,
-    pub color_set: ColorSet,
+    pub gtia_colors: GTIAColors,
     pub charset: Charset,
 }
-// #[derive(RenderResources, Default, TypeUuid)]
-// #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
-// struct AnticCharset {
-//     #[render_resources(buffer)]
-//     pub charset: Vec<u8>,
-// }
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
+struct AtariPalette {
+    pub palette: Palette,
+}
 
 #[derive(Debug, Default)]
 struct PerfMetrics {
@@ -57,7 +54,7 @@ struct PerfMetrics {
 #[derive(Default)]
 struct AnticResources {
     pipeline_handle: Handle<PipelineDescriptor>,
-    // charset_handle: Handle<AnticCharset>,
+    palette_handle: Handle<AtariPalette>,
     mesh_handle: Handle<Mesh>,
 }
 fn create_mode_line(
@@ -70,7 +67,7 @@ fn create_mode_line(
         return;
     }
     let line_data = LineData::new(&system.ram[mode_line.data_offset..mode_line.data_offset + 48]);
-    let color_set = system.gtia.get_color_set();
+    let gtia_colors = system.gtia.get_colors();
 
     let charset_offset = (mode_line.chbase as usize) * 256;
     // let charset = &system.ram[charset_offset..charset_offset + 1024]; // TODO - 512 byte charsets?
@@ -98,13 +95,12 @@ fn create_mode_line(
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
-            color_set: color_set,
+            gtia_colors,
             line_width: mode_line.width as u32,
             data: line_data,
             charset: charset,
         })
-        // .with(resources.charset_handle.clone_weak())
-        ;
+        .with(resources.palette_handle.clone_weak());
 }
 
 #[derive(Default)]
@@ -207,10 +203,10 @@ fn setup(
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    // mut charsets: ResMut<Assets<AnticCharset>>,
+    mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    if true {
+    if false {
         let memory = include_bytes!("../robbo_memory.dat");
         atari_system.ram.copy_from_slice(memory);
 
@@ -287,10 +283,13 @@ fn setup(
     antic_resources.pipeline_handle = pipelines.add(pipeline_descr);
 
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticCharset resources to our shader
-    // render_graph.add_system_node(
-    //     "antic_charset",
-    //     AssetRenderResourcesNode::<AnticCharset>::new(false),
-    // );
+    render_graph.add_system_node(
+        "atari_palette",
+        AssetRenderResourcesNode::<AtariPalette>::new(false),
+    );
+    render_graph
+        .add_node_edge("atari_palette", base::node::MAIN_PASS)
+        .unwrap();
 
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticLine resources to our shader
     render_graph.add_system_node("antic_line", RenderResourcesNode::<AnticLine>::new(true));
@@ -299,9 +298,6 @@ fn setup(
     render_graph
         .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
-    // render_graph
-    //     .add_node_edge("antic_charset", base::node::MAIN_PASS)
-    //     .unwrap();
 
     // let charset: Vec<_> = atari_system.ram
     //     .iter()
@@ -309,7 +305,7 @@ fn setup(
     //     .collect();
 
     // antic_resources.charset_handle = charsets.add(AnticCharset { charset });
-
+    antic_resources.palette_handle = palettes.add(AtariPalette::default());
     antic_resources.mesh_handle = meshes.add(Mesh::from(shape::Quad {
         size: Vec2::new(1.0, 1.0),
         flip: false,
@@ -353,9 +349,9 @@ fn main() {
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_asset::<AnticLine>()
-        // .add_asset::<AnticCharset>()
+        .add_asset::<AtariPalette>()
         .add_asset::<StandardMaterial>()
-        .add_resource(ClearColor(color_set::atari_color(0)))
+        .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(AtariSystem::new())
         .add_resource(W65C02S::new())
         .add_resource(AnticResources::default())

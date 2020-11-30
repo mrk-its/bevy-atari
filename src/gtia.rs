@@ -1,5 +1,7 @@
 use bevy::prelude::{info, warn};
-use crate::color_set::{atari_color, ColorSet};
+use bevy::prelude::Color;
+use crate::palette::default::PALETTE;
+use crate::render_resources::GTIAColors;
 
 pub const COLPF0: usize = 0x16;
 pub const COLPF1: usize = 0x17;
@@ -37,18 +39,18 @@ impl Gtia {
         // }
 
     }
-    pub fn get_color_set(&self) -> ColorSet {
-        ColorSet {
-            c0: atari_color(self.reg[COLPF2]),
-            c1: atari_color(self.reg[COLPF2] & 0xf0 | self.reg[COLPF1] & 0x0f),
-            c0_0: atari_color(self.reg[COLBK]),
-            c1_0: atari_color(self.reg[COLPF0]),
-            c2_0: atari_color(self.reg[COLPF1]),
-            c3_0: atari_color(self.reg[COLPF2]),
-            c0_1: atari_color(self.reg[COLBK]),
-            c1_1: atari_color(self.reg[COLPF0]),
-            c2_1: atari_color(self.reg[COLPF1]),
-            c3_1: atari_color(self.reg[COLPF3]),
+    pub fn get_colors(&self) -> GTIAColors {
+        GTIAColors {
+            colbk: atari_color(self.reg[COLBK]),
+            colpf0: atari_color(self.reg[COLPF0]),
+            colpf1: atari_color(self.reg[COLPF1]),
+            colpf2: atari_color(self.reg[COLPF2]),
+            colpf3: atari_color(self.reg[COLPF3]),
         }
     }
+}
+
+pub fn atari_color(index: u8) -> Color {
+    let index = index as usize;
+    Color::rgb(PALETTE[index][0] as f32 / 255.0, PALETTE[index][1] as f32 / 255.0, PALETTE[index][2] as f32 / 255.0)
 }
