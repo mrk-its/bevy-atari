@@ -29,7 +29,6 @@ const PAL_SCAN_LINES: usize = 312;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
-const MEMORY: &[u8] = include_bytes!("../robbo_memory.dat");
 
 #[derive(RenderResources, Default, TypeUuid)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
@@ -122,14 +121,39 @@ fn atari_system(
     }
     let mut vblank = false;
     let mut next_scan_line: usize = 8;
+    let mut dli_scan_line: usize = 0xffff;
 
     for scan_line in 0..PAL_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
         atari_system.antic.scan_line = scan_line;
+
+        vblank = vblank || scan_line >= 248;
+        if !vblank && next_scan_line == scan_line {
+            let dlist = atari_system.antic.dlist();
+            let mut dlist_data: [u8; 3] = [0; 3];
+            dlist_data.copy_from_slice(&atari_system.ram[dlist..dlist + 3]);
+            if let Some(mode_line) = atari_system.antic.create_next_mode_line(&dlist_data) {
+                next_scan_line = scan_line + mode_line.height;
+                if mode_line.dli {
+                    dli_scan_line = next_scan_line - 1;
+                }
+                // info!("antic line: {:?}, next_scan_line: {:?}", mode_line, next_scan_line);
+                create_mode_line(commands, &antic_resources, mode_line, &atari_system);
+            } else {
+                vblank = true;
+            }
+        }
         for n in 0..SCAN_LINE_CYCLES {
-            if scan_line == 248 && n < 2 {
-                atari_system.antic.set_vbi();
-                cpu.set_nmi(n == 0);
+            if n < 2 {
+                if scan_line == dli_scan_line {
+                    // bevy::log::info!("DLI, scanline: {}", scan_line);
+                    atari_system.antic.set_dli();
+                    cpu.set_nmi(n == 0);
+                } else if scan_line == 248 {
+                    // bevy::log::info!("VBI, scanline: {}", scan_line);
+                    atari_system.antic.set_vbi();
+                    cpu.set_nmi(n == 0);
+                }
             }
             let pc = cpu.get_pc() as usize;
             // if pc == 0xc2b3 {
@@ -150,19 +174,7 @@ fn atari_system(
             cpu.step(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
         }
-        vblank = vblank || scan_line >= 248;
-        if !vblank && next_scan_line == scan_line {
-            let dlist = atari_system.antic.dlist();
-            let mut dlist_data: [u8; 3] = [0; 3];
-            dlist_data.copy_from_slice(&atari_system.ram[dlist..dlist + 3]);
-            if let Some(mode_line) = atari_system.antic.create_next_mode_line(&dlist_data) {
-                next_scan_line = scan_line + mode_line.height;
-                // info!("antic line: {:?}, next_scan_line: {:?}", mode_line, next_scan_line);
-                create_mode_line(commands, &antic_resources, mode_line, &atari_system);
-            } else {
-                vblank = true;
-            }
-        }
+
     }
     // if perf_metrics.frame_cnt % 60 == 0 {
     //     info!("{:?}", *perf_metrics);
@@ -181,32 +193,70 @@ fn setup(
     mut charsets: ResMut<Assets<AnticCharset>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    atari_system.ram.copy_from_slice(MEMORY);
-    atari_system.gtia.write(gtia::COLBK, 0);
-    atari_system.gtia.write(gtia::COLPF0, 114);
-    atari_system.gtia.write(gtia::COLPF1, 100);
-    atari_system.gtia.write(gtia::COLPF2, 104);
-    atari_system.gtia.write(gtia::COLPF3, 160);
+    if true {
+        let memory = include_bytes!("../robbo_memory.dat");
+        atari_system.ram.copy_from_slice(memory);
 
-    atari_system.antic.write(antic::DMACTL, 33);
-    atari_system.antic.write(antic::CHACTL, 2);
-    atari_system.antic.write(antic::CHBASE, 32);
-    atari_system.antic.write(antic::DLIST, (44239 & 0xff) as u8);
-    atari_system
-        .antic
-        .write(antic::DLIST + 1, (44239 >> 8) as u8);
-    atari_system.antic.write(antic::NMIEN, 64);
-    atari_system.antic.write(antic::NMIST, 31);
-    atari_system.antic.write(antic::PMBASE, 0);
+        atari_system.gtia.write(gtia::COLBK, 0);
+        atari_system.gtia.write(gtia::COLPF0, 114);
+        atari_system.gtia.write(gtia::COLPF1, 100);
+        atari_system.gtia.write(gtia::COLPF2, 104);
+        atari_system.gtia.write(gtia::COLPF3, 160);
 
-    cpu.step(&mut *atari_system); // changes state into Running
+        atari_system.antic.write(antic::DMACTL, 33);
+        atari_system.antic.write(antic::CHACTL, 2);
+        atari_system.antic.write(antic::CHBASE, 32);
+        atari_system.antic.write(antic::DLIST, (44239 & 0xff) as u8);
+        atari_system
+            .antic
+            .write(antic::DLIST + 1, (44239 >> 8) as u8);
+        atari_system.antic.write(antic::NMIEN, 64);
+        atari_system.antic.write(antic::NMIST, 31);
+        atari_system.antic.write(antic::PMBASE, 0);
 
-    cpu.set_pc(44196);
-    cpu.set_a(14);
-    cpu.set_x(36);
-    cpu.set_y(2);
-    cpu.set_p(240);
-    cpu.set_s(253);
+        cpu.step(&mut *atari_system); // changes state into Running
+
+        cpu.set_pc(44196);
+        cpu.set_a(14);
+        cpu.set_x(36);
+        cpu.set_y(2);
+        cpu.set_p(240);
+        cpu.set_s(253);
+
+
+    } else {
+        let memory = include_bytes!("../robbo_memory_play.dat");
+        atari_system.ram.copy_from_slice(memory);
+
+        atari_system.gtia.write(gtia::COLBK, 0);
+        atari_system.gtia.write(gtia::COLPF0, 0);
+        atari_system.gtia.write(gtia::COLPF1, 24);
+        atari_system.gtia.write(gtia::COLPF2, 10);
+        atari_system.gtia.write(gtia::COLPF3, 114);
+
+        atari_system.antic.write(antic::DMACTL, 33);
+        atari_system.antic.write(antic::CHACTL, 2);
+        atari_system.antic.write(antic::CHBASE, 28);
+        atari_system.antic.write(antic::DLIST, (14007 & 0xff) as u8);
+        atari_system
+            .antic
+            .write(antic::DLIST + 1, (14007 >> 8) as u8);
+        atari_system.antic.write(antic::NMIEN, 192);
+        atari_system.antic.write(antic::NMIST, 31);
+        atari_system.antic.write(antic::PMBASE, 0);
+
+        cpu.step(&mut *atari_system); // changes state into Running
+
+        cpu.set_pc(9947);
+        cpu.set_a(9);
+        cpu.set_x(0);
+        cpu.set_y(160);
+        cpu.set_p(49);
+        cpu.set_s(253);
+
+    }
+
+
 
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),

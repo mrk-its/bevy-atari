@@ -77,7 +77,7 @@ void main() {
         int char = get_byte(data, n);
         int inv = char >> 7;
         int offs = (char & 0x7f) * 8 + y;
-        int byte = get_byte(charset, offs);
+        int byte = get_byte(charset, (chbase << 8) + offs);
 
         int index = (byte >> x) & 3;
         if(inv == 0) {

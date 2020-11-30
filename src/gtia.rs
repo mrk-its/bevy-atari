@@ -30,8 +30,8 @@ impl Gtia {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0x1f;
-        // warn!("GTIA write: {:02x}: {:02x}", addr, value);
         self.reg[addr] = value;
+        // warn!("GTIA write: {:02x}: {:02x}", addr, value);
         // if addr >= COLPF0 && addr <= COLBK {
         //     warn!("GTIA color write: {:02x}: {:02x}", addr, value);
         // }

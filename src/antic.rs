@@ -41,9 +41,11 @@ impl Antic {
         }
     }
     pub fn set_vbi(&mut self) {
+        self.regs[NMIST] &= 0xff - 0x80;  // clear DLI status
         self.regs[NMIST] |= 0x40;
     }
     pub fn set_dli(&mut self) {
+        self.regs[NMIST] &= 0xff - 0x40;  // clear VBI status
         self.regs[NMIST] |= 0x80;
     }
     fn create_mode_line(
@@ -57,7 +59,7 @@ impl Antic {
             dli,
             mode,
             height,
-            n_bytes: n_bytes,
+            n_bytes: n_bytes * self.playfield_width() / 320,
             scan_line: self.scan_line,
             width: self.playfield_width(),
             data_offset: self.video_memory,
@@ -97,10 +99,10 @@ impl Antic {
                 }
                 self.create_mode_line(dli, mode, 1, 0)
             }
-            0x2 => self.create_mode_line(dli, mode, 8, 32),
-            0x4 => self.create_mode_line(dli, mode, 8, 32),
-            0xa => self.create_mode_line(dli, mode, 4, 16),
-            0xc => self.create_mode_line(dli, mode, 1, 16),
+            0x2 => self.create_mode_line(dli, mode, 8, 40),
+            0x4 => self.create_mode_line(dli, mode, 8, 40),
+            0xa => self.create_mode_line(dli, mode, 4, 20),
+            0xc => self.create_mode_line(dli, mode, 1, 20),
             _ => panic!("unsupported antic video mode {:x}", mode),
         };
         self.video_memory += mode_line.n_bytes;
@@ -110,7 +112,7 @@ impl Antic {
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0xf;
         let value = match addr {
-            NMIST => self.regs[addr] & 0xe0 | 0x1f,
+            NMIST => self.regs[addr] | 0x1f,
             0x0b => (self.scan_line >> 1) as u8,
             _ => self.regs[addr],
         };
@@ -119,7 +121,7 @@ impl Antic {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0xf;
-        // warn!(
+        // bevy::log::warn!(
         //     "ANTIC write: {:02x}: {:02x}, scanline: {}",
         //     addr, value, self.scan_line
         // );
