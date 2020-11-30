@@ -1,6 +1,7 @@
 pub mod antic;
 mod color_set;
 pub mod gtia;
+mod render_resources;
 mod palette;
 pub mod pia;
 pub mod pokey;
@@ -23,6 +24,7 @@ use bevy::{
 };
 use color_set::ColorSet;
 use system::{AtariSystem, W65C02S};
+use render_resources::{Charset, LineData};
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
@@ -30,17 +32,14 @@ const PAL_SCAN_LINES: usize = 312;
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
 
-#[derive(RenderResources, Default, TypeUuid)]
+#[derive(RenderResources, TypeUuid)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
 struct AnticLine {
     pub line_width: u32,
     pub mode: u32,
-    #[render_resources(buffer)]
-    pub data: Vec<u8>,
+    pub data: LineData,
     pub color_set: ColorSet,
-    // pub chbase: u32,
-    #[render_resources(buffer)]
-    pub charset: Vec<u8>,
+    pub charset: Charset,
 }
 // #[derive(RenderResources, Default, TypeUuid)]
 // #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
@@ -70,11 +69,13 @@ fn create_mode_line(
     if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
         return;
     }
-    let line_data = &system.ram[mode_line.data_offset..mode_line.data_offset + mode_line.n_bytes];
+    let line_data = LineData::new(&system.ram[mode_line.data_offset..mode_line.data_offset + 48]);
     let color_set = system.gtia.get_color_set();
 
     let charset_offset = (mode_line.chbase as usize) * 256;
-    let charset = &system.ram[charset_offset..charset_offset + 1024]; // TODO - 512 byte charsets?
+    // let charset = &system.ram[charset_offset..charset_offset + 1024]; // TODO - 512 byte charsets?
+
+    let charset = Charset::new(&system.ram[charset_offset..charset_offset + 1024]);
 
     commands
         .spawn(MeshBundle {
@@ -99,8 +100,8 @@ fn create_mode_line(
             mode: mode_line.mode as u32,
             color_set: color_set,
             line_width: mode_line.width as u32,
-            data: line_data.to_vec(),
-            charset: charset.to_vec(),
+            data: line_data,
+            charset: charset,
         })
         // .with(resources.charset_handle.clone_weak())
         ;

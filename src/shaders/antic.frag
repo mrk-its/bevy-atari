@@ -14,7 +14,7 @@ layout(std140) uniform AnticLine_mode { // set = 1 binding = 2
 };
 
 layout(std140) uniform AnticLine_data { // set = 1 binding = 3
-    uvec4 data[3];
+    uvec4 data[3];  // 48 bytes
 };
 
 layout(std140) uniform AnticLine_color_set { // set = 1 binding = 4
