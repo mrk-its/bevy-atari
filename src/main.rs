@@ -106,8 +106,9 @@ struct Debugger {
 
 fn atari_system(
     commands: &mut Commands,
-    antic_resources: ResMut<AnticResources>,
+    mut antic_resources: ResMut<AnticResources>,
     antic_lines: Query<(Entity, &AnticLine)>,
+    mut charsets: ResMut<Assets<AnticCharset>>,
     mut debug: Local<Debugger>,
     mut cpu: ResMut<W65C02S>,
     mut atari_system: ResMut<AtariSystem>,
@@ -122,6 +123,13 @@ fn atari_system(
     let mut vblank = false;
     let mut next_scan_line: usize = 8;
     let mut dli_scan_line: usize = 0xffff;
+
+
+    let charset: Vec<_> = atari_system.ram
+        .iter()
+        .cloned()
+        .collect();
+    charsets.set(&antic_resources.charset_handle, AnticCharset { charset });
 
     for scan_line in 0..PAL_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
@@ -193,7 +201,7 @@ fn setup(
     mut charsets: ResMut<Assets<AnticCharset>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    if true {
+    if false {
         let memory = include_bytes!("../robbo_memory.dat");
         atari_system.ram.copy_from_slice(memory);
 
@@ -229,29 +237,29 @@ fn setup(
         atari_system.ram.copy_from_slice(memory);
 
         atari_system.gtia.write(gtia::COLBK, 0);
-        atari_system.gtia.write(gtia::COLPF0, 0);
-        atari_system.gtia.write(gtia::COLPF1, 24);
-        atari_system.gtia.write(gtia::COLPF2, 10);
-        atari_system.gtia.write(gtia::COLPF3, 114);
+        atari_system.gtia.write(gtia::COLPF0, 66);
+        atari_system.gtia.write(gtia::COLPF1, 212);
+        atari_system.gtia.write(gtia::COLPF2, 24);
+        atari_system.gtia.write(gtia::COLPF3, 112);
 
         atari_system.antic.write(antic::DMACTL, 33);
         atari_system.antic.write(antic::CHACTL, 2);
-        atari_system.antic.write(antic::CHBASE, 28);
-        atari_system.antic.write(antic::DLIST, (14007 & 0xff) as u8);
+        atari_system.antic.write(antic::CHBASE, 32);
+        atari_system.antic.write(antic::DLIST, (44239 & 0xff) as u8);
         atari_system
             .antic
-            .write(antic::DLIST + 1, (14007 >> 8) as u8);
-        atari_system.antic.write(antic::NMIEN, 192);
+            .write(antic::DLIST + 1, (44239 >> 8) as u8);
+        atari_system.antic.write(antic::NMIEN, 64);
         atari_system.antic.write(antic::NMIST, 31);
         atari_system.antic.write(antic::PMBASE, 0);
 
         cpu.step(&mut *atari_system); // changes state into Running
 
-        cpu.set_pc(9947);
-        cpu.set_a(9);
-        cpu.set_x(0);
-        cpu.set_y(160);
-        cpu.set_p(49);
+        cpu.set_pc(44199);
+        cpu.set_a(14);
+        cpu.set_x(36);
+        cpu.set_y(2);
+        cpu.set_p(113);
         cpu.set_s(253);
 
     }
@@ -286,7 +294,6 @@ fn setup(
         .add_node_edge("antic_charset", base::node::MAIN_PASS)
         .unwrap();
 
-    let charset_start = atari_system.antic.read(antic::CHBASE) as usize * 256;
     let charset: Vec<_> = atari_system.ram
         .iter()
         .cloned()

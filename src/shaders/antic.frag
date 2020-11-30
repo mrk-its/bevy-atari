@@ -48,7 +48,7 @@ vec4 encodeSRGB(vec4 linearRGB_in)
 }
 
 #define encodeColor(x) encodeSRGB(x)
-//#define encodeColor(x) (x)
+// #define encodeColor(x) (x)
 void main() {
     if(mode == 0xa) {
         float w = v_Uv[0] * float(line_width / 16);
