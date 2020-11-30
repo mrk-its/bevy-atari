@@ -1,5 +1,5 @@
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
-pub use bevy::prelude::{info, warn};
+pub use bevy::prelude::*;
 pub use std::{cell::RefCell, rc::Rc};
 pub use w65c02s::*;
 
@@ -27,6 +27,16 @@ impl AtariSystem {
             pia,
         }
     }
+    pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) {
+        let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
+        let up = keyboard.pressed(KeyCode::Up) as u8;
+        let down = keyboard.pressed(KeyCode::Down) as u8 * 2;
+        let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
+        let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
+
+        self.gtia.set_trig(is_shift);
+        self.pia.set_joystick(0, (up | down | left | right) ^ 0x0f);
+    }
 }
 
 impl Default for AtariSystem {
@@ -35,7 +45,7 @@ impl Default for AtariSystem {
     }
 }
 
-impl System for AtariSystem {
+impl w65c02s::System for AtariSystem {
     fn read(&mut self, _cpu: &mut W65C02S, addr: u16) -> u8 {
         // all reads return RAM values directly
         let addr = addr as usize;

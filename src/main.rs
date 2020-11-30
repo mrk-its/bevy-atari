@@ -111,7 +111,8 @@ struct Debugger {
 
 fn atari_system(
     commands: &mut Commands,
-    mut antic_resources: ResMut<AnticResources>,
+    keyboard: Res<Input<KeyCode>>,
+    antic_resources: ResMut<AnticResources>,
     antic_lines: Query<(Entity, &AnticLine)>,
     // mut charsets: ResMut<Assets<AnticCharset>>,
     mut debug: Local<Debugger>,
@@ -119,16 +120,16 @@ fn atari_system(
     mut atari_system: ResMut<AtariSystem>,
     mut perf_metrics: Local<PerfMetrics>,
 ) {
-    // if perf_metrics.frame_cnt > 0 {
+    // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
+    atari_system.handle_keyboard(&keyboard);
     for (entity, _) in antic_lines.iter() {
         commands.despawn(entity);
     }
     let mut vblank = false;
     let mut next_scan_line: usize = 8;
     let mut dli_scan_line: usize = 0xffff;
-
 
     // let charset: Vec<_> = atari_system.ram
     //     .iter()
@@ -206,7 +207,7 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    if false {
+    if true {
         let memory = include_bytes!("../robbo_memory.dat");
         atari_system.ram.copy_from_slice(memory);
 

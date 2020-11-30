@@ -18,7 +18,7 @@ layout(std140) uniform AnticLine_data { // set = 1 binding = 3
 };
 
 layout(std140) uniform AnticLine_gtia_colors { // set = 1 binding = 4
-    vec4 color_regs[5]; // bak, pf0, pf1, pf2, pf3
+    ivec4 color_regs[2]; // [[bak, pf0, pf1, pf2], [bak, pf0, pf1, pf3]]
 };
 
 layout(std140) uniform AnticLine_charset { // set = 1 binding = 5
@@ -28,6 +28,8 @@ layout(std140) uniform AnticLine_charset { // set = 1 binding = 5
 layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
     vec4 palette[256];
 };
+
+#define get_color_reg(s, k) color_regs[s][k]
 
 #define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
 vec4 encodeSRGB(vec4 linearRGB_in)
@@ -55,7 +57,7 @@ void main() {
         int byte = get_byte(charset, offs);
 
         int index = 3 - (((byte >> x) & 1) ^ inv);
-        o_Target = encodeColor(color_regs[index]);
+        o_Target = encodeColor(palette[get_color_reg(0, index)]);
         // if(index == 0) {
         //     o_Target = encodeColor(palette[0xa0]);
         // } else {
@@ -75,11 +77,7 @@ void main() {
         int byte = get_byte(charset, offs);
 
         int index = (byte >> x) & 3;
-        if(inv == 0) {
-            o_Target = encodeColor(color_regs[index]);
-        } else {
-            o_Target = encodeColor(color_regs[index<3 ? index : 4]);
-        }
+        o_Target = encodeColor(palette[get_color_reg(inv, index)]);
         return;
     } else if(mode == 0xa) {
         float w = v_Uv[0] * float(line_width / 16);
@@ -89,7 +87,7 @@ void main() {
 
         int byte = get_byte(data, n);
         int index = (byte >> bit_offs) & 3;
-        o_Target = encodeColor(color_regs[index]);
+        o_Target = encodeColor(palette[get_color_reg(0, index)]);
         // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
     } else if(mode == 0x0c) {
@@ -100,7 +98,7 @@ void main() {
 
         int byte = get_byte(data, n);
         int index = (byte >> bit_offs) & 1;
-        o_Target = encodeColor(color_regs[index]);
+        o_Target = encodeColor(palette[get_color_reg(0, index)]);
         // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
     }

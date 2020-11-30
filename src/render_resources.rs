@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use crate::gtia::atari_color;
 use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
@@ -7,7 +7,7 @@ use bevy::render::{
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
-use crate::gtia::atari_color;
+use std::convert::TryInto;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -17,13 +17,14 @@ pub struct Charset {
 
 impl Charset {
     pub fn new(src: &[u8]) -> Self {
-        Self { data: src.try_into().expect("byte slice of length 1024") }
+        Self {
+            data: src.try_into().expect("byte slice of length 1024"),
+        }
     }
 }
 
 unsafe impl Byteable for Charset {}
 impl_render_resource_bytes!(Charset);
-
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -33,7 +34,9 @@ pub struct LineData {
 
 impl LineData {
     pub fn new(src: &[u8]) -> Self {
-        Self { data: src.try_into().expect("byte slice of length 48") }
+        Self {
+            data: src.try_into().expect("byte slice of length 48"),
+        }
     }
 }
 
@@ -49,7 +52,12 @@ pub struct Palette {
 impl Default for Palette {
     fn default() -> Self {
         let palette: Vec<_> = (0..=255).map(|index| atari_color(index)).collect();
-        Self { data: palette.as_slice().try_into().expect("byte slice of length 256") }
+        Self {
+            data: palette
+                .as_slice()
+                .try_into()
+                .expect("byte slice of length 256"),
+        }
     }
 }
 
@@ -59,11 +67,19 @@ impl_render_resource_bytes!(Palette);
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIAColors {
-    pub colbk: Color,
-    pub colpf0: Color,
-    pub colpf1: Color,
-    pub colpf2: Color,
-    pub colpf3: Color,
+    pub regs: [[u32; 4]; 2],
 }
+
+impl GTIAColors {
+    pub fn new(colbk: u8, colpf0: u8, colpf1: u8, colpf2: u8, colpf3: u8) -> Self {
+        Self {
+            regs: [
+                [colbk as u32, colpf0 as u32, colpf1 as u32, colpf2 as u32],
+                [colbk as u32, colpf0 as u32, colpf1 as u32, colpf3 as u32],
+            ],
+        }
+    }
+}
+
 unsafe impl Byteable for GTIAColors {}
 impl_render_resource_bytes!(GTIAColors);
