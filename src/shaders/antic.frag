@@ -27,8 +27,13 @@ layout(std140) uniform AnticLine_chbase { // set = 1 binding = 5
     int chbase;
 };
 
+struct CharSet {
+    uvec4 data[64 * 64];
+};
+
 layout(std140) uniform AnticCharset_charset { // set = 2 binding = 1
-    uvec4 charset[64 * 64];
+//    uvec4 charset[64 * 64];
+    CharSet charset;
 };
 
 
@@ -74,10 +79,10 @@ void main() {
         int x = 6 - int(frac * 4.0) * 2;
         int y = int(v_Uv[1] * 7.9);
 
-        int char = get_byte(data, n);
-        int inv = char >> 7;
-        int offs = (char & 0x7f) * 8 + y;
-        int byte = get_byte(charset, (chbase << 8) + offs);
+        int c = get_byte(data, n);
+        int inv = c >> 7;
+        int offs = (c & 0x7f) * 8 + y;
+        int byte = get_byte(charset.data, chbase * 256 + offs);
 
         int index = (byte >> x) & 3;
         if(inv == 0) {
@@ -94,10 +99,10 @@ void main() {
     int x = 7 - int(frac * 8.0);
     int y = int(v_Uv[1] * 7.9);
 
-    int char = get_byte(data, n);
-    int inv = char >> 7;
-    int offs = (char & 0x7f) * 8 + y;
-    int byte = get_byte(charset, (chbase << 8) + offs);
+    int c = get_byte(data, n);
+    int inv = c >> 7;
+    int offs = (c & 0x7f) * 8 + y;
+    int byte = get_byte(charset.data, chbase * 256 + offs);
 
     int index = (((byte >> x) & 1) ^ inv);
     o_Target = encodeColor(regs_2[index]);
