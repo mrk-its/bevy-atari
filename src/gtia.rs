@@ -19,13 +19,13 @@ pub const TRIG2: usize = 0x12;
 pub const TRIG3: usize = 0x13;
 
 pub struct Gtia {
+    trig: [u8; 4],
     reg: [u8; 0x20],
 }
 
 impl Default for Gtia {
     fn default() -> Self {
-        let reg = [0xFF; 0x20];
-        Self { reg }
+        Self { reg: [0xFF; 0x20], trig: [0xff, 0xff, 0xff, 0] }
     }
 }
 
@@ -33,8 +33,7 @@ impl Gtia {
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
-            TRIG0 => self.reg[addr],
-            TRIG3 => 0,
+            TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             _ => self.reg[addr],
         };
         // warn!("GTIA read: {:02x}: {:02x}", addr, value);
@@ -48,8 +47,8 @@ impl Gtia {
         //     warn!("GTIA color write: {:02x}: {:02x}", addr, value);
         // }
     }
-    pub fn set_trig(&mut self, is_pressed: bool) {
-        self.reg[TRIG0] = if is_pressed {0} else {0xff};
+    pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
+        self.trig[n] = if is_pressed {0} else {0xff};
     }
     pub fn get_colors(&self) -> GTIAColors {
         // HPOSP0-HPOSP3 [D000-D003]

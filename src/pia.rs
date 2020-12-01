@@ -5,11 +5,13 @@ pub struct PIA {
     regs: [u8; 4],
 }
 const PORTA: usize = 0;
+const PACTL: usize = 2;
+const PBCTL: usize = 3;
 
 impl Default for PIA {
     fn default() -> Self {
         Self {
-            regs: [0xff; 4],
+            regs: [0xff, 0xff, 0x3f, 0x3f],
         }
     }
 }

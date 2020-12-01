@@ -29,12 +29,20 @@ impl AtariSystem {
     }
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) {
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
+        let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
+        for ev in keyboard.get_just_pressed() {
+            self.pokey.key_press(ev, true, is_shift, is_ctl);
+        }
+        for ev in keyboard.get_just_released() {
+            self.pokey.key_press(ev, false, is_shift, is_ctl);
+        }
+        let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let up = keyboard.pressed(KeyCode::Up) as u8;
         let down = keyboard.pressed(KeyCode::Down) as u8 * 2;
         let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
         let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
 
-        self.gtia.set_trig(is_shift);
+        self.gtia.set_trig(0, is_shift);
         self.pia.set_joystick(0, (up | down | left | right) ^ 0x0f);
     }
 }

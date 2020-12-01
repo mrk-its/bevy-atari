@@ -26,6 +26,9 @@ use render_resources::{Charset, LineData, Palette, GTIAColors};
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
+const NTSC_SCAN_LINES: usize = 262;
+
+const MAX_SCAN_LINES: usize = NTSC_SCAN_LINES;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
@@ -137,7 +140,7 @@ fn atari_system(
     //     .collect();
     // charsets.set(&antic_resources.charset_handle, AnticCharset { charset });
 
-    for scan_line in 0..PAL_SCAN_LINES {
+    for scan_line in 0..MAX_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
         atari_system.antic.scan_line = scan_line;
 
@@ -173,11 +176,11 @@ fn atari_system(
             // if pc == 0xc2b3 {
             //     debug.enabled = true;
             // }
-            if false || debug.enabled {
+            if debug.enabled {
                 if debug.instr_cnt < 200 {
                     if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
                         if let Some(i) = inst.get(0) {
-                            // info!("{:04x?}: {} {:?}", pc, i, *cpu);
+                            info!("{:04x?}: {} {:?}", pc, i, *cpu);
                         }
                     }
                 } else {
