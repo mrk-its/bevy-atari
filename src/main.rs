@@ -5,6 +5,7 @@ mod palette;
 pub mod pia;
 pub mod pokey;
 mod system;
+mod atari800_state;
 
 use antic::ModeLineDescr;
 use bevy::reflect::TypeUuid;
@@ -193,9 +194,6 @@ fn atari_system(
         }
 
     }
-    // if perf_metrics.frame_cnt % 60 == 0 {
-    //     info!("{:?}", *perf_metrics);
-    // }
     perf_metrics.frame_cnt += 1;
 }
 
@@ -210,70 +208,35 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    if true {
-        let memory = include_bytes!("../robbo_memory.dat");
-        atari_system.ram.copy_from_slice(memory);
+    let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
+    atari_system.ram.copy_from_slice(atari800_state.memory.data);
+    let gtia = atari800_state.gtia;
+    let antic = atari800_state.antic;
 
-        atari_system.gtia.write(gtia::COLBK, 0);
-        atari_system.gtia.write(gtia::COLPF0, 114);
-        atari_system.gtia.write(gtia::COLPF1, 100);
-        atari_system.gtia.write(gtia::COLPF2, 104);
-        atari_system.gtia.write(gtia::COLPF3, 160);
+    atari_system.gtia.write(gtia::COLBK, gtia.colbk);
+    atari_system.gtia.write(gtia::COLPF0, gtia.colpf0);
+    atari_system.gtia.write(gtia::COLPF1, gtia.colpf1);
+    atari_system.gtia.write(gtia::COLPF2, gtia.colpf2);
+    atari_system.gtia.write(gtia::COLPF3, gtia.colpf3);
 
-        atari_system.antic.write(antic::DMACTL, 33);
-        atari_system.antic.write(antic::CHACTL, 2);
-        atari_system.antic.write(antic::CHBASE, 32);
-        atari_system.antic.write(antic::DLIST, (44239 & 0xff) as u8);
-        atari_system
-            .antic
-            .write(antic::DLIST + 1, (44239 >> 8) as u8);
-        atari_system.antic.write(antic::NMIEN, 64);
-        atari_system.antic.write(antic::NMIST, 31);
-        atari_system.antic.write(antic::PMBASE, 0);
+    atari_system.antic.write(antic::DMACTL, antic.dmactl);
+    atari_system.antic.write(antic::CHACTL, antic.chactl);
+    atari_system.antic.write(antic::CHBASE, antic.chbase);
+    atari_system.antic.write(antic::DLIST, (antic.dlist & 0xff) as u8);
+    atari_system
+        .antic
+        .write(antic::DLIST + 1, (antic.dlist >> 8) as u8);
+    atari_system.antic.write(antic::NMIEN, antic.nmien);
+    atari_system.antic.write(antic::NMIST, antic.nmist);
+    atari_system.antic.write(antic::PMBASE, antic.pmbase);
 
-        cpu.step(&mut *atari_system); // changes state into Running
-
-        cpu.set_pc(44196);
-        cpu.set_a(14);
-        cpu.set_x(36);
-        cpu.set_y(2);
-        cpu.set_p(240);
-        cpu.set_s(253);
-
-
-    } else {
-        let memory = include_bytes!("../robbo_memory_play.dat");
-        atari_system.ram.copy_from_slice(memory);
-
-        atari_system.gtia.write(gtia::COLBK, 0);
-        atari_system.gtia.write(gtia::COLPF0, 66);
-        atari_system.gtia.write(gtia::COLPF1, 212);
-        atari_system.gtia.write(gtia::COLPF2, 24);
-        atari_system.gtia.write(gtia::COLPF3, 112);
-
-        atari_system.antic.write(antic::DMACTL, 33);
-        atari_system.antic.write(antic::CHACTL, 2);
-        atari_system.antic.write(antic::CHBASE, 32);
-        atari_system.antic.write(antic::DLIST, (44239 & 0xff) as u8);
-        atari_system
-            .antic
-            .write(antic::DLIST + 1, (44239 >> 8) as u8);
-        atari_system.antic.write(antic::NMIEN, 64);
-        atari_system.antic.write(antic::NMIST, 31);
-        atari_system.antic.write(antic::PMBASE, 0);
-
-        cpu.step(&mut *atari_system); // changes state into Running
-
-        cpu.set_pc(44199);
-        cpu.set_a(14);
-        cpu.set_x(36);
-        cpu.set_y(2);
-        cpu.set_p(113);
-        cpu.set_s(253);
-
-    }
-
-
+    cpu.step(&mut *atari_system); // changes state into Running
+    cpu.set_pc(atari800_state.cpu.pc);
+    cpu.set_a(atari800_state.cpu.reg_a);
+    cpu.set_x(atari800_state.cpu.reg_x);
+    cpu.set_y(atari800_state.cpu.reg_y);
+    cpu.set_p(atari800_state.cpu.reg_p);
+    cpu.set_s(atari800_state.cpu.reg_s);
 
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
@@ -303,12 +266,6 @@ fn setup(
         .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
 
-    // let charset: Vec<_> = atari_system.ram
-    //     .iter()
-    //     .cloned()
-    //     .collect();
-
-    // antic_resources.charset_handle = charsets.add(AnticCharset { charset });
     antic_resources.palette_handle = palettes.add(AtariPalette::default());
     antic_resources.mesh_handle = meshes.add(Mesh::from(shape::Quad {
         size: Vec2::new(1.0, 1.0),
@@ -335,21 +292,13 @@ fn setup(
             .mul_transform(Transform::from_scale(Vec3::new(1.0 / 3.0, 1.0 / 3.0, 1.0))),
         ..Default::default()
     });
-
-    // antic.dlist = ANTIC_DLIST;
-    // antic.scan_line = 0;
-    // antic.dmactl = 1;
-
-    // while let Some(mode_line) = antic.create_next_mode_line(&atari_system) {
-    //     info!("modeline: {:?}", mode_line);
-    //     create_mode_line(commands, &antic_resources, mode_line, &atari_system);
-    // }
 }
 
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
     app.add_plugins(DefaultPlugins);
+
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_asset::<AnticLine>()
