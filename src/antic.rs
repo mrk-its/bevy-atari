@@ -29,6 +29,7 @@ pub struct ModeLineDescr {
     pub n_bytes: usize,
     pub data_offset: usize,
     pub chbase: u8,
+    pub hscrol: u8,
 }
 
 impl Antic {
@@ -50,11 +51,13 @@ impl Antic {
     }
     fn create_mode_line(
         &self,
-        dli: bool,
+        mods: u8,
         mode: u8,
         height: usize,
         n_bytes: usize,
     ) -> ModeLineDescr {
+        let dli = (mods & 0x80) > 0;
+        let hscrol = if (mods & 0x10) > 0 {16 - self.regs[HSCROL] * 2 } else {0};
         ModeLineDescr {
             dli,
             mode,
@@ -64,6 +67,7 @@ impl Antic {
             width: self.playfield_width(),
             data_offset: self.video_memory,
             chbase: self.regs[CHBASE],
+            hscrol,
         }
     }
     pub fn dlist(&self) -> usize {
@@ -82,13 +86,12 @@ impl Antic {
         self.inc_dlist(1);
         let mods = op & 0xf0;
         let mode = op & 0x0f;
-        let dli = (op & 0x80) > 0;
         if (mods & 0x40 > 0) && mode > 1 {
             self.video_memory = dlist[1] as usize + (dlist[2] as usize * 256);
             self.inc_dlist(2);
         };
         let mode_line = match mode {
-            0x0 => self.create_mode_line(dli, mode, ((mods >> 4) & 7) as usize + 1, 0),
+            0x0 => self.create_mode_line(mods, mode, ((mods >> 4) & 7) as usize + 1, 0),
             0x1 => {
                 let addr = self.dlist();
                 self.regs[DLIST] = (addr & 0xff) as u8;
@@ -97,13 +100,13 @@ impl Antic {
                 if mods & 0x40 > 0 {
                     return None;
                 }
-                self.create_mode_line(dli, mode, 1, 0)
+                self.create_mode_line(mods, mode, 1, 0)
             }
-            0x2 => self.create_mode_line(dli, mode, 8, 40),
-            0x4 => self.create_mode_line(dli, mode, 8, 40),
-            0xa => self.create_mode_line(dli, mode, 4, 20),
-            0xc => self.create_mode_line(dli, mode, 1, 20),
-            0xd => self.create_mode_line(dli, mode, 2, 40),
+            0x2 => self.create_mode_line(mods, mode, 8, 40),
+            0x4 => self.create_mode_line(mods, mode, 8, 40),
+            0xa => self.create_mode_line(mods, mode, 4, 20),
+            0xc => self.create_mode_line(mods, mode, 1, 20),
+            0xd => self.create_mode_line(mods, mode, 2, 40),
             _ => panic!("unsupported antic video mode {:x}", mode),
         };
         self.video_memory += mode_line.n_bytes;
@@ -128,6 +131,7 @@ impl Antic {
         // );
         match addr {
             NMIRES => self.regs[NMIST] = 0x1f,
+            HSCROL => self.regs[HSCROL] = value,
             _ => self.regs[addr] = value,
         }
     }

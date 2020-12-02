@@ -25,6 +25,10 @@ layout(std140) uniform AnticLine_charset { // set = 1 binding = 5
     uvec4 charset[64];
 };
 
+layout(std140) uniform AnticLine_hscrol { // set = 1 binding = 6
+    int hscrol;
+};
+
 layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
     vec4 palette[256];
 };
@@ -64,7 +68,8 @@ void main() {
         o_Target = encodeColor(palette[colors[index]]);
         return;
     } else if(mode == 0x04) {
-        float w = v_Uv[0] * float(line_width / 8);
+        float px = v_Uv[0] * float(line_width) + float(hscrol); // pixel x pos
+        float w = px / 8.0;
         int n = int(w);
         float frac = w - float(n);
         int x = 6 - int(frac * 4.0) * 2;
