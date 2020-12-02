@@ -27,16 +27,9 @@ impl PIA {
         let addr = addr & 0x3;
         //warn!("PIA write: {:02x}: {:02x}", addr, value);
     }
-    pub fn set_joystick(&mut self, port: usize, value: u8) {
-        // bit - dir
-        //  0  - up
-        //  1  - down
-        //  2  - left
-        //  3  - right
-        if port == 0 {
-            self.regs[PORTA] = self.regs[PORTA] & 0xf0 | (value & 0x0f);
-        } else {
-            self.regs[PORTA] = self.regs[PORTA] & 0x0f | (value << 4);
-        }
+    pub fn write_port(&mut self, port: usize, mask: u8, value: u8) {
+        let index = PORTA + port & 1;
+        self.regs[index] = self.regs[index] & mask | value;
+        info!("pia write: {:02x}", self.regs[index]);
     }
 }

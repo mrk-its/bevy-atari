@@ -30,20 +30,51 @@ impl AtariSystem {
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) {
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
+        let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
             self.pokey.key_press(ev, true, is_shift, is_ctl);
+            joy_changed = joy_changed
+                || *ev == KeyCode::LShift
+                || *ev == KeyCode::Up
+                || *ev == KeyCode::Down
+                || *ev == KeyCode::Left
+                || *ev == KeyCode::Right;
         }
+
         for ev in keyboard.get_just_released() {
             self.pokey.key_press(ev, false, is_shift, is_ctl);
+            joy_changed = joy_changed
+                || *ev == KeyCode::LShift
+                || *ev == KeyCode::Up
+                || *ev == KeyCode::Down
+                || *ev == KeyCode::Left
+                || *ev == KeyCode::Right;
         }
-        let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
-        let up = keyboard.pressed(KeyCode::Up) as u8;
-        let down = keyboard.pressed(KeyCode::Down) as u8 * 2;
-        let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
-        let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
-
-        self.gtia.set_trig(0, is_shift);
-        self.pia.set_joystick(0, (up | down | left | right) ^ 0x0f);
+        if joy_changed {
+            let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
+            let up = keyboard.pressed(KeyCode::Up);
+            let down = keyboard.pressed(KeyCode::Down);
+            let left = keyboard.pressed(KeyCode::Left);
+            let right = keyboard.pressed(KeyCode::Right);
+            self.set_joystick(0, up, down, left, right, fire);
+        }
+    }
+    pub fn set_joystick(
+        &mut self,
+        port: usize,
+        up: bool,
+        down: bool,
+        left: bool,
+        right: bool,
+        fire: bool,
+    ) {
+        info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
+        self.gtia.set_trig(port, fire);
+        let up = up as u8;
+        let down = down as u8 * 2;
+        let left = left as u8 * 4;
+        let right = right as u8 * 8;
+        self.pia.write_port(0, 0xf0, (up | down | left | right)^0xf);
     }
 }
 

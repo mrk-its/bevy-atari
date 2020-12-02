@@ -6,7 +6,8 @@ pub mod pia;
 pub mod pokey;
 mod system;
 mod atari800_state;
-
+mod js_api;
+use wasm_bindgen::prelude::*;
 use antic::ModeLineDescr;
 use bevy::reflect::TypeUuid;
 use bevy::{
@@ -24,6 +25,8 @@ use bevy::{
 };
 use system::{AtariSystem, W65C02S};
 use render_resources::{Charset, LineData, Palette, GTIAColors};
+
+
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
@@ -66,6 +69,7 @@ fn create_mode_line(
     commands: &mut Commands,
     resources: &AnticResources,
     mode_line: ModeLineDescr,
+    antic_line_nr: usize,
     system: &AtariSystem,
 ) {
     if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
@@ -87,7 +91,7 @@ fn create_mode_line(
             )]),
             transform: Transform::from_translation(Vec3::new(
                 0.0,
-                120.0 - (mode_line.scan_line as f32) - mode_line.height as f32 / 2.0,
+                120.0 - (mode_line.scan_line as f32) - mode_line.height as f32 / 2.0 - antic_line_nr as f32,
                 0.0,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
@@ -129,6 +133,13 @@ fn atari_system(
     // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
+    {
+        let mut guard = js_api::ARRAY.write();
+        for event in guard.drain(..) {
+            atari_system.set_joystick(0, event.up, event.down, event.left, event.right, event.fire);
+        }
+
+    }
     atari_system.handle_keyboard(&keyboard);
     for (entity, _) in antic_lines.iter() {
         commands.despawn(entity);
@@ -142,7 +153,7 @@ fn atari_system(
     //     .cloned()
     //     .collect();
     // charsets.set(&antic_resources.charset_handle, AnticCharset { charset });
-
+    let mut antic_line_nr = 0;
     for scan_line in 0..MAX_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
         atari_system.antic.scan_line = scan_line;
@@ -158,7 +169,8 @@ fn atari_system(
                     dli_scan_line = next_scan_line - 1;
                 }
                 // info!("antic line: {:?}, next_scan_line: {:?}", mode_line, next_scan_line);
-                create_mode_line(commands, &antic_resources, mode_line, &atari_system);
+                create_mode_line(commands, &antic_resources, mode_line, antic_line_nr, &atari_system);
+                // antic_line_nr += 1;
             } else {
                 vblank = true;
             }
@@ -216,8 +228,9 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
-    // let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../ls.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
+    let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
     // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;
@@ -284,8 +297,8 @@ fn setup(
 
     // Setup our world
     // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_translation(Vec3::new(-10.0 * 8.0, -14.0 * 8.0, 30.0 * 8.0))
-    //         .looking_at(Vec3::new(-2.0 * 8.0, -14.0 * 8.0, 0.0), Vec3::unit_y()),
+    //     transform: Transform::from_translation(Vec3::new(-10.0 * 8.0, 0.0 * 8.0, 40.0 * 8.0))
+    //         .looking_at(Vec3::new(-2.0 * 8.0, -0.0 * 8.0, 0.0), Vec3::unit_y()),
     //     ..Default::default()
     // });
 
@@ -307,6 +320,15 @@ fn setup(
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
+    app.add_resource(WindowDescriptor {
+        title: "Robbo".to_string(),
+        resizable: true,
+        mode: bevy::window::WindowMode::Windowed,
+        #[cfg(target_arch = "wasm32")]
+        canvas: Some("#bevy-canvas".to_string()),
+        vsync: true,
+        ..Default::default()
+    });
     app.add_plugins(DefaultPlugins);
 
     #[cfg(target_arch = "wasm32")]
