@@ -56,13 +56,12 @@ void main() {
         int offs = (c & 0x7f) * 8 + y;
         int byte = get_byte(charset, offs);
 
-        int index = 3 - (((byte >> x) & 1) ^ inv);
-        o_Target = encodeColor(palette[get_color_reg(0, index)]);
-        // if(index == 0) {
-        //     o_Target = encodeColor(palette[0xa0]);
-        // } else {
-        //     o_Target = encodeColor(palette[0xa8]);
-        // };
+        int index = (((byte >> x) & 1) ^ inv);
+        int bg_index = get_color_reg(0, 3);
+        int fg_index = get_color_reg(0, 2);
+        fg_index = (fg_index & 0xf) | (bg_index & 0xf0);
+        int colors[2] = int[](bg_index, fg_index);
+        o_Target = encodeColor(palette[colors[index]]);
         return;
     } else if(mode == 0x04) {
         float w = v_Uv[0] * float(line_width / 8);

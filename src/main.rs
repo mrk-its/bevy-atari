@@ -163,7 +163,13 @@ fn atari_system(
         }
         for n in 0..SCAN_LINE_CYCLES {
             if n < 2 {
-                if scan_line == dli_scan_line {
+                if scan_line == 0 {
+                    let iter = keyboard.get_just_pressed().next();
+                    if iter.is_some() {
+                        info!("kbd int!");
+                        cpu.set_irq(n == 0);
+                    }
+                } else if scan_line == dli_scan_line {
                     // bevy::log::info!("DLI, scanline: {}", scan_line);
                     atari_system.antic.set_dli();
                     cpu.set_nmi(n == 0);
@@ -209,6 +215,7 @@ fn setup(
     mut render_graph: ResMut<RenderGraph>,
 ) {
     let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;
     let antic = atari800_state.antic;
