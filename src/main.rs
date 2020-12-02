@@ -214,7 +214,8 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
+    let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
     // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;

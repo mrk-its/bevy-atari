@@ -100,6 +100,17 @@ void main() {
         o_Target = encodeColor(palette[get_color_reg(0, index)]);
         // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
+    } else if(mode == 0x0d) {
+        float w = v_Uv[0] * float(line_width / 8);
+        int n = int(w); // byte offset
+        float frac = w - float(n);
+        int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
+
+        int byte = get_byte(data, n);
+        int index = (byte >> bit_offs) & 3;
+        o_Target = encodeColor(palette[get_color_reg(0, index)]);
+        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
+        return;
     }
 
     o_Target = vec4(0.0, 1.0, 0.0, 1.0);
