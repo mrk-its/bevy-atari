@@ -1,3 +1,4 @@
+use bevy::input::keyboard::KeyboardInput;
 pub use bevy::prelude::*;
 
 const RANDOM: usize = 0x0A;
@@ -43,7 +44,7 @@ impl Pokey {
         //warn!("POKEY write: {:02x}: {:02x}", addr, value);
     }
 
-    pub fn key_press(&mut self, event: &KeyCode, is_pressed: bool, is_shift: bool, is_ctl: bool) {
+    pub fn key_press(&mut self, event: &KeyCode, is_pressed: bool, is_shift: bool, is_ctl: bool) -> bool {
         let kbcode = match *event {
             KeyCode::Key1 => 0x1f,
             KeyCode::Key2 => 0x1e,
@@ -97,15 +98,17 @@ impl Pokey {
             KeyCode::Semicolon => 0x02,
             KeyCode::Slash => 0x26,
             KeyCode::Tab => 0x2c,
-            _ => return,
+            _ => return false,
         };
         if is_pressed {
             self.kbcode = kbcode | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);
             info!("kbcode: {:02x}", kbcode);
             self.skstat = 0xff - 4;
             self.irqst = 0xff - 0x40;
+            true
         } else {
             self.skstat = 0xff;
+            false
         }
     }
 }

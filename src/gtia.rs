@@ -36,7 +36,7 @@ pub const VDELAY: usize = 0x1c;
 pub const GRACTL: usize = 0x1d;
 pub const HITCLR: usize = 0x1e;
 
-pub const CONSOL: usize = 0x1f; // RW
+pub const CONSOL: usize = 0x1f; // RW  bits 0-2:  Start/Select/Option
 
 // READ
 pub const M0PF: usize = 0x00;
@@ -59,18 +59,21 @@ pub const TRIG0: usize = 0x10;
 pub const TRIG1: usize = 0x11;
 pub const TRIG2: usize = 0x12;
 pub const TRIG3: usize = 0x13;
-
+pub const PAL: usize = 0x14;
 
 
 pub struct Gtia {
-    trig: [u8; 4],
     reg: [u8; 0x20],
+    collisions: [u8; 0x16], // R
+    trig: [u8; 4], // R
+
 }
 
 impl Default for Gtia {
     fn default() -> Self {
         Self {
-            reg: [0xFF; 0x20],
+            reg: [0x00; 0x20],
+            collisions: [0x00; 0x16],
             trig: [0xff, 0xff, 0xff, 0],
         }
     }
@@ -80,7 +83,9 @@ impl Gtia {
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
+            0x0..=0xf => self.collisions[addr],
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
+            PAL => 0x01,  // 0x01 - PAL, 0x0f - NTSC
             _ => self.reg[addr],
         };
         // warn!("GTIA read: {:02x}: {:02x}", addr, value);
@@ -90,6 +95,7 @@ impl Gtia {
         let addr = addr & 0x1f;
         self.reg[addr] = value;
         match addr {
+            0x0..=0xf => self.collisions[addr] = value,
             // HITCLR => {
             //     for i in 0..=0xf {
             //         self.reg[i] = 0;

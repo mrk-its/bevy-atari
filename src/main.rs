@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate bitflags;
+
 pub mod antic;
 mod atari800_state;
 pub mod gtia;
@@ -71,27 +74,33 @@ fn create_mode_line(
     system: &AtariSystem,
 ) {
     if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
+        // TODO - this way PM is not displayed on empty lines
         return;
     }
+
+    // TODO - check if PM DMA is working, page 114 of AHRM
+    // if DMA is disabled display data from Graphics Data registers, p. 114
+    // TODO - add suppor for low-res sprites
     let pm_offset = (mode_line.pmbase & 0b11111000) as usize * 256;
+
+    let pm_hires = system.antic.dmactl.contains(antic::DMACTL::PM_HIRES);
 
     let line_data = LineData::new(
         &system.ram[mode_line.data_offset..mode_line.data_offset + 48],
-        // &[127;16],
-        // &[7;16],
-        // &[31;16],
-        // &[127;16],
-        &system.ram[pm_offset + 0x400 + mode_line.scan_line..pm_offset + 0x400 + mode_line.scan_line + 16],
-        &system.ram[pm_offset + 0x500 + mode_line.scan_line..pm_offset + 0x500 + mode_line.scan_line + 16],
-        &system.ram[pm_offset + 0x600 + mode_line.scan_line..pm_offset + 0x600 + mode_line.scan_line + 16],
-        &system.ram[pm_offset + 0x700 + mode_line.scan_line..pm_offset + 0x700 + mode_line.scan_line + 16],
+        &system.ram
+            [pm_offset + 0x400 + mode_line.scan_line..pm_offset + 0x400 + mode_line.scan_line + 16],
+        &system.ram
+            [pm_offset + 0x500 + mode_line.scan_line..pm_offset + 0x500 + mode_line.scan_line + 16],
+        &system.ram
+            [pm_offset + 0x600 + mode_line.scan_line..pm_offset + 0x600 + mode_line.scan_line + 16],
+        &system.ram
+            [pm_offset + 0x700 + mode_line.scan_line..pm_offset + 0x700 + mode_line.scan_line + 16],
     );
-    // info!("line_data: {:?}", line_data);
     let gtia_colors = system.gtia.get_colors();
 
     let charset_offset = (mode_line.chbase as usize) * 256;
-    // let charset = &system.ram[charset_offset..charset_offset + 1024]; // TODO - 512 byte charsets?
 
+    // TODO suport 512 byte charsets?
     let charset = Charset::new(&system.ram[charset_offset..charset_offset + 1024]);
 
     commands
@@ -174,12 +183,11 @@ fn atari_system(
 
         vblank = vblank || scan_line >= 248;
         if !vblank && next_scan_line == scan_line {
-            let dlist = atari_system.antic.dlist();
+            let dlist = atari_system.antic.dlist as usize;
             let mut dlist_data: [u8; 3] = [0; 3];
             dlist_data.copy_from_slice(&atari_system.ram[dlist..dlist + 3]);
             // info!("dlist: {:x?}, data: {:x?}", dlist, dlist_data);
             if let Some(mode_line) = atari_system.antic.create_next_mode_line(&dlist_data) {
-
                 next_scan_line = scan_line + mode_line.height;
                 if mode_line.dli {
                     dli_scan_line = next_scan_line - 1;
@@ -291,23 +299,22 @@ fn setup(
     atari_system.gtia.write(gtia::P2PF, 0);
     atari_system.gtia.write(gtia::P3PF, 0);
 
-    atari_system.antic.write(antic::DMACTL, antic.dmactl);
-    atari_system.antic.write(antic::CHACTL, antic.chactl);
-    atari_system.antic.write(antic::CHBASE, antic.chbase);
-    atari_system.antic.write(antic::PMBASE, antic.pmbase);
+    atari_system.antic.dmactl = antic::DMACTL::from_bits_truncate(antic.dmactl);
+    atari_system.antic.chactl = antic.chactl;
+    atari_system.antic.chbase = antic.chbase;
+    atari_system.antic.pmbase = antic.pmbase;
 
-    atari_system
-        .antic
-        .write(antic::DLIST, (antic.dlist & 0xff) as u8);
-    atari_system
-        .antic
-        .write(antic::DLIST + 1, (antic.dlist >> 8) as u8);
-    atari_system.antic.write(antic::NMIEN, antic.nmien);
-    atari_system.antic.write(antic::NMIST, antic.nmist);
-    atari_system.antic.write(antic::PMBASE, antic.pmbase);
+    atari_system.antic.dlist = antic.dlist;
+    atari_system.antic.nmien = antic::NMIEN::from_bits_truncate(antic.nmien);
+    atari_system.antic.nmist = antic::NMIST::from_bits_truncate(antic.nmist);
+    atari_system.antic.pmbase = antic.pmbase;
 
-    let dlist = atari_system.antic.dlist();
-    info!("DLIST: addr: {:04x} data: {:x?}", dlist, &atari_system.ram[dlist..dlist+64]);
+    let dlist = atari_system.antic.dlist as usize;
+    info!(
+        "DLIST: addr: {:04x} data: {:x?}",
+        dlist,
+        &atari_system.ram[dlist..dlist + 64]
+    );
 
     cpu.step(&mut *atari_system); // changes state into Running
     cpu.set_pc(atari800_state.cpu.pc);

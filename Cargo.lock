@@ -221,6 +221,7 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bevy_webgl2",
+ "bitflags",
  "disasm6502",
  "once_cell",
  "parking_lot",
