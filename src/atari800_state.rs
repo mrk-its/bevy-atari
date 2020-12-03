@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 struct Test {
     a: u8,
@@ -7,7 +7,7 @@ struct Test {
     c: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct Atari800 {
     is_pal: bool,
@@ -21,7 +21,7 @@ pub struct Atari800 {
     keyboard_detached: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct Antic {
     pub dmactl: u8,
@@ -45,13 +45,13 @@ pub struct Antic {
     pub ypos: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 pub struct Cartridge {
     pub saved_type: u32,
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 #[repr(C, packed)]
 pub struct CPU {
     pub reg_a: u8,
@@ -81,7 +81,7 @@ pub struct Memory<'a> {
 }
 
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Copy)]
 #[repr(C, packed)]
 pub struct GTIA {
     pub hposp0: u8,

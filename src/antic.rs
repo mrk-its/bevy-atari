@@ -98,9 +98,8 @@ impl Antic {
             0x0 => self.create_mode_line(mods, mode, ((mods >> 4) & 7) as usize + 1, 0),
             0x1 => {
                 let addr = self.dlist();
-                self.regs[DLIST] = (addr & 0xff) as u8;
-                self.regs[DLIST + 1] = (addr >> 8) as u8;
-                self.inc_dlist(2);
+                self.write(DLIST, dlist[1]);
+                self.write(DLIST+1, dlist[2]);
                 if mods & 0x40 > 0 {
                     return None;
                 }

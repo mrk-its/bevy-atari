@@ -161,6 +161,7 @@ fn atari_system(
     let mut next_scan_line: usize = 8;
     let mut dli_scan_line: usize = 0xffff;
 
+    // debug.enabled = true;
     // let charset: Vec<_> = atari_system.ram
     //     .iter()
     //     .cloned()
@@ -176,7 +177,9 @@ fn atari_system(
             let dlist = atari_system.antic.dlist();
             let mut dlist_data: [u8; 3] = [0; 3];
             dlist_data.copy_from_slice(&atari_system.ram[dlist..dlist + 3]);
+            // info!("dlist: {:x?}, data: {:x?}", dlist, dlist_data);
             if let Some(mode_line) = atari_system.antic.create_next_mode_line(&dlist_data) {
+
                 next_scan_line = scan_line + mode_line.height;
                 if mode_line.dli {
                     dli_scan_line = next_scan_line - 1;
@@ -199,7 +202,6 @@ fn atari_system(
                 if scan_line == 0 {
                     let iter = keyboard.get_just_pressed().next();
                     if iter.is_some() {
-                        info!("kbd int!");
                         cpu.set_irq(n == 0);
                     }
                 } else if scan_line == dli_scan_line {
@@ -217,7 +219,7 @@ fn atari_system(
             //     debug.enabled = true;
             // }
             if debug.enabled {
-                if debug.instr_cnt < 200 {
+                if debug.instr_cnt < 1000 {
                     if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
                         if let Some(i) = inst.get(0) {
                             info!("{:04x?}: {} {:?}", pc, i, *cpu);
@@ -246,7 +248,7 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    // let atari800_state = atari800_state::load_state(include_bytes!("../ls.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../lvl2.state.dat"));
     let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
     // let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
     // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
@@ -260,9 +262,40 @@ fn setup(
     atari_system.gtia.write(gtia::COLPF2, gtia.colpf2);
     atari_system.gtia.write(gtia::COLPF3, gtia.colpf3);
 
+    atari_system.gtia.write(gtia::COLPM0, gtia.colpm0);
+    atari_system.gtia.write(gtia::COLPM1, gtia.colpm1);
+    atari_system.gtia.write(gtia::COLPM2, gtia.colpm2);
+    atari_system.gtia.write(gtia::COLPM3, gtia.colpm3);
+    atari_system.gtia.write(gtia::HPOSP0, gtia.hposp0);
+    atari_system.gtia.write(gtia::HPOSP1, gtia.hposp1);
+    atari_system.gtia.write(gtia::HPOSP2, gtia.hposp2);
+    atari_system.gtia.write(gtia::HPOSP3, gtia.hposp3);
+    atari_system.gtia.write(gtia::SIZEP0, gtia.sizep0);
+    atari_system.gtia.write(gtia::SIZEP1, gtia.sizep1);
+    atari_system.gtia.write(gtia::SIZEP2, gtia.sizep2);
+    atari_system.gtia.write(gtia::SIZEP3, gtia.sizep3);
+    atari_system.gtia.write(gtia::P0PL, gtia.p0pl);
+    atari_system.gtia.write(gtia::P1PL, gtia.p1pl);
+    atari_system.gtia.write(gtia::P2PL, gtia.p2pl);
+    atari_system.gtia.write(gtia::P3PL, gtia.p3pl);
+    atari_system.gtia.write(gtia::M0PL, gtia.m0pl);
+    atari_system.gtia.write(gtia::M1PL, gtia.m1pl);
+    atari_system.gtia.write(gtia::M2PL, gtia.m2pl);
+    atari_system.gtia.write(gtia::M3PL, gtia.m3pl);
+    atari_system.gtia.write(gtia::M0PF, 0);
+    atari_system.gtia.write(gtia::M1PF, 0);
+    atari_system.gtia.write(gtia::M2PF, 0);
+    atari_system.gtia.write(gtia::M3PF, 0);
+    atari_system.gtia.write(gtia::P0PF, 0);
+    atari_system.gtia.write(gtia::P1PF, 0);
+    atari_system.gtia.write(gtia::P2PF, 0);
+    atari_system.gtia.write(gtia::P3PF, 0);
+
     atari_system.antic.write(antic::DMACTL, antic.dmactl);
     atari_system.antic.write(antic::CHACTL, antic.chactl);
     atari_system.antic.write(antic::CHBASE, antic.chbase);
+    atari_system.antic.write(antic::PMBASE, antic.pmbase);
+
     atari_system
         .antic
         .write(antic::DLIST, (antic.dlist & 0xff) as u8);
@@ -272,6 +305,9 @@ fn setup(
     atari_system.antic.write(antic::NMIEN, antic.nmien);
     atari_system.antic.write(antic::NMIST, antic.nmist);
     atari_system.antic.write(antic::PMBASE, antic.pmbase);
+
+    let dlist = atari_system.antic.dlist();
+    info!("DLIST: addr: {:04x} data: {:x?}", dlist, &atari_system.ram[dlist..dlist+64]);
 
     cpu.step(&mut *atari_system); // changes state into Running
     cpu.set_pc(atari800_state.cpu.pc);
