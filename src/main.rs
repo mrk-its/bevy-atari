@@ -1,13 +1,12 @@
 pub mod antic;
+mod atari800_state;
 pub mod gtia;
-mod render_resources;
+mod js_api;
 mod palette;
 pub mod pia;
 pub mod pokey;
+mod render_resources;
 mod system;
-mod atari800_state;
-mod js_api;
-use wasm_bindgen::prelude::*;
 use antic::ModeLineDescr;
 use bevy::reflect::TypeUuid;
 use bevy::{
@@ -23,10 +22,9 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
+use render_resources::{Charset, GTIAColors, LineData, Palette};
 use system::{AtariSystem, W65C02S};
-use render_resources::{Charset, LineData, Palette, GTIAColors};
-
-
+use wasm_bindgen::prelude::*;
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
@@ -40,9 +38,9 @@ const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
 #[derive(RenderResources, TypeUuid)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
 struct AnticLine {
-    pub line_width: u32,
+    pub line_width: f32,
     pub mode: u32,
-    pub hscrol: u32,
+    pub hscrol: f32,
     pub data: LineData,
     pub gtia_colors: GTIAColors,
     pub charset: Charset,
@@ -75,7 +73,20 @@ fn create_mode_line(
     if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
         return;
     }
-    let line_data = LineData::new(&system.ram[mode_line.data_offset..mode_line.data_offset + 48]);
+    let pm_offset = (mode_line.pmbase & 0b11111000) as usize * 256;
+
+    let line_data = LineData::new(
+        &system.ram[mode_line.data_offset..mode_line.data_offset + 48],
+        // &[127;16],
+        // &[7;16],
+        // &[31;16],
+        // &[127;16],
+        &system.ram[pm_offset + 0x400 + mode_line.scan_line..pm_offset + 0x400 + mode_line.scan_line + 16],
+        &system.ram[pm_offset + 0x500 + mode_line.scan_line..pm_offset + 0x500 + mode_line.scan_line + 16],
+        &system.ram[pm_offset + 0x600 + mode_line.scan_line..pm_offset + 0x600 + mode_line.scan_line + 16],
+        &system.ram[pm_offset + 0x700 + mode_line.scan_line..pm_offset + 0x700 + mode_line.scan_line + 16],
+    );
+    // info!("line_data: {:?}", line_data);
     let gtia_colors = system.gtia.get_colors();
 
     let charset_offset = (mode_line.chbase as usize) * 256;
@@ -91,7 +102,10 @@ fn create_mode_line(
             )]),
             transform: Transform::from_translation(Vec3::new(
                 0.0,
-                120.0 - (mode_line.scan_line as f32) - mode_line.height as f32 / 2.0 - antic_line_nr as f32,
+                120.0
+                    - (mode_line.scan_line as f32)
+                    - mode_line.height as f32 / 2.0
+                    - antic_line_nr as f32,
                 0.0,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
@@ -105,8 +119,8 @@ fn create_mode_line(
             // chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
             gtia_colors,
-            line_width: mode_line.width as u32,
-            hscrol: mode_line.hscrol as u32,
+            line_width: mode_line.width as f32,
+            hscrol: mode_line.hscrol as f32,
             data: line_data,
             charset: charset,
         })
@@ -138,7 +152,6 @@ fn atari_system(
         for event in guard.drain(..) {
             atari_system.set_joystick(0, event.up, event.down, event.left, event.right, event.fire);
         }
-
     }
     atari_system.handle_keyboard(&keyboard);
     for (entity, _) in antic_lines.iter() {
@@ -169,8 +182,14 @@ fn atari_system(
                     dli_scan_line = next_scan_line - 1;
                 }
                 // info!("antic line: {:?}, next_scan_line: {:?}", mode_line, next_scan_line);
-                create_mode_line(commands, &antic_resources, mode_line, antic_line_nr, &atari_system);
-                // antic_line_nr += 1;
+                create_mode_line(
+                    commands,
+                    &antic_resources,
+                    mode_line,
+                    antic_line_nr,
+                    &atari_system,
+                );
+            // antic_line_nr += 1;
             } else {
                 vblank = true;
             }
@@ -212,7 +231,6 @@ fn atari_system(
             cpu.step(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
         }
-
     }
     perf_metrics.frame_cnt += 1;
 }
@@ -229,8 +247,8 @@ fn setup(
     mut render_graph: ResMut<RenderGraph>,
 ) {
     // let atari800_state = atari800_state::load_state(include_bytes!("../ls.state.dat"));
-    // let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
-    let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
+    let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
+    // let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
     // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;
@@ -245,7 +263,9 @@ fn setup(
     atari_system.antic.write(antic::DMACTL, antic.dmactl);
     atari_system.antic.write(antic::CHACTL, antic.chactl);
     atari_system.antic.write(antic::CHBASE, antic.chbase);
-    atari_system.antic.write(antic::DLIST, (antic.dlist & 0xff) as u8);
+    atari_system
+        .antic
+        .write(antic::DLIST, (antic.dlist & 0xff) as u8);
     atari_system
         .antic
         .write(antic::DLIST + 1, (antic.dlist >> 8) as u8);

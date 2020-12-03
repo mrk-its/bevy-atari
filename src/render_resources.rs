@@ -30,12 +30,20 @@ impl_render_resource_bytes!(Charset);
 #[derive(Clone, Copy, Debug)]
 pub struct LineData {
     pub data: [u8; 48],
+    pub player0: [u8; 16],
+    pub player1: [u8; 16],
+    pub player2: [u8; 16],
+    pub player3: [u8; 16],
 }
 
 impl LineData {
-    pub fn new(src: &[u8]) -> Self {
+    pub fn new(src: &[u8], player0: &[u8], player1: &[u8], player2: &[u8], player3: &[u8]) -> Self {
         Self {
             data: src.try_into().expect("byte slice of length 48"),
+            player0: player0.try_into().expect("slice of 16 bytes"),
+            player1: player1.try_into().expect("slice of 16 bytes"),
+            player2: player2.try_into().expect("slice of 16 bytes"),
+            player3: player3.try_into().expect("slice of 16 bytes"),
         }
     }
 }
@@ -67,17 +75,53 @@ impl_render_resource_bytes!(Palette);
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIAColors {
-    pub regs: [[u32; 4]; 2],
+    pub regs: [[u32; 4]; 3],
+    pub player_pos: [f32; 4],
+    pub player_size: [f32; 4],
 }
 
 impl GTIAColors {
-    pub fn new(colbk: u8, colpf0: u8, colpf1: u8, colpf2: u8, colpf3: u8) -> Self {
+    pub fn new(
+        colbk: u8,
+        colpf0: u8,
+        colpf1: u8,
+        colpf2: u8,
+        colpf3: u8,
+        colpm0: u8,
+        colpm1: u8,
+        colpm2: u8,
+        colpm3: u8,
+        hposp0: u8,
+        hposp1: u8,
+        hposp2: u8,
+        hposp3: u8,
+        sizep0: u8,
+        sizep1: u8,
+        sizep2: u8,
+        sizep3: u8,
+    ) -> Self {
         Self {
             regs: [
                 [colbk as u32, colpf0 as u32, colpf1 as u32, colpf2 as u32],
                 [colbk as u32, colpf0 as u32, colpf1 as u32, colpf3 as u32],
+                [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
+            ],
+            player_pos: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
+            player_size: [
+                player_size(sizep0),
+                player_size(sizep1),
+                player_size(sizep2),
+                player_size(sizep3),
             ],
         }
+    }
+}
+
+fn player_size(sizep: u8) -> f32 {
+    match sizep & 3 {
+        1 => 32.0,
+        3 => 64.0,
+        _ => 16.0,
     }
 }
 

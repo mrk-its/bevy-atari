@@ -29,12 +29,17 @@ pub struct ModeLineDescr {
     pub n_bytes: usize,
     pub data_offset: usize,
     pub chbase: u8,
+    pub pmbase: u8,
     pub hscrol: u8,
 }
 
 impl Antic {
-    fn playfield_width(&self) -> usize {
-        match self.regs[DMACTL] & 3 {
+    fn playfield_width(&self, hscroll: bool) -> usize {
+        let mut n = self.regs[DMACTL] & 3;
+        if hscroll && n > 0 && n < 3 {
+            n += 1;
+        }
+        match n {
             1 => 256,
             2 => 320,
             3 => 384,
@@ -42,31 +47,30 @@ impl Antic {
         }
     }
     pub fn set_vbi(&mut self) {
-        self.regs[NMIST] &= 0xff - 0x80;  // clear DLI status
+        self.regs[NMIST] &= 0xff - 0x80; // clear DLI status
         self.regs[NMIST] |= 0x40;
     }
     pub fn set_dli(&mut self) {
-        self.regs[NMIST] &= 0xff - 0x40;  // clear VBI status
+        self.regs[NMIST] &= 0xff - 0x40; // clear VBI status
         self.regs[NMIST] |= 0x80;
     }
-    fn create_mode_line(
-        &self,
-        mods: u8,
-        mode: u8,
-        height: usize,
-        n_bytes: usize,
-    ) -> ModeLineDescr {
+    fn create_mode_line(&self, mods: u8, mode: u8, height: usize, n_bytes: usize) -> ModeLineDescr {
         let dli = (mods & 0x80) > 0;
-        let hscrol = if (mods & 0x10) > 0 {16 - self.regs[HSCROL] * 2 } else {0};
+        let is_hscrol = (mods & 0x10) > 0;
+        let hscrol = if is_hscrol {32 - self.regs[HSCROL] * 2} else {0};
+
+        let hscrol_line_width = n_bytes * self.playfield_width(is_hscrol) / 320;
+
         ModeLineDescr {
             dli,
             mode,
             height,
-            n_bytes: n_bytes * self.playfield_width() / 320,
+            n_bytes: hscrol_line_width,
             scan_line: self.scan_line,
-            width: self.playfield_width(),
+            width: self.playfield_width(false),
             data_offset: self.video_memory,
             chbase: self.regs[CHBASE],
+            pmbase: self.regs[PMBASE],
             hscrol,
         }
     }
