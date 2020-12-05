@@ -34,7 +34,7 @@ const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
 const NTSC_SCAN_LINES: usize = 262;
 
-const MAX_SCAN_LINES: usize = NTSC_SCAN_LINES;
+const MAX_SCAN_LINES: usize = PAL_SCAN_LINES;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
@@ -267,12 +267,12 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    let state_data = include_bytes!("../fred.state.dat");
+    // let state_data = include_bytes!("../fred.state.dat");
     // let state_data = include_bytes!("../ls.state.dat");
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
-    // let state_data = include_bytes!(include_bytes!("../robbo.state.dat");
-    // let state_data = include_bytes!(include_bytes!("../basic.state.dat");
+    let state_data = include_bytes!("../robbo.state.dat");
+    // let state_data = include_bytes!("../basic.state.dat");
     let atari800_state = atari800_state::load_state(state_data);
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;

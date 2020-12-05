@@ -39,6 +39,8 @@ version = "0.3.4"
 features = [
   'AudioContext',
   'AudioDestinationNode',
+  'AudioBufferSourceNode',
+  'AudioBuffer',
   'AudioNode',
   'AudioParam',
   'GainNode',

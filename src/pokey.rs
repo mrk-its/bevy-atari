@@ -13,8 +13,8 @@ bitflags! {
         const CLOCK_15 = 1;
         const CH2_HIGH_PASS = 2;
         const CH1_HIGH_PASS = 4;
-        const CH12_LINKED_CNT = 8;
-        const CH34_LINKED_CNT = 16;
+        const CH34_LINKED_CNT = 8;  // bug in Altirra Manual?
+        const CH12_LINKED_CNT = 16;
         const CH3_FAST_CLOCK = 32;
         const CH1_FAST_CLOCK = 64;
         const POLY_9BIT = 128;
@@ -87,6 +87,10 @@ impl Pokey {
 
     pub fn update_ctl(&mut self, channel: usize, value: u8) {
         self.ctl[channel] = value;
+
+        let opts = value & 0xf0;
+        self.osc.set_noise(channel, value & 0x20 == 0);
+
         let linked_channel = channel & 0x2; // 0 or 2
 
         let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
@@ -115,23 +119,23 @@ impl Pokey {
             8 => {
                 self.audctl = AUDCTL::from_bits_truncate(value);
                 let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {
-                    15000.0
+                    15600.0
                 } else {
-                    64000.0
+                    63514.29
                 };
                 self.clocks[0] = if self.audctl.contains(AUDCTL::CH1_FAST_CLOCK) {
-                    1789790.0
+                    1778400.0
                 } else {
                     slow_clock
                 };
                 self.clocks[1] = slow_clock;
                 self.clocks[2] = if self.audctl.contains(AUDCTL::CH3_FAST_CLOCK) {
-                    1789790.0
+                    1778400.0
                 } else {
                     slow_clock
                 };
                 self.clocks[3] = slow_clock;
-
+                warn!("AUDCTL: {:?}", self.audctl);
             }
             _ => (),
         }
