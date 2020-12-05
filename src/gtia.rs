@@ -17,10 +17,10 @@ pub const SIZEP1: usize = 0x09;
 pub const SIZEP2: usize = 0x0a;
 pub const SIZEP3: usize = 0x0b;
 pub const SIZEM: usize = 0x0c;
-pub const GRAFP0: usize= 0x0d;
-pub const GRAFP1: usize= 0x0e;
-pub const GRAFP2: usize= 0x0f;
-pub const GRAFP3: usize= 0x10;
+pub const GRAFP0: usize = 0x0d;
+pub const GRAFP1: usize = 0x0e;
+pub const GRAFP2: usize = 0x0f;
+pub const GRAFP3: usize = 0x10;
 pub const GRAFM: usize = 0x11;
 pub const COLPM0: usize = 0x12;
 pub const COLPM1: usize = 0x13;
@@ -61,12 +61,13 @@ pub const TRIG2: usize = 0x12;
 pub const TRIG3: usize = 0x13;
 pub const PAL: usize = 0x14;
 
-
 pub struct Gtia {
     reg: [u8; 0x20],
+    pub player_graphics: [u8; 4],
+    pub missile_graphics: u8,
     collisions: [u8; 0x16], // R
-    trig: [u8; 4], // R
-
+    trig: [u8; 4],          // R
+    prior: u8,
 }
 
 impl Default for Gtia {
@@ -74,7 +75,10 @@ impl Default for Gtia {
         Self {
             reg: [0x00; 0x20],
             collisions: [0x00; 0x16],
+            missile_graphics: 0x00,
+            player_graphics: [0x00; 4],
             trig: [0xff, 0xff, 0xff, 0],
+            prior: 0,
         }
     }
 }
@@ -83,9 +87,17 @@ impl Gtia {
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
-            0x0..=0xf => self.collisions[addr],
+            0x0..=0xf => {
+                //info!("reading collisions at {:x}", addr);
+                if addr == 6 || addr == 7 {  // Player2/3 collisions with playfield, for Fred
+                    0xff
+                } else {
+                    self.collisions[addr]
+                }
+            }
+            CONSOL => 0x0f,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
-            PAL => 0x01,  // 0x01 - PAL, 0x0f - NTSC
+            PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
             _ => self.reg[addr],
         };
         // warn!("GTIA read: {:02x}: {:02x}", addr, value);
@@ -95,13 +107,15 @@ impl Gtia {
         let addr = addr & 0x1f;
         self.reg[addr] = value;
         match addr {
-            0x0..=0xf => self.collisions[addr] = value,
+            GRAFP0..=GRAFP3 => self.player_graphics[addr - GRAFP0] = value,
+            GRAFM => self.missile_graphics = value,
+            PRIOR => self.prior = value,
             // HITCLR => {
             //     for i in 0..=0xf {
             //         self.reg[i] = 0;
             //     }
             // }
-            _ => ()
+            _ => (),
         }
         // if addr == HPOSP0 || addr == HPOSP1 || addr == HPOSP2 || addr == HPOSP1 {
         //     warn!(
@@ -127,7 +141,7 @@ impl Gtia {
             && self.reg[HPOSP3] == 0xa0;
         let bgcol_idx = if !overwrite_robbo_bg { COLBK } else { 0x12 };
         GTIAColors::new(
-            self.reg[bgcol_idx],
+            self.reg[COLBK],
             self.reg[COLPF0],
             self.reg[COLPF1],
             self.reg[COLPF2],
@@ -144,6 +158,7 @@ impl Gtia {
             self.reg[SIZEP1],
             self.reg[SIZEP2],
             self.reg[SIZEP3],
+            self.prior,
         )
     }
 }

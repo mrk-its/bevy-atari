@@ -78,6 +78,7 @@ pub struct GTIAColors {
     pub regs: [[u32; 4]; 3],
     pub player_pos: [f32; 4],
     pub player_size: [f32; 4],
+    pub prior: u32,
 }
 
 impl GTIAColors {
@@ -99,6 +100,7 @@ impl GTIAColors {
         sizep1: u8,
         sizep2: u8,
         sizep3: u8,
+        prior: u8,
     ) -> Self {
         Self {
             regs: [
@@ -113,6 +115,7 @@ impl GTIAColors {
                 player_size(sizep2),
                 player_size(sizep3),
             ],
+            prior: prior as u32,
         }
     }
 }

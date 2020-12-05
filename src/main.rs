@@ -81,20 +81,28 @@ fn create_mode_line(
     // TODO - check if PM DMA is working, page 114 of AHRM
     // if DMA is disabled display data from Graphics Data registers, p. 114
     // TODO - add suppor for low-res sprites
-    let pm_offset = (mode_line.pmbase & 0b11111000) as usize * 256;
-
     let pm_hires = system.antic.dmactl.contains(antic::DMACTL::PM_HIRES);
+
+    let pl_mem = |n: usize| {
+        if system.antic.dmactl.contains(antic::DMACTL::PLAYER_DMA) {
+            let beg = if pm_hires {
+                0x400 + n * 0x100 + mode_line.scan_line + (mode_line.pmbase & 0b11111000) as usize * 256
+            } else {
+                0x200 + n * 0x80 + mode_line.scan_line / 2 + (mode_line.pmbase & 0b11111100) as usize * 256
+            };
+            system.ram[beg..beg + 16].to_owned()
+        } else {
+            let v = system.gtia.player_graphics[n];
+            vec![v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v]
+        }
+    };
 
     let line_data = LineData::new(
         &system.ram[mode_line.data_offset..mode_line.data_offset + 48],
-        &system.ram
-            [pm_offset + 0x400 + mode_line.scan_line..pm_offset + 0x400 + mode_line.scan_line + 16],
-        &system.ram
-            [pm_offset + 0x500 + mode_line.scan_line..pm_offset + 0x500 + mode_line.scan_line + 16],
-        &system.ram
-            [pm_offset + 0x600 + mode_line.scan_line..pm_offset + 0x600 + mode_line.scan_line + 16],
-        &system.ram
-            [pm_offset + 0x700 + mode_line.scan_line..pm_offset + 0x700 + mode_line.scan_line + 16],
+        &pl_mem(0),
+        &pl_mem(1),
+        &pl_mem(2),
+        &pl_mem(3),
     );
     let gtia_colors = system.gtia.get_colors();
 
@@ -211,7 +219,8 @@ fn atari_system(
                     let iter = keyboard.get_just_pressed().next();
                     if iter.is_some() {
                         cpu.set_irq(n == 0);
-                    }
+                        // debug.enabled = true;
+}
                 } else if scan_line == dli_scan_line {
                     // bevy::log::info!("DLI, scanline: {}", scan_line);
                     atari_system.antic.set_dli();
@@ -232,11 +241,13 @@ fn atari_system(
                         if let Some(i) = inst.get(0) {
                             info!("{:04x?}: {} {:?}", pc, i, *cpu);
                         }
+                        debug.instr_cnt += 1;
                     }
                 } else {
-                    panic!("STOP");
+                    debug.enabled = false;
+                    debug.instr_cnt = 0;
+                    //panic!("STOP");
                 }
-                debug.instr_cnt += 1;
             }
             cpu.step(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
@@ -256,10 +267,13 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    // let atari800_state = atari800_state::load_state(include_bytes!("../lvl2.state.dat"));
-    let atari800_state = atari800_state::load_state(include_bytes!("../fred.state.dat"));
-    // let atari800_state = atari800_state::load_state(include_bytes!("../robbo.state.dat"));
-    // let atari800_state = atari800_state::load_state(include_bytes!("../basic.state.dat"));
+    let state_data = include_bytes!("../fred.state.dat");
+    // let state_data = include_bytes!("../ls.state.dat");
+    // let state_data = include_bytes!("../lvl2.state.dat");
+    // let state_data = include_bytes!("../acid800.state.dat");
+    // let state_data = include_bytes!(include_bytes!("../robbo.state.dat");
+    // let state_data = include_bytes!(include_bytes!("../basic.state.dat");
+    let atari800_state = atari800_state::load_state(state_data);
     atari_system.ram.copy_from_slice(atari800_state.memory.data);
     let gtia = atari800_state.gtia;
     let antic = atari800_state.antic;

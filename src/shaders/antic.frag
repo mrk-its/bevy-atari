@@ -22,6 +22,7 @@ struct GTIA {
     ivec4 colpm;
     vec4 player_pos;
     vec4 player_size;
+    int prior;
 };
 layout(std140) uniform AnticLine_gtia_colors { // set = 1 binding = 4
     //ivec4 color_regs[2]; // [[bak, pf0, pf1, pf2], [bak, pf0, pf1, pf3]]
@@ -104,6 +105,9 @@ void main() {
 
         int index = (byte >> x) & 3;
         o_Target = encodeColor(palette[get_color_reg(inv, index)]);
+        // TODO - implement real priorities
+        // Robbo hack (ovewrite bg with players color)
+        if(gtia.prior==4 && index>0) return;
         int color_reg = 0;
         if(get_player_pixel(0, px, y, player_pos)) {
             color_reg |= gtia.colpm[0];
