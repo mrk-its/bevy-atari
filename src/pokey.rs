@@ -1,3 +1,4 @@
+pub use crate::fm_osc::FmOsc;
 use bevy::input::keyboard::KeyboardInput;
 pub use bevy::prelude::*;
 
@@ -6,21 +7,47 @@ const KBCODE: usize = 0x09;
 const SKSTAT: usize = 0x0f;
 const IRQST: usize = 0x0e;
 
+bitflags! {
+    #[derive(Default)]
+    pub struct AUDCTL: u8 {
+        const CLOCK_15 = 1;
+        const CH2_HIGH_PASS = 2;
+        const CH1_HIGH_PASS = 4;
+        const CH12_LINKED_CNT = 8;
+        const CH34_LINKED_CNT = 16;
+        const CH3_FAST_CLOCK = 32;
+        const CH1_FAST_CLOCK = 64;
+        const POLY_9BIT = 128;
+    }
+}
+
 pub struct Pokey {
+    clocks: [f32; 4],
+    freq: [u8; 4],
+    ctl: [u8; 4],
+    audctl: AUDCTL,
     kbcode: u8,
     skstat: u8,
     irqst: u8,
+    osc: FmOsc,
 }
 
 impl Default for Pokey {
     fn default() -> Self {
         Self {
+            ctl: [0; 4],
+            freq: [0; 4],
+            clocks: [0.0; 4],
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
+            osc: FmOsc::new().unwrap(),
+            audctl: AUDCTL::from_bits_truncate(0),
         }
     }
 }
+unsafe impl Send for Pokey {}
+unsafe impl Sync for Pokey {}
 
 impl Pokey {
     pub fn read(&self, addr: usize) -> u8 {
@@ -28,24 +55,100 @@ impl Pokey {
         let value = match addr {
             RANDOM => rand::random(),
             KBCODE => self.kbcode,
-            IRQST => {
-                self.irqst
-            },
-            SKSTAT => {
-                self.skstat
-            },
-            _ => 0xff
+            IRQST => self.irqst,
+            SKSTAT => self.skstat,
+            _ => 0xff,
         };
         //warn!("POKEY read: {:02x}: {:02x}", addr, value);
         value
     }
-    pub fn write(&self, addr: usize, value: u8) {
-        let addr = addr & 0xf;
-        //warn!("POKEY write: {:02x}: {:02x}", addr, value);
+
+    pub fn update_freq(&mut self, channel: usize, value: u8) {
+        self.freq[channel] = value;
+        let linked_channel = channel & 0x2; // 0 or 2
+
+        let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
+        let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
+
+        let div = if linked_channel == 0 && is_linked_01 || linked_channel == 2 && is_linked_23 {
+            2.0 * (7.0
+                + self.freq[linked_channel] as f32
+                + self.freq[linked_channel + 1] as f32 * 256.0)
+        } else {
+            2.0 * (1.0 + self.freq[channel] as f32)
+        };
+        if is_linked_01 && linked_channel == 0 || is_linked_23 && linked_channel == 2 {
+            self.osc.set_frequency(linked_channel, self.clocks[linked_channel] / div);
+            self.osc.set_gain(linked_channel + 1, 0.0);
+        } else {
+            self.osc.set_frequency(channel, self.clocks[channel] / div)
+        }
     }
 
-    pub fn key_press(&mut self, event: &KeyCode, is_pressed: bool, is_shift: bool, is_ctl: bool) -> bool {
+    pub fn update_ctl(&mut self, channel: usize, value: u8) {
+        self.ctl[channel] = value;
+        let linked_channel = channel & 0x2; // 0 or 2
+
+        let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
+        let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
+
+        let gain = 0.1 * (value & 0xf) as f32 / 15.0;
+
+        if is_linked_01 && channel == 0 || is_linked_23 && channel == 2 {
+            self.osc.set_gain(linked_channel, gain);
+            self.osc.set_gain(linked_channel + 1, 0.0);
+        } else {
+            self.osc.set_gain(channel, gain);
+        }
+    }
+
+    pub fn write(&mut self, addr: usize, value: u8) {
+        let addr = addr & 0xf;
+        let channel = addr / 2;
+        match addr {
+            0 | 2 | 4 | 6 => {
+                self.update_freq(channel, value);
+            }
+            1 | 3 | 5 | 7 => {
+                self.update_ctl(channel, value);
+            }
+            8 => {
+                self.audctl = AUDCTL::from_bits_truncate(value);
+                let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {
+                    15000.0
+                } else {
+                    64000.0
+                };
+                self.clocks[0] = if self.audctl.contains(AUDCTL::CH1_FAST_CLOCK) {
+                    1789790.0
+                } else {
+                    slow_clock
+                };
+                self.clocks[1] = slow_clock;
+                self.clocks[2] = if self.audctl.contains(AUDCTL::CH3_FAST_CLOCK) {
+                    1789790.0
+                } else {
+                    slow_clock
+                };
+                self.clocks[3] = slow_clock;
+
+            }
+            _ => (),
+        }
+    }
+
+    pub fn key_press(
+        &mut self,
+        event: &KeyCode,
+        is_pressed: bool,
+        is_shift: bool,
+        is_ctl: bool,
+    ) -> bool {
         let kbcode = match *event {
+            KeyCode::F10 => {
+                self.osc.resume();
+                return false;
+            }
             KeyCode::Key1 => 0x1f,
             KeyCode::Key2 => 0x1e,
             KeyCode::Key3 => 0x1a,

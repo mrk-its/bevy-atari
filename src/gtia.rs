@@ -68,6 +68,7 @@ pub struct Gtia {
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
     prior: u8,
+    p0pos: u8,
 }
 
 impl Default for Gtia {
@@ -79,12 +80,13 @@ impl Default for Gtia {
             player_graphics: [0x00; 4],
             trig: [0xff, 0xff, 0xff, 0],
             prior: 0,
+            p0pos: 0,
         }
     }
 }
 
 impl Gtia {
-    pub fn read(&self, addr: usize) -> u8 {
+    pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
             0x0..=0xf => {
@@ -93,6 +95,12 @@ impl Gtia {
                     0xff
                 } else {
                     self.collisions[addr]
+                    // if self.p0pos == 0x60 {
+                    //     self.p0pos = 0;
+                    //     0xff
+                    // } else {
+                    //     0
+                    // }
                 }
             }
             CONSOL => 0x0f,
@@ -110,6 +118,11 @@ impl Gtia {
             GRAFP0..=GRAFP3 => self.player_graphics[addr - GRAFP0] = value,
             GRAFM => self.missile_graphics = value,
             PRIOR => self.prior = value,
+            HPOSP0 => {
+                if value >= 0x40 && value < 0xc0 {
+                    self.p0pos = value;
+                }
+            }
             // HITCLR => {
             //     for i in 0..=0xf {
             //         self.reg[i] = 0;

@@ -36,6 +36,7 @@ impl AtariSystem {
             irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift
+                || *ev == KeyCode::RShift
                 || *ev == KeyCode::Up
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left
@@ -46,6 +47,7 @@ impl AtariSystem {
             self.pokey.key_press(ev, false, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift
+                || *ev == KeyCode::RShift
                 || *ev == KeyCode::Up
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left

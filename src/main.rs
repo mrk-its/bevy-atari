@@ -2,6 +2,7 @@
 extern crate bitflags;
 
 pub mod antic;
+pub mod fm_osc;
 mod atari800_state;
 pub mod gtia;
 mod js_api;
@@ -170,7 +171,7 @@ fn atari_system(
             atari_system.set_joystick(0, event.up, event.down, event.left, event.right, event.fire);
         }
     }
-    atari_system.handle_keyboard(&keyboard);
+    let kb_irq = atari_system.handle_keyboard(&keyboard);
     for (entity, _) in antic_lines.iter() {
         commands.despawn(entity);
     }
@@ -216,8 +217,7 @@ fn atari_system(
         for n in 0..SCAN_LINE_CYCLES {
             if n < 2 {
                 if scan_line == 0 {
-                    let iter = keyboard.get_just_pressed().next();
-                    if iter.is_some() {
+                    if kb_irq {
                         cpu.set_irq(n == 0);
                         // debug.enabled = true;
 }
