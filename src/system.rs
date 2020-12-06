@@ -27,12 +27,16 @@ impl AtariSystem {
             pia,
         }
     }
+
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) -> bool {
         let mut irq = false;
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
+            if !is_shift && !is_ctl {
+                self.pokey.resume();
+            }
             irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift

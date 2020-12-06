@@ -1,7 +1,7 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioContext, OscillatorType};
-
-pub struct FmOsc {
+use bevy::prelude::{info};
+pub struct AudioBackend {
     ctx: AudioContext,
     oscilator: [web_sys::OscillatorNode; 4],
     oscilator_gain: [web_sys::GainNode; 4],
@@ -11,14 +11,14 @@ pub struct FmOsc {
     resumed: bool,
 }
 
-impl Drop for FmOsc {
+impl Drop for AudioBackend {
     fn drop(&mut self) {
         let _ = self.ctx.close();
     }
 }
 
-impl FmOsc {
-    pub fn new() -> Result<FmOsc, JsValue> {
+impl AudioBackend {
+    pub fn new() -> Result<AudioBackend, JsValue> {
         let ctx = web_sys::AudioContext::new()?;
 
         let oscilator = [
@@ -40,10 +40,10 @@ impl FmOsc {
             ctx.create_gain()?,
         ];
         let noise = [
-            FmOsc::create_noise_source(&ctx)?,
-            FmOsc::create_noise_source(&ctx)?,
-            FmOsc::create_noise_source(&ctx)?,
-            FmOsc::create_noise_source(&ctx)?,
+            AudioBackend::create_noise_source(&ctx)?,
+            AudioBackend::create_noise_source(&ctx)?,
+            AudioBackend::create_noise_source(&ctx)?,
+            AudioBackend::create_noise_source(&ctx)?,
         ];
         let is_noise = [false; 4];
 
@@ -59,7 +59,7 @@ impl FmOsc {
             oscilator[i].start()?;
             noise[i].start()?;
         }
-        Ok(FmOsc {
+        Ok(AudioBackend {
             ctx,
             oscilator,
             oscilator_gain,
@@ -77,7 +77,7 @@ impl FmOsc {
         let buffer = ctx.create_buffer(1, N as u32, N as f32)?;
         let mut source: [f32; N] = [0.0; N];
         for i in 0..N {
-            source[i] = rand::random::<f32>() * 2.0 - 1.0;
+            source[i] = (rand::random::<i32>() & 1) as f32 * 2.0 - 1.0;
         }
         buffer.copy_to_channel(&mut source, 0)?;
         let noise_source = ctx.create_buffer_source()?;
@@ -88,7 +88,6 @@ impl FmOsc {
 
     pub fn resume(&mut self) {
         self.ctx.resume().ok();
-        self.resumed = true
     }
 
     /// Sets the gain for this oscillator, between 0.0 and 1.0.
@@ -106,7 +105,7 @@ impl FmOsc {
         if !self.is_noise[channel] {
             self.oscilator[channel].frequency().set_value(freq);
         } else {
-            self.noise[channel].playback_rate().set_value(freq / 22050.0)
+            self.noise[channel].playback_rate().set_value(1.0 * freq / 22050.0)
         }
     }
     pub fn set_noise(&mut self, channel: usize, enable: bool) {

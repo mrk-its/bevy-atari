@@ -2,7 +2,6 @@
 extern crate bitflags;
 
 pub mod antic;
-pub mod fm_osc;
 mod atari800_state;
 pub mod gtia;
 mod js_api;
@@ -28,10 +27,10 @@ use bevy::{
 };
 use render_resources::{Charset, GTIAColors, LineData, Palette};
 use system::{AtariSystem, W65C02S};
-use wasm_bindgen::prelude::*;
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
+#[allow(dead_code)]
 const NTSC_SCAN_LINES: usize = 262;
 
 const MAX_SCAN_LINES: usize = PAL_SCAN_LINES;
@@ -71,7 +70,6 @@ fn create_mode_line(
     commands: &mut Commands,
     resources: &AnticResources,
     mode_line: ModeLineDescr,
-    antic_line_nr: usize,
     system: &AtariSystem,
 ) {
     if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
@@ -122,8 +120,7 @@ fn create_mode_line(
                 0.0,
                 120.0
                     - (mode_line.scan_line as f32)
-                    - mode_line.height as f32 / 2.0
-                    - antic_line_nr as f32,
+                    - mode_line.height as f32 / 2.0,
                 0.0,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
@@ -185,7 +182,6 @@ fn atari_system(
     //     .cloned()
     //     .collect();
     // charsets.set(&antic_resources.charset_handle, AnticCharset { charset });
-    let mut antic_line_nr = 0;
     for scan_line in 0..MAX_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
         atari_system.antic.scan_line = scan_line;
@@ -206,7 +202,6 @@ fn atari_system(
                     commands,
                     &antic_resources,
                     mode_line,
-                    antic_line_nr,
                     &atari_system,
                 );
             // antic_line_nr += 1;
@@ -267,11 +262,11 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    // let state_data = include_bytes!("../fred.state.dat");
+    let state_data = include_bytes!("../fred.state.dat");
     // let state_data = include_bytes!("../ls.state.dat");
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
-    let state_data = include_bytes!("../robbo.state.dat");
+    // let state_data = include_bytes!("../robbo.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
     let atari800_state = atari800_state::load_state(state_data);
     atari_system.ram.copy_from_slice(atari800_state.memory.data);

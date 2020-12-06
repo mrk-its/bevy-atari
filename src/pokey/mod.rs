@@ -1,4 +1,5 @@
-pub use crate::fm_osc::FmOsc;
+mod web_audio;
+use web_audio::AudioBackend;
 use bevy::input::keyboard::KeyboardInput;
 pub use bevy::prelude::*;
 
@@ -29,7 +30,7 @@ pub struct Pokey {
     kbcode: u8,
     skstat: u8,
     irqst: u8,
-    osc: FmOsc,
+    backend: AudioBackend,
 }
 
 impl Default for Pokey {
@@ -41,7 +42,7 @@ impl Default for Pokey {
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
-            osc: FmOsc::new().unwrap(),
+            backend: AudioBackend::new().unwrap(),
             audctl: AUDCTL::from_bits_truncate(0),
         }
     }
@@ -78,31 +79,30 @@ impl Pokey {
             2.0 * (1.0 + self.freq[channel] as f32)
         };
         if is_linked_01 && linked_channel == 0 || is_linked_23 && linked_channel == 2 {
-            self.osc.set_frequency(linked_channel, self.clocks[linked_channel] / div);
-            self.osc.set_gain(linked_channel + 1, 0.0);
+            self.backend.set_frequency(linked_channel, self.clocks[linked_channel] / div);
+            self.backend.set_gain(linked_channel + 1, 0.0);
         } else {
-            self.osc.set_frequency(channel, self.clocks[channel] / div)
+            self.backend.set_frequency(channel, self.clocks[channel] / div)
         }
     }
 
     pub fn update_ctl(&mut self, channel: usize, value: u8) {
         self.ctl[channel] = value;
 
-        let opts = value & 0xf0;
-        self.osc.set_noise(channel, value & 0x20 == 0);
+        self.backend.set_noise(channel, value & 0x20 == 0);
 
         let linked_channel = channel & 0x2; // 0 or 2
 
         let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
         let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
 
-        let gain = 0.1 * (value & 0xf) as f32 / 15.0;
+        let gain = 0.5 * (value & 0xf) as f32 / 15.0;
 
         if is_linked_01 && channel == 0 || is_linked_23 && channel == 2 {
-            self.osc.set_gain(linked_channel, gain);
-            self.osc.set_gain(linked_channel + 1, 0.0);
+            self.backend.set_gain(linked_channel, gain);
+            self.backend.set_gain(linked_channel + 1, 0.0);
         } else {
-            self.osc.set_gain(channel, gain);
+            self.backend.set_gain(channel, gain);
         }
     }
 
@@ -135,12 +135,14 @@ impl Pokey {
                     slow_clock
                 };
                 self.clocks[3] = slow_clock;
-                warn!("AUDCTL: {:?}", self.audctl);
+                // warn!("AUDCTL: {:?}", self.audctl);
             }
             _ => (),
         }
     }
-
+    pub fn resume(&mut self) {
+        self.backend.resume()
+    }
     pub fn key_press(
         &mut self,
         event: &KeyCode,
@@ -149,10 +151,6 @@ impl Pokey {
         is_ctl: bool,
     ) -> bool {
         let kbcode = match *event {
-            KeyCode::F10 => {
-                self.osc.resume();
-                return false;
-            }
             KeyCode::Key1 => 0x1f,
             KeyCode::Key2 => 0x1e,
             KeyCode::Key3 => 0x1a,
