@@ -341,6 +341,8 @@ fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
         title: "Robbo".to_string(),
+        width: 1280,
+        height: 768,
         resizable: true,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
