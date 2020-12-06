@@ -8,6 +8,5 @@
     "icons": [{
        "src": "app_icon_512.png",
        "sizes": "512x512"
-      }
-   ]
+      }]
  }
