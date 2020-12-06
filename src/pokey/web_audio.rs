@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioContext, OscillatorType};
-use bevy::prelude::{info};
 pub struct AudioBackend {
     ctx: AudioContext,
     oscilator: [web_sys::OscillatorNode; 4],
@@ -8,7 +7,6 @@ pub struct AudioBackend {
     noise: [web_sys::AudioBufferSourceNode; 4],
     noise_gain: [web_sys::GainNode; 4],
     is_noise: [bool; 4],
-    resumed: bool,
 }
 
 impl Drop for AudioBackend {
@@ -66,7 +64,6 @@ impl AudioBackend {
             noise,
             noise_gain,
             is_noise,
-            resumed: false,
         })
     }
 
@@ -77,7 +74,8 @@ impl AudioBackend {
         let buffer = ctx.create_buffer(1, N as u32, N as f32)?;
         let mut source: [f32; N] = [0.0; N];
         for i in 0..N {
-            source[i] = (rand::random::<i32>() & 1) as f32 * 2.0 - 1.0;
+            // source[i] = (rand::random::<i32>() & 1) as f32 * 2.0 - 1.0;
+            source[i] = rand::random::<f32>() * 2.0 - 1.0;
         }
         buffer.copy_to_channel(&mut source, 0)?;
         let noise_source = ctx.create_buffer_source()?;

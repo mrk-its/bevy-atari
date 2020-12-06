@@ -1,7 +1,6 @@
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIAColors;
 use bevy::prelude::Color;
-use bevy::prelude::{info, warn};
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -148,11 +147,7 @@ impl Gtia {
         // HPOSP0-HPOSP3 [D000-D003]
         // HPOSM0-HPOSM3 [D004-D007]
         // SIZEP0-SIZEP3 [D008-D00B]
-        let overwrite_robbo_bg = self.reg[HPOSP0] == 0x40
-            && self.reg[HPOSP1] == 0x60
-            && self.reg[HPOSP2] == 0x80
-            && self.reg[HPOSP3] == 0xa0;
-        let bgcol_idx = if !overwrite_robbo_bg { COLBK } else { 0x12 };
+
         GTIAColors::new(
             self.reg[COLBK],
             self.reg[COLPF0],

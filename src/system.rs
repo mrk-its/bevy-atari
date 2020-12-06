@@ -1,3 +1,5 @@
+use crate::atari800_state::Atari800State;
+pub use crate::{gtia, antic};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
 pub use std::{cell::RefCell, rc::Rc};
@@ -26,6 +28,71 @@ impl AtariSystem {
             pokey,
             pia,
         }
+    }
+
+    pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
+        self.ram.copy_from_slice(atari800_state.memory.data);
+        let gtia = atari800_state.gtia;
+        let antic = atari800_state.antic;
+        let pokey = atari800_state.pokey;
+
+        self.gtia.write(gtia::COLBK, gtia.colbk);
+        self.gtia.write(gtia::COLPF0, gtia.colpf0);
+        self.gtia.write(gtia::COLPF1, gtia.colpf1);
+        self.gtia.write(gtia::COLPF2, gtia.colpf2);
+        self.gtia.write(gtia::COLPF3, gtia.colpf3);
+
+        self.gtia.write(gtia::COLPM0, gtia.colpm0);
+        self.gtia.write(gtia::COLPM1, gtia.colpm1);
+        self.gtia.write(gtia::COLPM2, gtia.colpm2);
+        self.gtia.write(gtia::COLPM3, gtia.colpm3);
+        self.gtia.write(gtia::HPOSP0, gtia.hposp0);
+        self.gtia.write(gtia::HPOSP1, gtia.hposp1);
+        self.gtia.write(gtia::HPOSP2, gtia.hposp2);
+        self.gtia.write(gtia::HPOSP3, gtia.hposp3);
+        self.gtia.write(gtia::SIZEP0, gtia.sizep0);
+        self.gtia.write(gtia::SIZEP1, gtia.sizep1);
+        self.gtia.write(gtia::SIZEP2, gtia.sizep2);
+        self.gtia.write(gtia::SIZEP3, gtia.sizep3);
+        self.gtia.write(gtia::P0PL, gtia.p0pl);
+        self.gtia.write(gtia::P1PL, gtia.p1pl);
+        self.gtia.write(gtia::P2PL, gtia.p2pl);
+        self.gtia.write(gtia::P3PL, gtia.p3pl);
+        self.gtia.write(gtia::M0PL, gtia.m0pl);
+        self.gtia.write(gtia::M1PL, gtia.m1pl);
+        self.gtia.write(gtia::M2PL, gtia.m2pl);
+        self.gtia.write(gtia::M3PL, gtia.m3pl);
+        self.gtia.write(gtia::M0PF, 0);
+        self.gtia.write(gtia::M1PF, 0);
+        self.gtia.write(gtia::M2PF, 0);
+        self.gtia.write(gtia::M3PF, 0);
+        self.gtia.write(gtia::P0PF, 0);
+        self.gtia.write(gtia::P1PF, 0);
+        self.gtia.write(gtia::P2PF, 0);
+        self.gtia.write(gtia::P3PF, 0);
+
+        self.antic.dmactl = antic::DMACTL::from_bits_truncate(antic.dmactl);
+        self.antic.chactl = antic.chactl;
+        self.antic.chbase = antic.chbase;
+        self.antic.pmbase = antic.pmbase;
+
+        self.antic.dlist = antic.dlist;
+        self.antic.nmien = antic::NMIEN::from_bits_truncate(antic.nmien);
+        self.antic.nmist = antic::NMIST::from_bits_truncate(antic.nmist);
+        self.antic.pmbase = antic.pmbase;
+
+        self.pokey.write(0x08, pokey.audctl);
+        for i in 0..4 {
+            self.pokey.write(i * 2, pokey.audf[i]);
+            self.pokey.write(i * 2 + 1, pokey.audc[i]);
+        }
+
+        let dlist = self.antic.dlist as usize;
+        info!(
+            "DLIST: addr: {:04x} data: {:x?}",
+            dlist,
+            &self.ram[dlist..dlist + 64]
+        );
     }
 
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) -> bool {
@@ -83,7 +150,8 @@ impl AtariSystem {
         let down = down as u8 * 2;
         let left = left as u8 * 4;
         let right = right as u8 * 8;
-        self.pia.write_port(0, 0xf0, (up | down | left | right)^0xf);
+        self.pia
+            .write_port(0, 0xf0, (up | down | left | right) ^ 0xf);
     }
 }
 

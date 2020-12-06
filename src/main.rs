@@ -268,62 +268,9 @@ fn setup(
     // let state_data = include_bytes!("../acid800.state.dat");
     // let state_data = include_bytes!("../robbo.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
+
     let atari800_state = atari800_state::load_state(state_data);
-    atari_system.ram.copy_from_slice(atari800_state.memory.data);
-    let gtia = atari800_state.gtia;
-    let antic = atari800_state.antic;
-
-    atari_system.gtia.write(gtia::COLBK, gtia.colbk);
-    atari_system.gtia.write(gtia::COLPF0, gtia.colpf0);
-    atari_system.gtia.write(gtia::COLPF1, gtia.colpf1);
-    atari_system.gtia.write(gtia::COLPF2, gtia.colpf2);
-    atari_system.gtia.write(gtia::COLPF3, gtia.colpf3);
-
-    atari_system.gtia.write(gtia::COLPM0, gtia.colpm0);
-    atari_system.gtia.write(gtia::COLPM1, gtia.colpm1);
-    atari_system.gtia.write(gtia::COLPM2, gtia.colpm2);
-    atari_system.gtia.write(gtia::COLPM3, gtia.colpm3);
-    atari_system.gtia.write(gtia::HPOSP0, gtia.hposp0);
-    atari_system.gtia.write(gtia::HPOSP1, gtia.hposp1);
-    atari_system.gtia.write(gtia::HPOSP2, gtia.hposp2);
-    atari_system.gtia.write(gtia::HPOSP3, gtia.hposp3);
-    atari_system.gtia.write(gtia::SIZEP0, gtia.sizep0);
-    atari_system.gtia.write(gtia::SIZEP1, gtia.sizep1);
-    atari_system.gtia.write(gtia::SIZEP2, gtia.sizep2);
-    atari_system.gtia.write(gtia::SIZEP3, gtia.sizep3);
-    atari_system.gtia.write(gtia::P0PL, gtia.p0pl);
-    atari_system.gtia.write(gtia::P1PL, gtia.p1pl);
-    atari_system.gtia.write(gtia::P2PL, gtia.p2pl);
-    atari_system.gtia.write(gtia::P3PL, gtia.p3pl);
-    atari_system.gtia.write(gtia::M0PL, gtia.m0pl);
-    atari_system.gtia.write(gtia::M1PL, gtia.m1pl);
-    atari_system.gtia.write(gtia::M2PL, gtia.m2pl);
-    atari_system.gtia.write(gtia::M3PL, gtia.m3pl);
-    atari_system.gtia.write(gtia::M0PF, 0);
-    atari_system.gtia.write(gtia::M1PF, 0);
-    atari_system.gtia.write(gtia::M2PF, 0);
-    atari_system.gtia.write(gtia::M3PF, 0);
-    atari_system.gtia.write(gtia::P0PF, 0);
-    atari_system.gtia.write(gtia::P1PF, 0);
-    atari_system.gtia.write(gtia::P2PF, 0);
-    atari_system.gtia.write(gtia::P3PF, 0);
-
-    atari_system.antic.dmactl = antic::DMACTL::from_bits_truncate(antic.dmactl);
-    atari_system.antic.chactl = antic.chactl;
-    atari_system.antic.chbase = antic.chbase;
-    atari_system.antic.pmbase = antic.pmbase;
-
-    atari_system.antic.dlist = antic.dlist;
-    atari_system.antic.nmien = antic::NMIEN::from_bits_truncate(antic.nmien);
-    atari_system.antic.nmist = antic::NMIST::from_bits_truncate(antic.nmist);
-    atari_system.antic.pmbase = antic.pmbase;
-
-    let dlist = atari_system.antic.dlist as usize;
-    info!(
-        "DLIST: addr: {:04x} data: {:x?}",
-        dlist,
-        &atari_system.ram[dlist..dlist + 64]
-    );
+    atari_system.load_atari800_state(&atari800_state);
 
     cpu.step(&mut *atari_system); // changes state into Running
     cpu.set_pc(atari800_state.cpu.pc);

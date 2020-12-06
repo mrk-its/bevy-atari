@@ -1,7 +1,6 @@
 mod web_audio;
-use web_audio::AudioBackend;
-use bevy::input::keyboard::KeyboardInput;
 pub use bevy::prelude::*;
+use web_audio::AudioBackend;
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -79,10 +78,20 @@ impl Pokey {
             2.0 * (1.0 + self.freq[channel] as f32)
         };
         if is_linked_01 && linked_channel == 0 || is_linked_23 && linked_channel == 2 {
-            self.backend.set_frequency(linked_channel, self.clocks[linked_channel] / div);
+            self.backend
+                .set_frequency(linked_channel, self.clocks[linked_channel] / div);
             self.backend.set_gain(linked_channel + 1, 0.0);
+            // warn!(
+            //     "FREQ: linked channel: {} value: {:02x}{:02x} {:?}Hz",
+            //     linked_channel,
+            //     self.freq[linked_channel],
+            //     self.freq[linked_channel + 1],
+            //     self.clocks[linked_channel] / div,
+            // );
         } else {
-            self.backend.set_frequency(channel, self.clocks[channel] / div)
+            self.backend
+                .set_frequency(channel, self.clocks[channel] / div);
+            // warn!("FREQ: channel: {} value: {:02x} clock: {:?}  div: {:?} {:?}Hz", channel, value, self.clocks[channel], div, self.clocks[channel] / div);
         }
     }
 
@@ -104,6 +113,7 @@ impl Pokey {
         } else {
             self.backend.set_gain(channel, gain);
         }
+        // warn!("CTL: channel: {} value: {:02x}", channel, value);
     }
 
     pub fn write(&mut self, addr: usize, value: u8) {

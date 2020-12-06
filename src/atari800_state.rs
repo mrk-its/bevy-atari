@@ -79,6 +79,41 @@ pub struct Memory<'a> {
     pub cart_a0bf_enabled: [u8; 4],
     pub enable_mapram: [u8; 4]
 }
+#[derive(Debug, Default, Clone, Copy)]
+#[repr(C, packed)]
+pub struct PIA {
+    pub pactl: u8,
+    pub pbctl: u8,
+    pub porta: u8,
+    pub portb: u8,
+    pub porta_mask: u8,
+    pub portb_mask: u8,
+    pub ca2: i32,
+    pub ca2_negpending: i32,
+    pub ca2_pospending: i32,
+    pub cb2: i32,
+    pub cb2_negpending: i32,
+    pub cb2_pospending: i32,
+}
+#[derive(Debug, Default, Clone, Copy)]
+#[repr(C, packed)]
+pub struct POKEY {
+    pub kbcode: u8,
+    pub irqst: u8,
+    pub irqen: u8,
+    pub skctl: u8,
+    pub shift_key: i32,
+    pub keypressed: i32,
+    pub delayed_serin_irq: i32,
+    pub delayed_serout_irq: i32,
+    pub delayed_xmtdone_irq: i32,
+    pub audf: [u8; 4],
+    pub audc: [u8; 4],
+    pub audctl: u8,
+    pub divnirq: [i32; 4],
+    pub divnmax: [i32; 4],
+    pub base_mult: i32,
+}
 
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -214,6 +249,8 @@ pub struct Atari800State<'a> {
     pub cartridge: &'a Cartridge,
     pub antic: &'a Antic,
     pub gtia: &'a GTIA,
+    pub pia: &'a PIA,
+    pub pokey: &'a POKEY,
     pub cpu: CPU,
     pub memory: Memory<'a>,
 }
@@ -241,15 +278,23 @@ pub fn load_state(data: &[u8]) -> Atari800State {
     let data = &data[6..];
     let (memory, data) = read_memory(data);
     cpu.pc = data[0] as u16 + (data[1] as u16) * 256;
-    let (gtia, _data) = read::<GTIA>(data);
+    let (gtia, data) = read::<GTIA>(data);
+
+    let (pia, data) = read::<PIA>(data);
+    let (pokey, _data) = read::<POKEY>(data);
+
     info!("cpu: {:?}", cpu);
     info!("gtia: {:?}", gtia);
+    info!("pia: {:?}", pia);
+    info!("pokey: {:?}", pokey);
 
     Atari800State {
         atari800,
         cartridge,
         antic,
         gtia,
+        pia,
+        pokey,
         cpu,
         memory,
     }
