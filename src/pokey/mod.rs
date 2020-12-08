@@ -7,6 +7,10 @@ const KBCODE: usize = 0x09;
 const SKSTAT: usize = 0x0f;
 const IRQST: usize = 0x0e;
 
+pub const CLOCK_177: f32 = 1778400.0;
+pub const DIVIDER_64K: u32 = 28;
+pub const DIVIDER_15K: u32 = 114;
+
 bitflags! {
     #[derive(Default)]
     pub struct AUDCTL: u8 {
@@ -20,11 +24,21 @@ bitflags! {
         const POLY_9BIT = 128;
     }
 }
+bitflags! {
+    pub struct AUDC: u8 {
+        const NOT_5BIT = 128;
+        const NOISE_4BIT = 64;
+        const NOT_NOISE = 32;
+        const VOL_ONLY = 16;
+        const VOL_MASK = 15;
+    }
+}
 
 pub struct Pokey {
-    clocks: [f32; 4],
+    delay: [usize; 4],
+    clock_divider: [u32; 4],
     freq: [u8; 4],
-    ctl: [u8; 4],
+    ctl: [AUDC; 4],
     audctl: AUDCTL,
     kbcode: u8,
     skstat: u8,
@@ -35,9 +49,10 @@ pub struct Pokey {
 impl Default for Pokey {
     fn default() -> Self {
         Self {
-            ctl: [0; 4],
+            delay: [0; 4],
+            ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
-            clocks: [0.0; 4],
+            clock_divider: [DIVIDER_64K; 4],
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
@@ -63,57 +78,97 @@ impl Pokey {
         value
     }
 
-    pub fn update_freq(&mut self, channel: usize, value: u8) {
-        self.freq[channel] = value;
-        let linked_channel = channel & 0x2; // 0 or 2
-
-        let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
-        let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
-
-        let div = if linked_channel == 0 && is_linked_01 || linked_channel == 2 && is_linked_23 {
-            2.0 * (7.0
-                + self.freq[linked_channel] as f32
-                + self.freq[linked_channel + 1] as f32 * 256.0)
-        } else {
-            2.0 * (1.0 + self.freq[channel] as f32)
-        };
-        if is_linked_01 && linked_channel == 0 || is_linked_23 && linked_channel == 2 {
-            self.backend
-                .set_frequency(linked_channel, self.clocks[linked_channel] / div);
-            self.backend.set_gain(linked_channel + 1, 0.0);
-            // warn!(
-            //     "FREQ: linked channel: {} value: {:02x}{:02x} {:?}Hz",
-            //     linked_channel,
-            //     self.freq[linked_channel],
-            //     self.freq[linked_channel + 1],
-            //     self.clocks[linked_channel] / div,
-            // );
-        } else {
-            self.backend
-                .set_frequency(channel, self.clocks[channel] / div);
-            // warn!("FREQ: channel: {} value: {:02x} clock: {:?}  div: {:?} {:?}Hz", channel, value, self.clocks[channel], div, self.clocks[channel] / div);
+    const IDLE_DELAY: usize = 100;
+    pub fn tick(&mut self) {
+        for channel in 0..4 {
+            if self.delay[channel] == 0 {
+                continue;
+            }
+            self.delay[channel] -= 1;
+            if self.delay[channel] == 0 {
+                self.setup_channel(channel);
+            }
         }
     }
 
-    pub fn update_ctl(&mut self, channel: usize, value: u8) {
-        self.ctl[channel] = value;
-
-        self.backend.set_noise(channel, value & 0x20 == 0);
-
-        let linked_channel = channel & 0x2; // 0 or 2
-
+    pub fn setup_channel(&mut self, channel: usize) {
         let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
         let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
-
-        let gain = 0.5 * (value & 0xf) as f32 / 15.0;
-
-        if is_linked_01 && channel == 0 || is_linked_23 && channel == 2 {
-            self.backend.set_gain(linked_channel, gain);
-            self.backend.set_gain(linked_channel + 1, 0.0);
+        let (divider, clock_divider) = if channel == 1 && is_linked_01 || channel == 3 && is_linked_23 {
+            let divider = 7 + (self.freq[channel-1] as u32) + (self.freq[channel] as u32) * 256;
+            let clock_divider = self.clock_divider[channel-1];
+            (divider, clock_divider)
         } else {
-            self.backend.set_gain(channel, gain);
+            let divider = 1 + (self.freq[channel] as u32);
+            let clock_divider = self.clock_divider[channel];
+            (divider, clock_divider)
+        };
+        assert!(clock_divider>0);
+        assert!(divider>0);
+        let freq = CLOCK_177 / clock_divider as f32 / divider as f32 / 2.0;
+
+        self.backend.setup_channel(
+            channel,
+            self.audctl,
+            self.ctl[channel],
+            divider,
+            clock_divider,
+            freq,
+        );
+        let gain = 0.25 * (self.ctl[channel] & AUDC::VOL_MASK).bits as f32 / 15.0;
+        self.backend.set_gain(channel, gain);
+        let is_linked = is_linked_01 && channel == 1 || is_linked_23 && channel == 3;
+        if is_linked {
+            self.backend.set_gain(channel - 1, 0.0);
         }
+        // warn!(
+        //     "setup channel {}, linked: {}, divider: {:04x}, freq: {}Hz",
+        //     channel, is_linked, divider, freq
+        // );
+    }
+
+    pub fn reset_idle(&mut self, channel: usize) {
+        let linked_channel = channel & 0x2; // 0 or 2
+        if linked_channel == 0 && self.audctl.contains(AUDCTL::CH12_LINKED_CNT)
+            || linked_channel == 2 && self.audctl.contains(AUDCTL::CH34_LINKED_CNT)
+        {
+            self.delay[linked_channel + 1] = Pokey::IDLE_DELAY;
+        } else {
+            self.delay[channel] = Pokey::IDLE_DELAY;
+        }
+    }
+
+    pub fn update_freq(&mut self, channel: usize, value: u8) {
+        self.reset_idle(channel);
+        self.freq[channel] = value;
+        // warn!("FREQ: channel: {} value: {:02x}", channel, value);
+    }
+    // ch34 linked, ch3 fast clock
+    // freq: e605, 586.15686Hz
+    // ctl: ch3: c7
+    // ctl: ch2: 00
+
+    pub fn update_ctl(&mut self, channel: usize, value: u8) {
+        self.reset_idle(channel);
+        self.ctl[channel] = AUDC::from_bits_truncate(value);
+        // info!("update_ctl channel: {}, value: {:02x}, {:?}", channel, value, self.ctl[channel]);
         // warn!("CTL: channel: {} value: {:02x}", channel, value);
+
+        // let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
+        // let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
+
+        // let gain = 0.5 * (value & 0xf) as f32 / 15.0;
+
+        // if is_linked_01 && channel == 1 || is_linked_23 && channel == 3 {
+        //     self.backend
+        //         .set_noise(channel, value & 0x20 == 0, self.audctl, value);
+        //     self.backend.set_gain(channel, gain);
+        //     self.backend.set_gain(channel - 1, 0.0);
+        // } else {
+        //     self.backend
+        //         .set_noise(channel, value & 0x20 == 0, self.audctl, value);
+        //     self.backend.set_gain(channel, gain);
+        // }
     }
 
     pub fn write(&mut self, addr: usize, value: u8) {
@@ -129,22 +184,22 @@ impl Pokey {
             8 => {
                 self.audctl = AUDCTL::from_bits_truncate(value);
                 let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {
-                    15600.0
+                    DIVIDER_15K
                 } else {
-                    63514.29
+                    DIVIDER_64K
                 };
-                self.clocks[0] = if self.audctl.contains(AUDCTL::CH1_FAST_CLOCK) {
-                    1778400.0
-                } else {
-                    slow_clock
-                };
-                self.clocks[1] = slow_clock;
-                self.clocks[2] = if self.audctl.contains(AUDCTL::CH3_FAST_CLOCK) {
-                    1778400.0
+                self.clock_divider[0] = if self.audctl.contains(AUDCTL::CH1_FAST_CLOCK) {
+                    1
                 } else {
                     slow_clock
                 };
-                self.clocks[3] = slow_clock;
+                self.clock_divider[1] = slow_clock;
+                self.clock_divider[2] = if self.audctl.contains(AUDCTL::CH3_FAST_CLOCK) {
+                    1
+                } else {
+                    slow_clock
+                };
+                self.clock_divider[3] = slow_clock;
                 // warn!("AUDCTL: {:?}", self.audctl);
             }
             _ => (),

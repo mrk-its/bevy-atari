@@ -86,7 +86,6 @@ impl AtariSystem {
             self.pokey.write(i * 2, pokey.audf[i]);
             self.pokey.write(i * 2 + 1, pokey.audc[i]);
         }
-
         let dlist = self.antic.dlist as usize;
         info!(
             "DLIST: addr: {:04x} data: {:x?}",
@@ -152,6 +151,9 @@ impl AtariSystem {
         let right = right as u8 * 8;
         self.pia
             .write_port(0, 0xf0, (up | down | left | right) ^ 0xf);
+    }
+    pub fn tick(&mut self) {
+        self.pokey.tick()
     }
 }
 

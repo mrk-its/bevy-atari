@@ -246,6 +246,7 @@ fn atari_system(
             }
             cpu.step(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
+            atari_system.tick();
         }
     }
     perf_metrics.frame_cnt += 1;
@@ -262,11 +263,12 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    let state_data = include_bytes!("../fred.state.dat");
+    // let state_data = include_bytes!("../fred.state.dat");
     // let state_data = include_bytes!("../ls.state.dat");
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
-    // let state_data = include_bytes!("../robbo.state.dat");
+    let state_data = include_bytes!("../robbo.state.dat");
+    // let state_data = include_bytes!("../laserdemo.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
 
     let atari800_state = atari800_state::load_state(state_data);
