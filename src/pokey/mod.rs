@@ -275,7 +275,7 @@ impl Pokey {
         };
         if is_pressed {
             self.kbcode = kbcode | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);
-            info!("kbcode: {:02x}", kbcode);
+            // info!("kbcode: {:02x}", kbcode);
             self.skstat = 0xff - 4;
             self.irqst = 0xff - 0x40;
             true

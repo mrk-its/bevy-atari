@@ -248,7 +248,7 @@ impl AudioBackend {
             noise_source.set_loop(true);
             Some(noise_source)
         } else {
-            info!("white noise, freq: {:?}", freq);
+            // info!("white noise, freq: {:?}", freq);
             if let Some(current_source) = &self.buffer_source[channel] {
                 current_source.stop().unwrap();
             }
@@ -288,7 +288,7 @@ impl AudioBackend {
         if (ctl & AUDC::VOL_MASK).bits == 0 {
             return;
         }
-        info!("setup_channel: {} AUDCTL: {:?}({:?}) AUDC: {:?}({:?}) div: {} clk: {} freq: {}", channel, audctl, audctl.bits, ctl, ctl.bits, divider, clock_divider, freq);
+        // info!("setup_channel: {} AUDCTL: {:?}({:?}) AUDC: {:?}({:?}) div: {} clk: {} freq: {}", channel, audctl, audctl.bits, ctl, ctl.bits, divider, clock_divider, freq);
         let is_noise = !ctl.contains(AUDC::NOT_NOISE);
         // warn!(
         //     "setup_channel: channel: {:?}, audctl: {:?}, ctl: {:?} div: {:?}, freq: {:?}, noise: {}",
