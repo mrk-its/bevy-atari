@@ -25,6 +25,7 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
+use bevy::winit::WinitConfig;
 use render_resources::{Charset, GTIAColors, LineData, Palette};
 use system::{AtariSystem, W65C02S};
 
@@ -263,12 +264,12 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    // let state_data = include_bytes!("../fred.state.dat");
+    let state_data = include_bytes!("../fred.state.dat");
     // let state_data = include_bytes!("../ls.state.dat");
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
     // let state_data = include_bytes!("../robbo.state.dat");
-    let state_data = include_bytes!("../laserdemo.state.dat");
+    // let state_data = include_bytes!("../laserdemo.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
 
     let atari800_state = atari800_state::load_state(state_data);
@@ -351,6 +352,10 @@ fn main() {
         canvas: Some("#bevy-canvas".to_string()),
         vsync: true,
         ..Default::default()
+    });
+    app.add_resource(WinitConfig {
+        force_fps: Some(50.0),
+        return_from_run: false,
     });
     app.add_plugins(DefaultPlugins);
 
