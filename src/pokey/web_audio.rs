@@ -6,7 +6,7 @@ use web_sys::{AudioBuffer, AudioContext, OscillatorType};
 
 const MIN_SAMPLE_RATE: f32 = 8000.0;
 const MAX_SAMPLE_RATE: f32 = 96000.0;
-const SAMPLE_DUR: f32 = 0.2;
+const SAMPLE_DUR: f32 = 1.0;
 
 #[derive(Debug, Eq, PartialEq, Hash, Copy, Clone)]
 pub struct NoiseDescr {
@@ -15,16 +15,29 @@ pub struct NoiseDescr {
     pub ctl: AUDC,
     pub audctl: AUDCTL,
 }
+pub struct PolyCounter {
+    position: usize,
+    data: &'static [u8],
+}
+
+impl PolyCounter {
+    pub fn get(&mut self, step: usize) -> u8 {
+        let v = self.data[self.position % self.data.len()];
+        self.position += step;
+        v
+    }
+}
 
 pub struct AudioBackend {
     ctx: AudioContext,
-    poly_4: &'static [u8; 15],
-    poly_5: &'static [u8; 31],
-    poly_9: &'static [u8; 511],
-    poly_17: &'static [u8; 131071],
+    poly_4: PolyCounter,
+    poly_5: PolyCounter,
+    poly_9: PolyCounter,
+    poly_17: PolyCounter,
     oscillator: [web_sys::OscillatorNode; 4],
     oscillator_gain: [web_sys::GainNode; 4],
     oscillator_is_started: [bool; 4],
+    noise_descr: [Option<NoiseDescr>; 4],
     buffer_source: [Option<web_sys::AudioBufferSourceNode>; 4],
     white_noise: web_sys::AudioBuffer,
     gain: [web_sys::GainNode; 4],
@@ -75,16 +88,29 @@ impl AudioBackend {
         let oscillator_is_started = [false; 4];
         let mut backend = AudioBackend {
             ctx,
-            poly_4: include_bytes!("poly_4.dat"),
-            poly_5: include_bytes!("poly_5.dat"),
-            poly_9: include_bytes!("poly_9.dat"),
-            poly_17: include_bytes!("poly_17.dat"),
+            poly_4: PolyCounter {
+                position: 0,
+                data: include_bytes!("poly_4.dat"),
+            },
+            poly_5: PolyCounter {
+                position: 0,
+                data: include_bytes!("poly_5.dat"),
+            },
+            poly_9: PolyCounter {
+                position: 0,
+                data: include_bytes!("poly_9.dat"),
+            },
+            poly_17: PolyCounter {
+                position: 0,
+                data: include_bytes!("poly_17.dat"),
+            },
             oscillator_is_started,
             oscillator_gain,
             buffer_source,
             oscillator,
             gain,
             white_noise,
+            noise_descr: [None; 4],
             noise_buffer_cache: LruCache::new(500),
         };
         for i in 0..4 {
@@ -103,18 +129,12 @@ impl AudioBackend {
     }
     pub fn create_noise_buffer(&mut self, noise_descr: &NoiseDescr) -> Option<&AudioBuffer> {
         if !self.noise_buffer_cache.contains(noise_descr) {
-            info!(
-                "create new audio buffer, total: {}",
-                self.noise_buffer_cache.len()
-            );
-            let mut position = 0;
-
-            let noise_data = if noise_descr.ctl.contains(AUDC::NOISE_4BIT) {
-                &self.poly_4[..]
+            let (noise_data, poly_name) = if noise_descr.ctl.contains(AUDC::NOISE_4BIT) {
+                (&mut self.poly_4, "4bit")
             } else if noise_descr.audctl.contains(AUDCTL::POLY_9BIT) {
-                &self.poly_9[..]
+                (&mut self.poly_9, "9bit")
             } else {
-                &self.poly_17[..]
+                (&mut self.poly_17, "17bit")
             };
             // frequency of fetching bits from poly_data buffer
             // we are going to use this sample rate for playing data from AudioBuffer
@@ -134,18 +154,27 @@ impl AudioBackend {
                 // 1 second is `sample_rate` of samples playing with `sample_rate`, so:
                 let n_samples = (sample_rate as f32 * SAMPLE_DUR) as u32;
 
+                info!(
+                    "create new audio buffer for {:x?} {} total: {}, n_samples: {} mult: {}",
+                    noise_descr,
+                    poly_name,
+                    self.noise_buffer_cache.len(),
+                    n_samples,
+                    multiplier,
+                );
+
                 sample_rate *= multiplier as f32;
                 let mut data = Vec::with_capacity((n_samples * multiplier) as usize);
+                let step = (noise_descr.divider * noise_descr.clock_divider) as usize;
                 for _ in 0..n_samples {
                     let mask = if !noise_descr.ctl.contains(AUDC::NOT_5BIT)
-                        && self.poly_5[position % self.poly_5.len()] == 0
+                        && self.poly_5.get(step) == 0
                     {
                         0
                     } else {
                         1
                     };
-                    let sample = (mask & noise_data[position % noise_data.len()]) as f32 * 2.0 - 1.0;
-                    position += (noise_descr.divider * noise_descr.clock_divider) as usize;
+                    let sample = (mask & noise_data.get(step)) as f32 * 2.0 - 1.0;
                     for _ in 0..multiplier {
                         data.push(sample);
                     }
@@ -193,21 +222,25 @@ impl AudioBackend {
         clock_divider: u32,
         freq: f32,
     ) {
+        let descr = NoiseDescr {
+            divider,
+            clock_divider,
+            ctl: ctl & (AUDC::NOT_NOISE | AUDC::NOISE_4BIT | AUDC::NOT_5BIT),
+            audctl: audctl & AUDCTL::POLY_9BIT,
+        };
+        if Some(descr) == self.noise_descr[channel] {
+            return;
+        }
         let noise_source = if true {
             // warn!("set_noise_source {} {:?}, {:02x}", channel, audctl, ctl);
             let noise_source = self.ctx.create_buffer_source().unwrap();
-            let descr = NoiseDescr {
-                divider,
-                clock_divider,
-                ctl: ctl & (AUDC::NOISE_4BIT | AUDC::NOT_5BIT),
-                audctl: audctl & AUDCTL::POLY_9BIT,
-            };
             let buffer = self.create_noise_buffer(&descr);
             if buffer.is_none() {
                 if let Some(current_source) = &self.buffer_source[channel] {
                     current_source.stop().unwrap();
                 }
                 self.buffer_source[channel] = None;
+                self.noise_descr[channel] = None;
                 return;
             }
             let buffer = buffer.unwrap();
@@ -215,6 +248,7 @@ impl AudioBackend {
             noise_source.set_loop(true);
             Some(noise_source)
         } else {
+            info!("white noise, freq: {:?}", freq);
             if let Some(current_source) = &self.buffer_source[channel] {
                 current_source.stop().unwrap();
             }
@@ -234,8 +268,13 @@ impl AudioBackend {
                 .unwrap();
             noise_source.start().unwrap();
         }
-        self.buffer_source[channel] = noise_source
+        self.buffer_source[channel] = noise_source;
+        self.noise_descr[channel] = Some(descr);
     }
+
+    //AUDC = 132
+    //AUDF = 35
+    //AUDCTL = 0
 
     pub fn setup_channel(
         &mut self,
@@ -246,6 +285,10 @@ impl AudioBackend {
         clock_divider: u32,
         freq: f32,
     ) {
+        if (ctl & AUDC::VOL_MASK).bits == 0 {
+            return;
+        }
+        info!("setup_channel: {} AUDCTL: {:?}({:?}) AUDC: {:?}({:?}) div: {} clk: {} freq: {}", channel, audctl, audctl.bits, ctl, ctl.bits, divider, clock_divider, freq);
         let is_noise = !ctl.contains(AUDC::NOT_NOISE);
         // warn!(
         //     "setup_channel: channel: {:?}, audctl: {:?}, ctl: {:?} div: {:?}, freq: {:?}, noise: {}",

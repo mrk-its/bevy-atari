@@ -121,7 +121,7 @@ fn create_mode_line(
                 0.0,
                 120.0
                     - (mode_line.scan_line as f32)
-                    - mode_line.height as f32 / 2.0,
+                    - mode_line.height as f32 / 2.0 + 8.0,
                 0.0,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
@@ -264,12 +264,12 @@ fn setup(
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
-    let state_data = include_bytes!("../fred.state.dat");
+    // let state_data = include_bytes!("../fred.state.dat");
     // let state_data = include_bytes!("../ls.state.dat");
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
     // let state_data = include_bytes!("../robbo.state.dat");
-    // let state_data = include_bytes!("../laserdemo.state.dat");
+    let state_data = include_bytes!("../laserdemo.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
 
     let atari800_state = atari800_state::load_state(state_data);

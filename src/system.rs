@@ -21,6 +21,7 @@ impl AtariSystem {
         let pokey = Pokey::default();
         let gtia = Gtia::default();
         let pia = PIA::default();
+
         AtariSystem {
             ram,
             antic,
@@ -86,6 +87,11 @@ impl AtariSystem {
             self.pokey.write(i * 2, pokey.audf[i]);
             self.pokey.write(i * 2 + 1, pokey.audc[i]);
         }
+
+        // self.pokey.write(0x08, 0);
+        // self.pokey.write(0, 34);
+        // self.pokey.write(1, 132);
+
         let dlist = self.antic.dlist as usize;
         info!(
             "DLIST: addr: {:04x} data: {:x?}",
@@ -143,7 +149,7 @@ impl AtariSystem {
         right: bool,
         fire: bool,
     ) {
-        info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
+        // info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
         self.gtia.set_trig(port, fire);
         let up = up as u8;
         let down = down as u8 * 2;

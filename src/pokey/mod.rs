@@ -183,6 +183,9 @@ impl Pokey {
             }
             8 => {
                 self.audctl = AUDCTL::from_bits_truncate(value);
+                if self.audctl.contains(AUDCTL::CH1_HIGH_PASS) || self.audctl.contains(AUDCTL::CH1_HIGH_PASS) {
+                    warn!("channel: {}, {:?}", channel, self.audctl);
+                }
                 let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {
                     DIVIDER_15K
                 } else {
