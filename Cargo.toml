@@ -51,12 +51,12 @@ features = [
 
 
 [patch.'https://github.com/bevyengine/bevy']
-bevy = {path = "../bevy", default-features=false}
-[patch.'https://github.com/mrk-its/bevy_webgl2']
-bevy_webgl2 = {path = "../bevy_webgl2"}
+bevy = {git = "https://github.com/mrk-its/bevy", branch="force_fps", default-features=false}
+#bevy = {path = "../bevy", default-features=false}
 
-[patch.crates-io]
-winit = {path = "../winit"}
+# [patch.'https://github.com/mrk-its/bevy_webgl2']
+# bevy_webgl2 = {git = "https://github.com/mrk-its/bevy_webgl2"}
+# bevy_webgl2 = {path = "../bevy_webgl2"}
 
 [profile.dev.package."*"]
 opt-level = 2
