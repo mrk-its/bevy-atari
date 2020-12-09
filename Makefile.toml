@@ -18,6 +18,9 @@ install_crate = {crate_name = "basic-http-server", binary = "basic-http-server",
 [tasks.wasm-bindgen-cli]
 install_crate = {crate_name = "wasm-bindgen-cli", binary = "wasm-bindgen", test_arg="--help"}
 
+[tasks.add-wasm32-target]
+install_script = "rustup target add wasm32-unknown-unknown"
+
 [tasks.cargo-build-web]
 args = ["build", "--target", "wasm32-unknown-unknown", "--features", "web", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
@@ -25,7 +28,7 @@ command = "cargo"
 [tasks.build-web]
 args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
 command = "wasm-bindgen"
-dependencies = ["cargo-build-web", "wasm-bindgen-cli"]
+dependencies = ["cargo-build-web", "wasm-bindgen-cli", "add-wasm32-target"]
 
 [tasks.build-native]
 args = ["build", "--features", "native", "@@split(CARGO_RELEASE_ARGS, )"]
