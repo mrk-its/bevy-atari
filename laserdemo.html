@@ -1,52 +1,7 @@
 <html>
   <head>
-    <meta charset="utf-8"/>
-    <style>
-      body {
-        background: linear-gradient(
-          135deg,
-          white 0%,
-          white 49%,
-          black 49%,
-          black 51%,
-          white 51%,
-          white 100%
-        );
-        background-repeat: repeat;
-        background-size: 20px 20px;
-      }
-      canvas {
-        background-color: white;
-      }
-    </style>
+    <script>
+      document.location='./#laserdemo'
+    </script>
   </head>
-  <script type="module">
-    import init, {set_joystick} from './target_laserdemo/wasm.js'
-    async function run() {
-      try {
-        await init()
-      } catch (e) {
-      }
-      // function random_moves() {
-      //   // set_joystick param: port, up, down, left, right, fire
-      //   set_joystick(0, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.2);
-      //   setTimeout(random_moves, 100)
-      // }
-      // random_moves();
-    }
-    run();
-
-    function auto_focus() {
-      let canvas = document.getElementsByTagName("canvas");
-      if (!canvas.length) {
-        setTimeout(auto_focus, 100);
-      } else {
-        canvas[0].focus();
-      }
-    }
-    auto_focus()
-  </script>
-  <body>
-    <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" width="1280" height="720" alt="bevy" cursor="auto" style="width: 1280px; height: 720px;"></canvas>
-  </body>
 </html>

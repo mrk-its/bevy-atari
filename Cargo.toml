@@ -34,6 +34,7 @@ once_cell = "1.5.2"
 parking_lot = "0.11.1"
 bitflags = "1.2"
 lru = "0.6"
+anyhow = "1.0"
 
 [dependencies.web-sys]
 version = "0.3.4"
@@ -47,6 +48,8 @@ features = [
   'GainNode',
   'OscillatorNode',
   'OscillatorType',
+  'Window',
+  'Location',
 ]
 
 

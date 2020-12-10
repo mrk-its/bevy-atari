@@ -1,4 +1,9 @@
-use bevy::prelude::*;
+use bevy::reflect::TypeUuid;
+use bevy::{
+    asset::{AssetLoader, LoadedAsset},
+    prelude::*,
+};
+
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 struct Test {
@@ -63,7 +68,6 @@ pub struct CPU {
     pub pc: u16,
 }
 
-
 #[derive(Default)]
 pub struct Memory<'a> {
     pub data: &'a [u8],
@@ -77,7 +81,7 @@ pub struct Memory<'a> {
     pub atarixe_memory: &'a [u8],
     pub portb: u8,
     pub cart_a0bf_enabled: [u8; 4],
-    pub enable_mapram: [u8; 4]
+    pub enable_mapram: [u8; 4],
 }
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, packed)]
@@ -114,7 +118,6 @@ pub struct POKEY {
     pub divnmax: [i32; 4],
     pub base_mult: i32,
 }
-
 
 #[derive(Debug, Default, Clone, Copy)]
 #[repr(C, packed)]
@@ -174,7 +177,7 @@ pub struct GTIA {
 }
 
 pub fn read<T>(data: &[u8]) -> (&T, &[u8]) {
-    let (head, body, _) = unsafe {data.align_to::<T>()};
+    let (head, body, _) = unsafe { data.align_to::<T>() };
     assert!(head.is_empty());
     (&body[0], &data[std::mem::size_of::<T>()..])
 }
@@ -264,10 +267,17 @@ pub fn load_state(data: &[u8]) -> Atari800State {
     let (_, data) = data.split_at(2);
 
     let (atari800, data) = read::<Atari800>(data);
-    assert!(atari800.machine_size == 1, "not supported machine size: {}", atari800.machine_size);
+    assert!(
+        atari800.machine_size == 1,
+        "not supported machine size: {}",
+        atari800.machine_size
+    );
 
     let (cartridge, data) = read::<Cartridge>(data);
-    assert!(cartridge.saved_type == 0, "reading cartridge is not supported");
+    assert!(
+        cartridge.saved_type == 0,
+        "reading cartridge is not supported"
+    );
 
     let data = skip_sio(data);
 
@@ -297,5 +307,40 @@ pub fn load_state(data: &[u8]) -> Atari800State {
         pokey,
         cpu,
         memory,
+    }
+}
+
+#[derive(TypeUuid)]
+#[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
+pub struct StateFile{
+    data: Vec<u8>,
+}
+
+impl StateFile {
+    pub fn get_atari800_state(&self) -> Atari800State {
+        load_state(&self.data)
+    }
+}
+
+#[derive(Default)]
+pub struct Atari800StateLoader;
+
+impl AssetLoader for Atari800StateLoader {
+    fn load<'a>(
+        &'a self,
+        bytes: &'a [u8],
+        load_context: &'a mut bevy::asset::LoadContext,
+    ) -> bevy::utils::BoxedFuture<'a, Result<(), anyhow::Error>> {
+        Box::pin(async move {
+            let state_file = StateFile {
+                data: bytes.to_owned(),
+            };
+            load_context.set_default_asset(LoadedAsset::new(state_file));
+            Ok(())
+        })
+    }
+
+    fn extensions(&self) -> &[&str] {
+        &["dat"]
     }
 }

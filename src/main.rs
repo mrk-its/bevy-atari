@@ -12,6 +12,7 @@ mod render_resources;
 mod system;
 use antic::ModeLineDescr;
 use bevy::reflect::TypeUuid;
+use wasm_bindgen::prelude::*;
 use bevy::{
     prelude::*,
     render::{
@@ -28,6 +29,7 @@ use bevy::{
 use bevy::winit::WinitConfig;
 use render_resources::{Charset, GTIAColors, LineData, Palette};
 use system::{AtariSystem, W65C02S};
+use atari800_state::{StateFile, Atari800StateLoader};
 
 const SCAN_LINE_CYCLES: usize = 114;
 const PAL_SCAN_LINES: usize = 312;
@@ -67,6 +69,14 @@ struct AnticResources {
     palette_handle: Handle<AtariPalette>,
     mesh_handle: Handle<Mesh>,
 }
+
+#[derive(Default)]
+struct State {
+    requested_file: String,
+    handle: Handle<StateFile>,
+    initialized: bool,
+}
+
 fn create_mode_line(
     commands: &mut Commands,
     resources: &AnticResources,
@@ -151,6 +161,9 @@ struct Debugger {
 
 fn atari_system(
     commands: &mut Commands,
+    mut state: ResMut<State>,
+    state_files: ResMut<Assets<StateFile>>,
+    asset_server: Res<AssetServer>,
     keyboard: Res<Input<KeyCode>>,
     antic_resources: ResMut<AnticResources>,
     antic_lines: Query<(Entity, &AnticLine)>,
@@ -163,6 +176,33 @@ fn atari_system(
     // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
+    let requested_file = get_fragment().unwrap_or("laserdemo".to_string());
+    if requested_file != state.requested_file {
+        state.requested_file = requested_file;
+        state.initialized = false;
+        let file_name = format!("{}.state.dat", state.requested_file);
+        state.handle = asset_server.load(file_name.as_str());
+    }
+
+    if !state.initialized {
+        if let Some(state_file) = state_files.get(&state.handle) {
+            let atari800_state = state_file.get_atari800_state();
+            atari_system.load_atari800_state(&atari800_state);
+
+            cpu.step(&mut *atari_system); // changes state into Running
+            cpu.set_pc(atari800_state.cpu.pc);
+            cpu.set_a(atari800_state.cpu.reg_a);
+            cpu.set_x(atari800_state.cpu.reg_x);
+            cpu.set_y(atari800_state.cpu.reg_y);
+            cpu.set_p(atari800_state.cpu.reg_p);
+            cpu.set_s(atari800_state.cpu.reg_s);
+
+            state.initialized = true;
+        }
+    }
+    if !state.initialized {
+        return;
+    }
     {
         let mut guard = js_api::ARRAY.write();
         for event in guard.drain(..) {
@@ -253,10 +293,19 @@ fn atari_system(
     perf_metrics.frame_cnt += 1;
 }
 
+pub fn get_fragment() -> Result<String, JsValue> {
+    let win = web_sys::window().unwrap();
+    let loc = win.location();
+    let v = loc.hash()?;
+    if v == "" {
+        return Err(JsValue::NULL)
+    }
+    Ok(v[1..].to_string())
+}
+
 fn setup(
     commands: &mut Commands,
-    mut atari_system: ResMut<AtariSystem>,
-    mut cpu: ResMut<W65C02S>,
+    mut state: ResMut<State>,
     mut antic_resources: ResMut<AnticResources>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
@@ -269,20 +318,9 @@ fn setup(
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
     // let state_data = include_bytes!("../robbo.state.dat");
-    let state_data = include_bytes!("../laserdemo.state.dat");
+    // let state_data = include_bytes!("../laserdemo.state.dat");
     // let state_data = include_bytes!("../lasermania.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
-
-    let atari800_state = atari800_state::load_state(state_data);
-    atari_system.load_atari800_state(&atari800_state);
-
-    cpu.step(&mut *atari_system); // changes state into Running
-    cpu.set_pc(atari800_state.cpu.pc);
-    cpu.set_a(atari800_state.cpu.reg_a);
-    cpu.set_x(atari800_state.cpu.reg_x);
-    cpu.set_y(atari800_state.cpu.reg_y);
-    cpu.set_p(atari800_state.cpu.reg_p);
-    cpu.set_s(atari800_state.cpu.reg_s);
 
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
@@ -344,7 +382,7 @@ fn setup(
 fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
-        title: "Robbo".to_string(),
+        title: "GoodEnoughAtariEmulator".to_string(),
         width: 1280,
         height: 768,
         resizable: true,
@@ -365,6 +403,9 @@ fn main() {
     app.add_asset::<AnticLine>()
         .add_asset::<AtariPalette>()
         .add_asset::<StandardMaterial>()
+        .add_asset::<StateFile>()
+        .init_asset_loader::<Atari800StateLoader>()
+        .add_resource(State::default())
         .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(AtariSystem::new())
         .add_resource(W65C02S::new())
