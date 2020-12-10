@@ -258,57 +258,72 @@ pub struct Atari800State<'a> {
     pub memory: Memory<'a>,
 }
 
-pub fn load_state(data: &[u8]) -> Atari800State {
-    let (header, data) = data.split_at(8);
-    assert!(std::str::from_utf8(header).expect("valid utf") == "ATARI800");
-    assert!(data[0] == 8);
-    let verbose = data[1] > 0;
-    assert!(verbose, "verbose save expected");
-    let (_, data) = data.split_at(2);
+impl<'a> Atari800State<'a> {
+    pub fn reload(&self, atari_system: &mut crate::system::AtariSystem, cpu: &mut w65c02s::W65C02S) {
+        atari_system.load_atari800_state(self);
 
-    let (atari800, data) = read::<Atari800>(data);
-    assert!(
-        atari800.machine_size == 1,
-        "not supported machine size: {}",
-        atari800.machine_size
-    );
+        cpu.step(&mut *atari_system); // changes state into Running
+        cpu.set_pc(self.cpu.pc);
+        cpu.set_a(self.cpu.reg_a);
+        cpu.set_x(self.cpu.reg_x);
+        cpu.set_y(self.cpu.reg_y);
+        cpu.set_p(self.cpu.reg_p);
+        cpu.set_s(self.cpu.reg_s);
+    }
 
-    let (cartridge, data) = read::<Cartridge>(data);
-    assert!(
-        cartridge.saved_type == 0,
-        "reading cartridge is not supported"
-    );
+    pub fn new(data: &[u8]) -> Atari800State {
+        let (header, data) = data.split_at(8);
+        assert!(std::str::from_utf8(header).expect("valid utf") == "ATARI800");
+        assert!(data[0] == 8);
+        let verbose = data[1] > 0;
+        assert!(verbose, "verbose save expected");
+        let (_, data) = data.split_at(2);
 
-    let data = skip_sio(data);
+        let (atari800, data) = read::<Atari800>(data);
+        assert!(
+            atari800.machine_size == 1,
+            "not supported machine size: {}",
+            atari800.machine_size
+        );
 
-    let (antic, data) = read::<Antic>(data);
+        let (cartridge, data) = read::<Cartridge>(data);
+        assert!(
+            cartridge.saved_type == 0,
+            "reading cartridge is not supported"
+        );
 
-    let (cpu, _) = read::<CPU>(data);
-    let mut cpu = cpu.clone();
-    let data = &data[6..];
-    let (memory, data) = read_memory(data);
-    cpu.pc = data[0] as u16 + (data[1] as u16) * 256;
-    let (gtia, data) = read::<GTIA>(data);
+        let data = skip_sio(data);
 
-    let (pia, data) = read::<PIA>(data);
-    let (pokey, _data) = read::<POKEY>(data);
+        let (antic, data) = read::<Antic>(data);
 
-    info!("cpu: {:?}", cpu);
-    info!("gtia: {:?}", gtia);
-    info!("pia: {:?}", pia);
-    info!("pokey: {:?}", pokey);
+        let (cpu, _) = read::<CPU>(data);
+        let mut cpu = cpu.clone();
+        let data = &data[6..];
+        let (memory, data) = read_memory(data);
+        cpu.pc = data[0] as u16 + (data[1] as u16) * 256;
+        let (gtia, data) = read::<GTIA>(data);
 
-    Atari800State {
-        atari800,
-        cartridge,
-        antic,
-        gtia,
-        pia,
-        pokey,
-        cpu,
-        memory,
+        let (pia, data) = read::<PIA>(data);
+        let (pokey, _data) = read::<POKEY>(data);
+
+        info!("cpu: {:?}", cpu);
+        info!("gtia: {:?}", gtia);
+        info!("pia: {:?}", pia);
+        info!("pokey: {:?}", pokey);
+
+        Atari800State {
+            atari800,
+            cartridge,
+            antic,
+            gtia,
+            pia,
+            pokey,
+            cpu,
+            memory,
+        }
     }
 }
+
 
 #[derive(TypeUuid)]
 #[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
@@ -318,7 +333,7 @@ pub struct StateFile{
 
 impl StateFile {
     pub fn get_atari800_state(&self) -> Atari800State {
-        load_state(&self.data)
+        Atari800State::new(&self.data)
     }
 }
 

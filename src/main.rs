@@ -187,16 +187,7 @@ fn atari_system(
     if !state.initialized {
         if let Some(state_file) = state_files.get(&state.handle) {
             let atari800_state = state_file.get_atari800_state();
-            atari_system.load_atari800_state(&atari800_state);
-
-            cpu.step(&mut *atari_system); // changes state into Running
-            cpu.set_pc(atari800_state.cpu.pc);
-            cpu.set_a(atari800_state.cpu.reg_a);
-            cpu.set_x(atari800_state.cpu.reg_x);
-            cpu.set_y(atari800_state.cpu.reg_y);
-            cpu.set_p(atari800_state.cpu.reg_p);
-            cpu.set_s(atari800_state.cpu.reg_s);
-
+            atari800_state.reload(&mut *atari_system, &mut *cpu);
             state.initialized = true;
         }
     }
@@ -206,7 +197,15 @@ fn atari_system(
     {
         let mut guard = js_api::ARRAY.write();
         for event in guard.drain(..) {
-            atari_system.set_joystick(0, event.up, event.down, event.left, event.right, event.fire);
+            match event {
+                js_api::Message::JoyState {
+                    port, up, down, left, right, fire
+                } => atari_system.set_joystick(port, up, down, left, right, fire),
+                js_api::Message::DraggedFileData { data } => {
+                    let state = atari800_state::Atari800State::new(&data);
+                    state.reload(&mut *atari_system, &mut *cpu);
+                }
+            }
         }
     }
     let kb_irq = atari_system.handle_keyboard(&keyboard);
