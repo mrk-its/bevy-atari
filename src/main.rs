@@ -269,8 +269,8 @@ fn setup(
     // let state_data = include_bytes!("../lvl2.state.dat");
     // let state_data = include_bytes!("../acid800.state.dat");
     // let state_data = include_bytes!("../robbo.state.dat");
-    // let state_data = include_bytes!("../laserdemo.state.dat");
-    let state_data = include_bytes!("../lasermania.state.dat");
+    let state_data = include_bytes!("../laserdemo.state.dat");
+    // let state_data = include_bytes!("../lasermania.state.dat");
     // let state_data = include_bytes!("../basic.state.dat");
 
     let atari800_state = atari800_state::load_state(state_data);
