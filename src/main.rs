@@ -232,7 +232,7 @@ fn atari_system(
     //     .cloned()
     //     .collect();
     // charsets.set(&antic_resources.charset_handle, AnticCharset { charset });
-    for scan_line in 0..MAX_SCAN_LINES {
+    'outer: for scan_line in 0..MAX_SCAN_LINES {
         // info!("scan_line: {}", scan_line);
         atari_system.antic.scan_line = scan_line;
 
@@ -297,6 +297,9 @@ fn atari_system(
             cpu.step(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
             atari_system.tick();
+            if atari_system.antic.wsync() {
+                continue 'outer
+            }
         }
     }
     perf_metrics.frame_cnt += 1;

@@ -60,6 +60,7 @@ pub struct Antic {
     pub dlist: u16,
     pub scan_line: usize,
     pub video_memory: usize,
+    pub wsync: bool,
 }
 
 #[derive(Debug)]
@@ -77,21 +78,20 @@ pub struct ModeLineDescr {
 }
 
 impl Antic {
-    fn playfield_width(&self, hscroll: bool) -> usize {
-        if !hscroll {
-            match self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK {
-                DMACTL::NARROW_PLAYFIELD => 256,
-                DMACTL::NORMAL_PLAYFIELD => 320,
-                DMACTL::WIDE_PLAYFIELD => 384,
-                _ => 0,
-            }
-        } else {
-            match self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK {
-                DMACTL::NARROW_PLAYFIELD => 320,
-                DMACTL::NORMAL_PLAYFIELD => 384,
-                DMACTL::WIDE_PLAYFIELD => 384,
-                _ => 0,
-            }
+    fn playfield_width(&self, fetch_width: bool, hscroll: bool) -> usize {
+        match (hscroll, fetch_width, self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK) {
+            (false, _, DMACTL::NARROW_PLAYFIELD) => 256,
+            (false, _, DMACTL::NORMAL_PLAYFIELD) => 320,
+            (false, _, DMACTL::WIDE_PLAYFIELD) => 384,
+
+            (true, false, DMACTL::NARROW_PLAYFIELD) => 256,
+            (true, false, DMACTL::NORMAL_PLAYFIELD) => 320,
+            (true, false, DMACTL::WIDE_PLAYFIELD) => 320,
+
+            (true, true, DMACTL::NARROW_PLAYFIELD) => 320,
+            (true, true, DMACTL::NORMAL_PLAYFIELD) => 384,
+            (true, true, DMACTL::WIDE_PLAYFIELD) => 384,
+            _ => 0,
         }
     }
     pub fn set_vbi(&mut self) {
@@ -111,7 +111,7 @@ impl Antic {
             0
         };
 
-        let hscrol_line_width = n_bytes * self.playfield_width(is_hscrol) / 320;
+        let hscrol_line_width = n_bytes * self.playfield_width(true, is_hscrol) / 320;
 
         ModeLineDescr {
             dli,
@@ -119,7 +119,7 @@ impl Antic {
             height,
             n_bytes: hscrol_line_width,
             scan_line: self.scan_line,
-            width: self.playfield_width(false),
+            width: self.playfield_width(false, is_hscrol),
             data_offset: self.video_memory,
             chbase: self.chbase,
             pmbase: self.pmbase,
@@ -163,6 +163,14 @@ impl Antic {
         self.video_memory += mode_line.n_bytes;
         Some(mode_line)
     }
+    pub fn wsync(&mut self) -> bool {
+        if self.wsync {
+            self.wsync = false;
+            true
+        } else {
+            false
+        }
+    }
 
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0xf;
@@ -190,7 +198,7 @@ impl Antic {
             consts::HSCROL => self.hscrol = value,
             consts::DLIST_L => self.dlist = self.dlist & 0xff00 | value as u16,
             consts::DLIST_H => self.dlist = self.dlist & 0xff | ((value as u16) << 8),
-            consts::WSYNC => (),  // TODO
+            consts::WSYNC => self.wsync = true,  // TODO
             consts::VSCROL => (),  // TODO
             _ => bevy::log::warn!("unsupported antic write reg: {:x?}", addr),
         }
