@@ -1,3 +1,5 @@
+use bevy::utils::tracing::{info, warn};
+
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
     pub const CHACTL: usize = 0x01;
@@ -151,7 +153,12 @@ impl Antic {
             0xa => self.create_mode_line(mods, mode, 4, 20),
             0xc => self.create_mode_line(mods, mode, 1, 20),
             0xd => self.create_mode_line(mods, mode, 2, 40),
-            _ => panic!("unsupported antic video mode {:x}", mode),
+            0xe => self.create_mode_line(mods, mode, 1, 40),
+            0xf => self.create_mode_line(mods, mode, 1, 40),
+            _  => {
+                warn!("unsupported antic vide mode {:?}", mode);
+                self.create_mode_line(mods, mode, 1, 0)
+            }
         };
         self.video_memory += mode_line.n_bytes;
         Some(mode_line)

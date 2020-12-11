@@ -158,6 +158,32 @@ void main() {
         o_Target = encodeColor(palette[get_color_reg(0, index)]);
         // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
         return;
+    } else if(mode == 0x0e) {
+        float w = px_scrolled / 8.0;
+        int n = int(w); // byte offset
+        float frac = w - float(n);
+        int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
+
+        int byte = get_byte(data, n);
+        int index = (byte >> bit_offs) & 3;
+        o_Target = encodeColor(palette[get_color_reg(0, index)]);
+        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
+        return;
+    } else if(mode == 0x0f) {
+        float w = px_scrolled / 8.0;
+        int n = int(w); // byte offset
+        float frac = w - float(n);
+        int bit_offs = 7-int(frac * 8.0); // bit offset in byte
+
+        int byte = get_byte(data, n);
+        int index = (byte >> bit_offs) & 1;
+
+        int bg_index = get_color_reg(0, 3);
+        int fg_index = get_color_reg(0, 2);
+        fg_index = (fg_index & 0xf) | (bg_index & 0xf0);
+        int colors[2] = int[](bg_index, fg_index);
+        o_Target = encodeColor(palette[colors[index]]);
+        return;
     }
 
     o_Target = vec4(0.0, 1.0, 0.0, 1.0);
