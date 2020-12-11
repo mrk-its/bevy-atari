@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate bitflags;
+use std::io::prelude::*;
 
 pub mod antic;
 mod atari800_state;
@@ -75,6 +76,13 @@ struct State {
     requested_file: String,
     handle: Handle<StateFile>,
     initialized: bool,
+}
+
+fn gunzip(data: &[u8]) -> Vec<u8> {
+    let mut decoder = flate2::read::GzDecoder::new(&data[..]);
+    let mut result = Vec::new();
+    decoder.read_to_end(&mut result).unwrap();
+    result
 }
 
 fn create_mode_line(
@@ -180,14 +188,15 @@ fn atari_system(
     if requested_file != state.requested_file {
         state.requested_file = requested_file;
         state.initialized = false;
-        let file_name = format!("{}.state.dat", state.requested_file);
+        let file_name = format!("{}.state", state.requested_file);
         state.handle = asset_server.load(file_name.as_str());
     }
 
     if !state.initialized {
         if let Some(state_file) = state_files.get(&state.handle) {
-            let atari800_state = state_file.get_atari800_state();
-            atari800_state.reload(&mut *atari_system, &mut *cpu);
+            let data = gunzip(&state_file.data);
+            let a800_state = atari800_state::Atari800State::new(&data);
+            a800_state.reload(&mut *atari_system, &mut *cpu);
             state.initialized = true;
         }
     }
@@ -202,6 +211,7 @@ fn atari_system(
                     port, up, down, left, right, fire
                 } => atari_system.set_joystick(port, up, down, left, right, fire),
                 js_api::Message::DraggedFileData { data } => {
+                    let data = gunzip(&data);
                     let state = atari800_state::Atari800State::new(&data);
                     state.reload(&mut *atari_system, &mut *cpu);
                 }

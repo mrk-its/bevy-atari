@@ -328,13 +328,7 @@ impl<'a> Atari800State<'a> {
 #[derive(TypeUuid)]
 #[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
 pub struct StateFile{
-    data: Vec<u8>,
-}
-
-impl StateFile {
-    pub fn get_atari800_state(&self) -> Atari800State {
-        Atari800State::new(&self.data)
-    }
+    pub data: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -356,6 +350,6 @@ impl AssetLoader for Atari800StateLoader {
     }
 
     fn extensions(&self) -> &[&str] {
-        &["dat"]
+        &["state"]
     }
 }
