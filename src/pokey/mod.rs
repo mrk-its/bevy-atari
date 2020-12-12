@@ -1,6 +1,8 @@
 mod web_audio;
 pub use bevy::prelude::*;
 use web_audio::AudioBackend;
+use rand::{Rng, RngCore, SeedableRng};
+use rand::rngs::SmallRng;
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -44,11 +46,14 @@ pub struct Pokey {
     skstat: u8,
     irqst: u8,
     backend: AudioBackend,
+    rng: SmallRng,
 }
 
 impl Default for Pokey {
     fn default() -> Self {
+        let rng = SmallRng::from_seed([0; 16]);
         Self {
+            rng,
             delay: [0; 4],
             ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
@@ -65,10 +70,10 @@ unsafe impl Send for Pokey {}
 unsafe impl Sync for Pokey {}
 
 impl Pokey {
-    pub fn read(&self, addr: usize) -> u8 {
+    pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0xf;
         let value = match addr {
-            RANDOM => rand::random(),
+            RANDOM => self.rng.gen(),
             KBCODE => self.kbcode,
             IRQST => self.irqst,
             SKSTAT => self.skstat,
