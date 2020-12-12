@@ -74,14 +74,14 @@ impl_render_resource_bytes!(Palette);
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
-pub struct GTIAColors {
+pub struct GTIARegs {
     pub regs: [[u32; 4]; 3],
     pub player_pos: [f32; 4],
     pub player_size: [f32; 4],
     pub prior: u32,
 }
 
-impl GTIAColors {
+impl GTIARegs {
     pub fn new(
         colbk: u8,
         colpf0: u8,
@@ -128,5 +128,5 @@ fn player_size(sizep: u8) -> f32 {
     }
 }
 
-unsafe impl Byteable for GTIAColors {}
-impl_render_resource_bytes!(GTIAColors);
+unsafe impl Byteable for GTIARegs {}
+impl_render_resource_bytes!(GTIARegs);

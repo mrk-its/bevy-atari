@@ -28,7 +28,7 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
-use render_resources::{Charset, GTIAColors, LineData, Palette};
+use render_resources::{Charset, GTIARegs, LineData, Palette};
 use system::{AtariSystem, W65C02S};
 use wasm_bindgen::prelude::*;
 
@@ -49,7 +49,7 @@ struct AnticLine {
     pub mode: u32,
     pub hscrol: f32,
     pub data: LineData,
-    pub gtia_colors: GTIAColors,
+    pub gtia_regs: GTIARegs,
     pub charset: Charset,
 }
 #[derive(RenderResources, Default, TypeUuid)]
@@ -130,9 +130,9 @@ fn create_mode_line(
         &pl_mem(2),
         &pl_mem(3),
     );
-    let gtia_colors = system.gtia.get_colors();
+    let gtia_regs = system.gtia.get_colors();
     if enable_log && mode_line.mode == 4 && mode_line.scan_line > 100 {
-        info!("gtia colors: {:x?}", gtia_colors);
+        info!("gtia regs: {:x?}", gtia_regs);
     }
 
     let charset_offset = (mode_line.chbase as usize) * 256;
@@ -165,7 +165,7 @@ fn create_mode_line(
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
-            gtia_colors,
+            gtia_regs,
             line_width: mode_line.width as f32,
             hscrol: mode_line.hscrol as f32,
             data: line_data,
@@ -275,10 +275,9 @@ fn atari_system(
 
         vblank = vblank || scan_line >= 248;
         if !vblank && next_scan_line == scan_line {
-            let dlist_data= atari_system.antic.prefetch_dlist(&atari_system.ram);
-            // info!("dlist: {:x?}, data: {:x?}", dlist, dlist_data);
-            current_mode = atari_system.antic.create_next_mode_line(&dlist_data);
-            if let Some(mode_line) = &current_mode {
+            let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
+            let mode  = atari_system.antic.create_next_mode_line(&dlist_data);
+            if let Some(mode_line) = mode {
                 next_scan_line = scan_line + mode_line.height;
                 if mode_line.opts.contains(MODE_OPTS::DLI) {
                     dli_scan_line = next_scan_line - 1;
@@ -289,20 +288,25 @@ fn atari_system(
                         mode_line, next_scan_line
                     );
                 }
-                create_mode_line(
-                    commands,
-                    &antic_resources,
-                    mode_line,
-                    &atari_system,
-                    y_extra_offset,
-                    enable_log,
-                );
-                // y_extra_offset += 1.0;
+                let prev_mode_line = current_mode.replace(mode_line);
+                if let Some(prev_mode_line) = prev_mode_line {
+                    create_mode_line(
+                        commands,
+                        &antic_resources,
+                        &prev_mode_line,
+                        &atari_system,
+                        y_extra_offset,
+                        enable_log,
+                    );
+
+                }
+            // y_extra_offset += 1.0;
             // antic_line_nr += 1;
             } else {
                 vblank = true;
             }
         }
+
         let start_cycle = if let Some(current_mode) = &current_mode {
             atari_system.antic.get_dma_cycles(current_mode)
         } else {
@@ -318,6 +322,7 @@ fn atari_system(
         if enable_log {
             info!("start_cycle: {}", n);
         }
+
         if scan_line == 248 {
             if atari_system.antic.nmien.contains(NMIEN::VBI) {
                 if enable_log {

@@ -1,5 +1,5 @@
 use crate::palette::default::PALETTE;
-use crate::render_resources::GTIAColors;
+use crate::render_resources::GTIARegs;
 use bevy::prelude::Color;
 use bevy::utils::tracing::*;
 
@@ -149,12 +149,12 @@ impl Gtia {
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
-    pub fn get_colors(&self) -> GTIAColors {
+    pub fn get_colors(&self) -> GTIARegs {
         // HPOSP0-HPOSP3 [D000-D003]
         // HPOSM0-HPOSM3 [D004-D007]
         // SIZEP0-SIZEP3 [D008-D00B]
 
-        GTIAColors::new(
+        GTIARegs::new(
             self.reg[COLBK],
             self.reg[COLPF0],
             self.reg[COLPF1],

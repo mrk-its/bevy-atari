@@ -24,7 +24,7 @@ struct GTIA {
     vec4 player_size;
     int prior;
 };
-layout(std140) uniform AnticLine_gtia_colors { // set = 1 binding = 4
+layout(std140) uniform AnticLine_gtia_regs { // set = 1 binding = 4
     //ivec4 color_regs[2]; // [[bak, pf0, pf1, pf2], [bak, pf0, pf1, pf3]]
     GTIA gtia;
 };
