@@ -72,7 +72,10 @@ void main() {
     float px_scrolled = px + float(hscrol);  // pixel x position
     vec4 player_pos = gtia.player_pos * 2.0 + vec4(line_width / 2.0 - 256.0);
     vec4 player_pos_end = player_pos + gtia.player_size;
-    if(mode == 0x2) {
+    if(mode == 0x0) {
+        o_Target = encodeColor(palette[get_color_reg(0, 0)]);
+        return;
+    } else if(mode == 0x2) {
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);

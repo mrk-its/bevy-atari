@@ -161,6 +161,10 @@ impl AtariSystem {
     pub fn tick(&mut self) {
         self.pokey.tick()
     }
+    pub fn enable_log(&mut self, enable: bool) {
+        self.gtia.enable_log(enable);
+        self.antic.enable_log(enable);
+    }
 }
 
 impl Default for AtariSystem {

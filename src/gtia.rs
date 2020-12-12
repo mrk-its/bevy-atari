@@ -1,6 +1,7 @@
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIAColors;
 use bevy::prelude::Color;
+use bevy::utils::tracing::*;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -68,6 +69,7 @@ pub struct Gtia {
     trig: [u8; 4],          // R
     prior: u8,
     p0pos: u8,
+    enable_log: bool,
 }
 
 impl Default for Gtia {
@@ -80,6 +82,7 @@ impl Default for Gtia {
             trig: [0xff, 0xff, 0xff, 0],
             prior: 0,
             p0pos: 0,
+            enable_log: false,
         }
     }
 }
@@ -113,6 +116,7 @@ impl Gtia {
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0x1f;
         self.reg[addr] = value;
+
         match addr {
             GRAFP0..=GRAFP3 => self.player_graphics[addr - GRAFP0] = value,
             GRAFM => self.missile_graphics = value,
@@ -135,7 +139,9 @@ impl Gtia {
         //         self.reg[HPOSP0], self.reg[HPOSP1], self.reg[HPOSP2], self.reg[HPOSP3],
         //     );
         // }
-        // warn!("GTIA write: {:02x}: {:02x}", addr, value);
+        if self.enable_log {
+            warn!("GTIA write: {:02x}: {:02x}", addr, value);
+        }
         // if addr >= COLPF0 && addr <= COLBK {
         //     warn!("GTIA color write: {:02x}: {:02x}", addr, value);
         // }
@@ -168,6 +174,9 @@ impl Gtia {
             self.reg[SIZEP3],
             self.prior,
         )
+    }
+    pub fn enable_log(&mut self, enable: bool) {
+        self.enable_log = enable;
     }
 }
 

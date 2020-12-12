@@ -154,14 +154,14 @@ impl AudioBackend {
                 // 1 second is `sample_rate` of samples playing with `sample_rate`, so:
                 let n_samples = (sample_rate as f32 * SAMPLE_DUR) as u32;
 
-                info!(
-                    "create new audio buffer for {:x?} {} total: {}, n_samples: {} mult: {}",
-                    noise_descr,
-                    poly_name,
-                    self.noise_buffer_cache.len(),
-                    n_samples,
-                    multiplier,
-                );
+                // info!(
+                //     "create new audio buffer for {:x?} {} total: {}, n_samples: {} mult: {}",
+                //     noise_descr,
+                //     poly_name,
+                //     self.noise_buffer_cache.len(),
+                //     n_samples,
+                //     multiplier,
+                // );
 
                 sample_rate *= multiplier as f32;
                 let mut data = Vec::with_capacity((n_samples * multiplier) as usize);
