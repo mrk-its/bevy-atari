@@ -188,6 +188,5 @@ void main() {
         o_Target = encodeColor(palette[colors[index]]);
         return;
     }
-
-    o_Target = vec4(0.0, 1.0, 0.0, 1.0);
+    o_Target = vec4(0.0, 0.0, 0.0, 1.0);
 }

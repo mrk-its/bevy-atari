@@ -249,10 +249,19 @@ impl Antic {
             hscrol,
         }
     }
-    pub fn inc_dlist(&mut self, k: u8) {
-        self.dlist = self.dlist.overflowing_add(k as u16).0;
+    pub fn dlist_offset(&self, k: u8) -> u16 {
+        return self.dlist & 0xfc00 | self.dlist.overflowing_add(k as u16).0 & 0x3ff
     }
-
+    pub fn inc_dlist(&mut self, k: u8) {
+        self.dlist = self.dlist_offset(k);
+    }
+    pub fn prefetch_dlist(&self, ram: &[u8]) -> [u8; 3] {
+        let mut data = [0; 3];
+        data[0] = ram[self.dlist_offset(0) as usize];
+        data[1] = ram[self.dlist_offset(1) as usize];
+        data[2] = ram[self.dlist_offset(2) as usize];
+        return data
+    }
     pub fn create_next_mode_line(&mut self, dlist: &[u8]) -> Option<ModeLineDescr> {
         let opts = MODE_OPTS::from_bits_truncate(dlist[0]);
         let mode = dlist[0] & 0xf;

@@ -11,7 +11,7 @@ pub mod pia;
 pub mod pokey;
 mod render_resources;
 mod system;
-use antic::{ModeLineDescr, DMACTL, MODE_OPTS};
+use antic::{ModeLineDescr, DMACTL, MODE_OPTS, NMIEN};
 use atari800_state::{Atari800StateLoader, StateFile};
 use bevy::reflect::TypeUuid;
 use bevy::winit::WinitConfig;
@@ -197,10 +197,15 @@ fn atari_system(
     // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
-    // let enable_log = perf_metrics.frame_cnt < 30;
+    // let enable_log = perf_metrics.frame_cnt >= 1433 && perf_metrics.frame_cnt < 1435;
     let enable_log = false;
+    atari_system.enable_log(enable_log);
+    // let enable_log = false;
     // assert!(perf_metrics.frame_cnt < 35);
-    // atari_system.enable_log(enable_log);
+    // if perf_metrics.frame_cnt % 60 == 0 || enable_log {
+    //     info!("frame_cnt: {:?}", *perf_metrics);
+
+    // }
     let requested_file = get_fragment().unwrap_or("laserdemo".to_string());
     if requested_file != state.requested_file {
         state.requested_file = requested_file;
@@ -241,6 +246,7 @@ fn atari_system(
         }
     }
     let mut irq = atari_system.handle_keyboard(&keyboard);
+    let mut nmi = false;
     if irq {
         cpu.set_irq(true);
     }
@@ -269,9 +275,7 @@ fn atari_system(
 
         vblank = vblank || scan_line >= 248;
         if !vblank && next_scan_line == scan_line {
-            let dlist = atari_system.antic.dlist as usize;
-            let mut dlist_data: [u8; 3] = [0; 3];
-            dlist_data.copy_from_slice(&atari_system.ram[dlist..dlist + 3]);
+            let dlist_data= atari_system.antic.prefetch_dlist(&atari_system.ram);
             // info!("dlist: {:x?}, data: {:x?}", dlist, dlist_data);
             current_mode = atari_system.antic.create_next_mode_line(&dlist_data);
             if let Some(mode_line) = &current_mode {
@@ -314,28 +318,33 @@ fn atari_system(
         if enable_log {
             info!("start_cycle: {}", n);
         }
-
-        while n < SCAN_LINE_CYCLES {
-            if scan_line == 248 {
+        if scan_line == 248 {
+            if atari_system.antic.nmien.contains(NMIEN::VBI) {
                 if enable_log {
                     info!("VBI, scanline: {}", scan_line);
                 }
                 atari_system.antic.set_vbi();
-                cpu.set_nmi(n == start_cycle);
-            } else if scan_line >= dli_scan_line {
+                nmi = true;
+                cpu.set_nmi(true);
+            }
+        } else if scan_line >= dli_scan_line {
+            if atari_system.antic.nmien.contains(NMIEN::DLI) {
                 dli_scan_line = 0xffff;
                 if enable_log {
                     info!("DLI, scanline: {}", scan_line);
                 }
                 atari_system.antic.set_dli();
-                cpu.set_nmi(n == start_cycle);
+                nmi = true;
+                cpu.set_nmi(true);
             }
+        }
+        while n < SCAN_LINE_CYCLES {
             let pc = cpu.get_pc() as usize;
             // if pc == 0xc2b3 {
             //     debug.enabled = true;
             // }
-            if debug.enabled {
-                if debug.instr_cnt < 1000 {
+            if enable_log {
+                if debug.instr_cnt < 10000000 {
                     if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
                         if let Some(i) = inst.get(0) {
                             info!("{:04x?}: {} {:?}", pc, i, *cpu);
@@ -352,6 +361,10 @@ fn atari_system(
             if irq {
                 cpu.set_irq(false);
                 irq = false;
+            }
+            if nmi {
+                cpu.set_nmi(false);
+                nmi = false;
             }
             perf_metrics.cpu_cycle_cnt += 1;
             atari_system.tick();
