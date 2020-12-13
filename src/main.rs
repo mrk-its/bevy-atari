@@ -197,8 +197,8 @@ fn atari_system(
     // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
-    // let enable_log = perf_metrics.frame_cnt >= 1433 && perf_metrics.frame_cnt < 1435;
-    let enable_log = false;
+    let enable_log = perf_metrics.frame_cnt < 2;
+    // let enable_log = false;
     atari_system.enable_log(enable_log);
     // let enable_log = false;
     // assert!(perf_metrics.frame_cnt < 35);
@@ -273,56 +273,11 @@ fn atari_system(
         }
         atari_system.antic.scan_line = scan_line;
 
-        vblank = vblank || scan_line >= 248;
-        if !vblank && next_scan_line == scan_line {
-            let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
-            let mode  = atari_system.antic.create_next_mode_line(&dlist_data);
-            if let Some(mode_line) = mode {
-                next_scan_line = scan_line + mode_line.height;
-                if mode_line.opts.contains(MODE_OPTS::DLI) {
-                    dli_scan_line = next_scan_line - 1;
-                }
-                if enable_log {
-                    info!(
-                        "antic line: {:?}, next_scan_line: {:?}",
-                        mode_line, next_scan_line
-                    );
-                }
-                let prev_mode_line = current_mode.replace(mode_line);
-                if let Some(prev_mode_line) = prev_mode_line {
-                    create_mode_line(
-                        commands,
-                        &antic_resources,
-                        &prev_mode_line,
-                        &atari_system,
-                        y_extra_offset,
-                        enable_log,
-                    );
-
-                }
-            // y_extra_offset += 1.0;
-            // antic_line_nr += 1;
-            } else {
-                vblank = true;
-            }
-        }
-
         let start_cycle = if let Some(current_mode) = &current_mode {
             atari_system.antic.get_dma_cycles(current_mode)
         } else {
             0
         };
-        let mut n = if !wsync {
-            start_cycle
-        } else {
-            wsync = false;
-            105
-        };
-
-        if enable_log {
-            info!("start_cycle: {}", n);
-        }
-
         if scan_line == 248 {
             if atari_system.antic.nmien.contains(NMIEN::VBI) {
                 if enable_log {
@@ -341,18 +296,26 @@ fn atari_system(
                 atari_system.antic.set_dli();
                 nmi = true;
                 cpu.set_nmi(true);
+                debug.enabled = true;
             }
         }
+        let mut n = if !wsync {
+            start_cycle
+        } else {
+            wsync = false;
+            104
+        };
+
+        if enable_log {
+            info!("start_cycle: {}", n);
+        }
         while n < SCAN_LINE_CYCLES {
-            let pc = cpu.get_pc() as usize;
-            // if pc == 0xc2b3 {
-            //     debug.enabled = true;
-            // }
-            if enable_log {
-                if debug.instr_cnt < 10000000 {
+            if enable_log && debug.enabled {
+                if debug.instr_cnt < 30 {
+                    let pc = cpu.get_pc() as usize;
                     if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
                         if let Some(i) = inst.get(0) {
-                            info!("{:04x?}: {} {:?}", pc, i, *cpu);
+                            info!("{:04x?}: {} {:?}, cycle: {}", pc, i, *cpu, n);
                         }
                         debug.instr_cnt += 1;
                     }
@@ -362,6 +325,7 @@ fn atari_system(
                     //panic!("STOP");
                 }
             }
+
             cpu.step(&mut *atari_system);
             if irq {
                 cpu.set_irq(false);
@@ -381,9 +345,60 @@ fn atari_system(
                     n = 104;
                 } else {
                     wsync = true;
-                    continue 'outer;
                 }
             }
+            if n == 104 {
+                atari_system.antic.scan_line = scan_line + 1;
+                vblank = vblank || scan_line + 1 >= 248;
+                if !vblank && next_scan_line == scan_line + 1 {
+                    let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
+                    let mode  = atari_system.antic.create_next_mode_line(&dlist_data);
+                    if let Some(mode_line) = mode {
+                        next_scan_line = mode_line.scan_line + mode_line.height;
+                        if mode_line.opts.contains(MODE_OPTS::DLI) {
+                            dli_scan_line = next_scan_line - 1;
+                        }
+                        if enable_log {
+                            info!(
+                                "antic line: {:?}, next_scan_line: {:?}",
+                                mode_line, next_scan_line
+                            );
+                        }
+                        let prev_mode_line = current_mode.replace(mode_line);
+                        if let Some(prev_mode_line) = prev_mode_line {
+                            create_mode_line(
+                                commands,
+                                &antic_resources,
+                                &prev_mode_line,
+                                &atari_system,
+                                y_extra_offset,
+                                enable_log,
+                            );
+
+                        }
+                    // y_extra_offset += 1.0;
+                    // antic_line_nr += 1;
+                    } else {
+                        vblank = true;
+                        let prev_mode_line = current_mode.take();
+                        if let Some(prev_mode_line) = prev_mode_line {
+                            create_mode_line(
+                                commands,
+                                &antic_resources,
+                                &prev_mode_line,
+                                &atari_system,
+                                y_extra_offset,
+                                enable_log,
+                            );
+
+                        }
+                    }
+                }
+            }
+            if wsync {
+                continue 'outer;
+            }
+
             n += 1;
         }
     }
