@@ -3,6 +3,8 @@ use bevy::{
     asset::{AssetLoader, LoadedAsset},
     prelude::*,
 };
+use emulator_6502::MOS6502;
+
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
@@ -259,16 +261,14 @@ pub struct Atari800State<'a> {
 }
 
 impl<'a> Atari800State<'a> {
-    pub fn reload(&self, atari_system: &mut crate::system::AtariSystem, cpu: &mut w65c02s::W65C02S) {
+    pub fn reload(&self, atari_system: &mut crate::system::AtariSystem, cpu: &mut MOS6502) {
         atari_system.load_atari800_state(self);
-
-        cpu.step(&mut *atari_system); // changes state into Running
-        cpu.set_pc(self.cpu.pc);
-        cpu.set_a(self.cpu.reg_a);
-        cpu.set_x(self.cpu.reg_x);
-        cpu.set_y(self.cpu.reg_y);
-        cpu.set_p(self.cpu.reg_p);
-        cpu.set_s(self.cpu.reg_s);
+        cpu.program_counter = self.cpu.pc;
+        cpu.accumulator = self.cpu.reg_a;
+        cpu.x_register = self.cpu.reg_x;
+        cpu.y_register = self.cpu.reg_y;
+        cpu.status_register = self.cpu.reg_p;
+        cpu.stack_pointer = self.cpu.reg_s;
     }
 
     pub fn new(data: &[u8]) -> Atari800State {

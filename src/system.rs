@@ -3,8 +3,7 @@ pub use crate::{gtia, antic};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
 pub use std::{cell::RefCell, rc::Rc};
-pub use w65c02s::*;
-
+pub use emulator_6502::Interface6502;
 pub struct AtariSystem {
     pub ram: [u8; 65536],
     pub antic: Antic,
@@ -173,8 +172,8 @@ impl Default for AtariSystem {
     }
 }
 
-impl w65c02s::System for AtariSystem {
-    fn read(&mut self, _cpu: &mut W65C02S, addr: u16) -> u8 {
+impl Interface6502 for AtariSystem {
+    fn read(&mut self, addr: u16) -> u8 {
         // all reads return RAM values directly
         let addr = addr as usize;
         match addr >> 8 {
@@ -185,11 +184,11 @@ impl w65c02s::System for AtariSystem {
             _ => self.ram[addr],
         }
     }
-    fn write(&mut self, _cpu: &mut W65C02S, addr: u16, value: u8) {
+    fn write(&mut self, addr: u16, value: u8) {
         let addr = addr as usize;
         match addr >> 8 {
             0xD0 => self.gtia.write(addr, value),
-            0xD2 => self.pokey.write(addr, value),
+            // 0xD2 => self.pokey.write(addr, value),
             0xD3 => self.pia.write(addr, value),
             0xD4 => self.antic.write(addr, value),
             _ => self.ram[addr] = value,

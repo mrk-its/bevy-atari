@@ -28,8 +28,9 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
+use emulator_6502::MOS6502;
 use render_resources::{Charset, GTIARegs, LineData, Palette};
-use system::{AtariSystem, W65C02S};
+use system::AtariSystem;
 use wasm_bindgen::prelude::*;
 
 const SCAN_LINE_CYCLES: usize = 114;
@@ -130,10 +131,7 @@ fn create_mode_line(
         &pl_mem(2),
         &pl_mem(3),
     );
-    let gtia_regs = system.gtia.get_colors();
-    if enable_log && mode_line.mode == 4 && mode_line.scan_line > 100 {
-        info!("gtia regs: {:x?}", gtia_regs);
-    }
+    assert!(mode_line.gtia_regs.len() == mode_line.height);
 
     let charset_offset = (mode_line.chbase as usize) * 256;
 
@@ -165,7 +163,7 @@ fn create_mode_line(
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
-            gtia_regs,
+            gtia_regs: mode_line.gtia_regs[mode_line.gtia_regs.len()-1],
             line_width: mode_line.width as f32,
             hscrol: mode_line.hscrol as f32,
             data: line_data,
@@ -190,7 +188,7 @@ fn atari_system(
     antic_lines: Query<(Entity, &AnticLine)>,
     // mut charsets: ResMut<Assets<AnticCharset>>,
     mut debug: Local<Debugger>,
-    mut cpu: ResMut<W65C02S>,
+    mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
     mut perf_metrics: Local<PerfMetrics>,
 ) {
@@ -246,9 +244,8 @@ fn atari_system(
         }
     }
     let mut irq = atari_system.handle_keyboard(&keyboard);
-    let mut nmi = false;
     if irq {
-        cpu.set_irq(true);
+        cpu.interrupt_request();
     }
     for (entity, _) in antic_lines.iter() {
         commands.despawn(entity);
@@ -273,19 +270,14 @@ fn atari_system(
         }
         atari_system.antic.scan_line = scan_line;
 
-        let start_cycle = if let Some(current_mode) = &current_mode {
-            atari_system.antic.get_dma_cycles(current_mode)
-        } else {
-            0
-        };
         if scan_line == 248 {
+            vblank = true;
             if atari_system.antic.nmien.contains(NMIEN::VBI) {
                 if enable_log {
                     info!("VBI, scanline: {}", scan_line);
                 }
                 atari_system.antic.set_vbi();
-                nmi = true;
-                cpu.set_nmi(true);
+                cpu.non_maskable_interrupt_request();
             }
         } else if scan_line >= dli_scan_line {
             if atari_system.antic.nmien.contains(NMIEN::DLI) {
@@ -294,30 +286,104 @@ fn atari_system(
                     info!("DLI, scanline: {}", scan_line);
                 }
                 atari_system.antic.set_dli();
-                nmi = true;
-                cpu.set_nmi(true);
+                cpu.non_maskable_interrupt_request();
                 debug.enabled = true;
             }
         }
-        let mut n = if !wsync {
-            start_cycle
+
+        if !vblank {
+            if next_scan_line == scan_line {
+                let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
+                let mode = atari_system
+                    .antic
+                    .create_next_mode_line(&dlist_data, next_scan_line);
+                if let Some(mode_line) = mode {
+                    next_scan_line = mode_line.scan_line + mode_line.height;
+                    if mode_line.opts.contains(MODE_OPTS::DLI) {
+                        dli_scan_line = next_scan_line - 1;
+                    }
+                    if enable_log {
+                        info!(
+                            "antic line: {:?}, next_scan_line: {:?}, dli_scan_line: {:?}",
+                            mode_line, next_scan_line, dli_scan_line
+                        );
+                    }
+                    let prev_mode_line = current_mode.replace(mode_line);
+                    if let Some(prev_mode_line) = prev_mode_line {
+                        create_mode_line(
+                            commands,
+                            &antic_resources,
+                            &prev_mode_line,
+                            &atari_system,
+                            y_extra_offset,
+                            enable_log,
+                        );
+                    }
+                    // y_extra_offset += 1.0;
+                } else {
+                    vblank = true;
+                    let prev_mode_line = current_mode.take();
+                    if let Some(prev_mode_line) = prev_mode_line {
+                        create_mode_line(
+                            commands,
+                            &antic_resources,
+                            &prev_mode_line,
+                            &atari_system,
+                            y_extra_offset,
+                            enable_log,
+                        );
+                    }
+                }
+            }
+        }
+
+        let (start_dma_cycles, line_start_cycle, dma_cycles) = if let Some(current_mode) = &current_mode {
+            atari_system.antic.get_dma_cycles(current_mode)
         } else {
+            (0, 0, 0)
+        };
+        if enable_log {
+            info!("start_dma_cycles: {} line_start: {}, dma_cycles: {}", start_dma_cycles, line_start_cycle, dma_cycles);
+        }
+
+        let mut n = if wsync {
             wsync = false;
             104
+        } else {
+            start_dma_cycles
         };
+        let mut last_pc = 0;
 
-        if enable_log {
-            info!("start_cycle: {}", n);
-        }
+        let mut is_visible = false;
+
         while n < SCAN_LINE_CYCLES {
+            // if n == 110 {
+            //     atari_system.antic.scan_line = scan_line + 1;
+            // }
+
+            if let Some(current_line) = &mut current_mode {
+                if n >= line_start_cycle && !is_visible {
+                    current_line.gtia_regs.push(atari_system.gtia.get_colors());
+                    assert!(current_line.gtia_regs.len() <= current_line.height);
+                    is_visible = true;
+                }
+            }
+
+            if n == line_start_cycle {
+                n += dma_cycles;
+            }
+
             if enable_log && debug.enabled {
                 if debug.instr_cnt < 30 {
-                    let pc = cpu.get_pc() as usize;
-                    if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
-                        if let Some(i) = inst.get(0) {
-                            info!("{:04x?}: {} {:?}, cycle: {}", pc, i, *cpu, n);
+                    if last_pc != cpu.program_counter {
+                        last_pc = cpu.program_counter;
+                        let pc = cpu.program_counter as usize;
+                        if let Ok(inst) = disasm6502::from_array(&atari_system.ram[pc..pc + 16]) {
+                            if let Some(i) = inst.get(0) {
+                                info!("{:04x?}: {} {:?}, cycle: {}", pc, i, *cpu, n);
+                            }
+                            debug.instr_cnt += 1;
                         }
-                        debug.instr_cnt += 1;
                     }
                 } else {
                     debug.enabled = false;
@@ -326,15 +392,7 @@ fn atari_system(
                 }
             }
 
-            cpu.step(&mut *atari_system);
-            if irq {
-                cpu.set_irq(false);
-                irq = false;
-            }
-            if nmi {
-                cpu.set_nmi(false);
-                nmi = false;
-            }
+            cpu.cycle(&mut *atari_system);
             perf_metrics.cpu_cycle_cnt += 1;
             atari_system.tick();
             if atari_system.antic.wsync() {
@@ -345,60 +403,9 @@ fn atari_system(
                     n = 104;
                 } else {
                     wsync = true;
+                    continue;
                 }
             }
-            if n == 104 {
-                atari_system.antic.scan_line = scan_line + 1;
-                vblank = vblank || scan_line + 1 >= 248;
-                if !vblank && next_scan_line == scan_line + 1 {
-                    let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
-                    let mode  = atari_system.antic.create_next_mode_line(&dlist_data);
-                    if let Some(mode_line) = mode {
-                        next_scan_line = mode_line.scan_line + mode_line.height;
-                        if mode_line.opts.contains(MODE_OPTS::DLI) {
-                            dli_scan_line = next_scan_line - 1;
-                        }
-                        if enable_log {
-                            info!(
-                                "antic line: {:?}, next_scan_line: {:?}",
-                                mode_line, next_scan_line
-                            );
-                        }
-                        let prev_mode_line = current_mode.replace(mode_line);
-                        if let Some(prev_mode_line) = prev_mode_line {
-                            create_mode_line(
-                                commands,
-                                &antic_resources,
-                                &prev_mode_line,
-                                &atari_system,
-                                y_extra_offset,
-                                enable_log,
-                            );
-
-                        }
-                    // y_extra_offset += 1.0;
-                    // antic_line_nr += 1;
-                    } else {
-                        vblank = true;
-                        let prev_mode_line = current_mode.take();
-                        if let Some(prev_mode_line) = prev_mode_line {
-                            create_mode_line(
-                                commands,
-                                &antic_resources,
-                                &prev_mode_line,
-                                &atari_system,
-                                y_extra_offset,
-                                enable_log,
-                            );
-
-                        }
-                    }
-                }
-            }
-            if wsync {
-                continue 'outer;
-            }
-
             n += 1;
         }
     }
@@ -520,7 +527,7 @@ fn main() {
         .add_resource(State::default())
         .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(AtariSystem::new())
-        .add_resource(W65C02S::new())
+        .add_resource(MOS6502::default())
         .add_resource(AnticResources::default())
         .add_startup_system(setup)
         .add_system(atari_system)

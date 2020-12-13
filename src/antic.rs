@@ -1,4 +1,6 @@
 use bevy::log::*;
+use crate::render_resources::GTIARegs;
+
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
     pub const CHACTL: usize = 0x01;
@@ -86,54 +88,57 @@ pub struct ModeLineDescr {
     pub chbase: u8,
     pub pmbase: u8,
     pub hscrol: u8,
+    pub gtia_regs: Vec<GTIARegs>,
+
 }
 
-const MODE_25_STEALED_CYCLES_FIRST_LINE: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[66, 66, 66, 66, 66, 66, 66, 66],
-    &[81, 81, 81, 81, 81, 81, 82, 81],
-    &[96, 95, 94, 93, 92, 91, 90, 89],
-];
-const MODE_25_STEALED_CYCLES: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[41, 41, 41, 41, 41, 41, 41, 41],
-    &[49, 49, 49, 49, 49, 49, 49, 48],
-    &[56, 55, 55, 54, 54, 53, 53, 53],
+const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (25, &[66, 66, 66, 66, 66, 66, 66, 66]),
+    (18, &[81, 81, 81, 81, 81, 81, 82, 81]),
+    (10, &[96, 95, 94, 93, 92, 91, 90, 89]),
 ];
 
-const MODE_67_STEALED_CYCLES_FIRST_LINE: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[41, 41, 41, 41, 41, 41, 41, 41],
-    &[49, 49, 49, 49, 49, 49, 49, 48],
-    &[57, 56, 56, 56, 55, 54, 54, 54],
-];
-const MODE_67_STEALED_CYCLES: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[25, 25, 25, 25, 25, 25, 25, 25],
-    &[29, 29, 29, 29, 29, 29, 29, 29],
-    &[33, 32, 32, 32, 32, 31, 31, 31],
+const MODE_25_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[41, 41, 41, 41, 41, 41, 41, 41]),
+    (21, &[49, 49, 49, 49, 49, 49, 49, 48]),
+    (13, &[56, 55, 55, 54, 54, 53, 53, 53]),
 ];
 
-
-const MODE_89_STEALED_CYCLES: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[17, 17, 17, 17, 17, 17, 17, 17],
-    &[19, 19, 19, 19, 19, 19, 19, 19],
-    &[21, 21, 21, 21, 21, 21, 20, 20],
+const MODE_67_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (25, &[41, 41, 41, 41, 41, 41, 41, 41]),
+    (18, &[49, 49, 49, 49, 49, 49, 49, 48]),
+    (10, &[57, 56, 56, 56, 55, 54, 54, 54]),
 ];
 
-const MODE_AC_STEALED_CYCLES: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[25, 25, 25, 25, 25, 25, 25, 25],
-    &[29, 29, 29, 29, 29, 29, 29, 29],
-    &[33, 33, 32, 32, 32, 32, 31, 31],
+const MODE_67_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[25, 25, 25, 25, 25, 25, 25, 25]),
+    (21, &[29, 29, 29, 29, 29, 29, 29, 29]),
+    (13, &[33, 32, 32, 32, 32, 31, 31, 31]),
 ];
 
-const MODE_DF_STEALED_CYCLES: [&[usize; 8]; 4] = [
-    &[0, 0, 0, 0, 0, 0, 0, 0],
-    &[41, 41, 41, 41, 41, 41, 41, 41],
-    &[49, 49, 49, 49, 49, 49, 49, 49],
-    &[56, 56, 55, 55, 54, 54, 53, 53],
+const MODE_89_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (0, &[17, 17, 17, 17, 17, 17, 17, 17]),
+    (0, &[19, 19, 19, 19, 19, 19, 19, 19]),
+    (0, &[21, 21, 21, 21, 21, 21, 20, 20]),
+];
+
+const MODE_AC_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (0, &[25, 25, 25, 25, 25, 25, 25, 25]),
+    (0, &[29, 29, 29, 29, 29, 29, 29, 29]),
+    (0, &[33, 33, 32, 32, 32, 32, 31, 31]),
+];
+
+const MODE_DF_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
+    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (0, &[41, 41, 41, 41, 41, 41, 41, 41]),
+    (0, &[49, 49, 49, 49, 49, 49, 49, 49]),
+    (0, &[56, 56, 55, 55, 54, 54, 53, 53]),
 ];
 
 impl Antic {
@@ -180,7 +185,9 @@ impl Antic {
         self.nmist.remove(NMIST::VBI);
     }
 
-    pub fn get_dma_cycles(&self, current_line: &ModeLineDescr) -> usize {
+    pub fn get_dma_cycles(&self, current_line: &ModeLineDescr) -> (usize, usize, usize) {
+        // TODO - take hscroll into account for steal start value
+
         let is_hscrol = current_line.opts.contains(MODE_OPTS::HSCROL);
         let is_first_mode_line = current_line.scan_line == self.scan_line;
         let hscrol = if is_hscrol {
@@ -190,38 +197,40 @@ impl Antic {
         };
         let playfield_width_index = self.playfield_width_index(is_hscrol);
         let mode = current_line.mode;
-        let mut n_cycles = match mode {
+        let (mut line_start_cycle, dma_cycles_arr) = match mode {
             0x2..=0x5 => {
                 if is_first_mode_line {
-                    MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index][hscrol]
+                    MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
                 } else {
-                    MODE_25_STEALED_CYCLES[playfield_width_index][hscrol]
+                    MODE_25_STEALED_CYCLES[playfield_width_index]
                 }
             }
             0x6..=0x7 => {
                 if is_first_mode_line {
-                    MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index][hscrol]
+                    MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
                 } else {
-                    MODE_67_STEALED_CYCLES[playfield_width_index][hscrol]
+                    MODE_67_STEALED_CYCLES[playfield_width_index]
                 }
-            },
-            0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index][hscrol],
-            0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index][hscrol],
-            0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index][hscrol],
+            }
+            0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index],
+            0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
+            0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
 
-            _ => 0,
+            _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0])
         };
+        let dma_cycles = dma_cycles_arr[hscrol];
+        let mut start_dma_cycles = 0;
         if self.dmactl.contains(DMACTL::PLAYER_DMA) {
-            n_cycles += 5;
+            start_dma_cycles += 5;
         }
         if is_first_mode_line {
             if mode == 1 {
-                n_cycles += 3; // DL with ADDR
+                start_dma_cycles += 3; // DL with ADDR
             } else {
-                n_cycles += 1;
+                start_dma_cycles += 1;
             }
         }
-        n_cycles
+        (start_dma_cycles, line_start_cycle.max(start_dma_cycles), dma_cycles)
     }
 
     fn create_mode_line(
@@ -230,6 +239,7 @@ impl Antic {
         mode: u8,
         height: usize,
         n_bytes: usize,
+        scan_line: usize,
     ) -> ModeLineDescr {
         let is_hscrol = opts.contains(MODE_OPTS::HSCROL);
         let hscrol = if is_hscrol { 32 - self.hscrol * 2 } else { 0 };
@@ -241,16 +251,17 @@ impl Antic {
             opts,
             height,
             n_bytes: hscrol_line_width,
-            scan_line: self.scan_line,
+            scan_line: scan_line,
             width: self.playfield_width(false, is_hscrol),
             data_offset: self.video_memory,
             chbase: self.chbase,
             pmbase: self.pmbase,
             hscrol,
+            gtia_regs: vec![],
         }
     }
     pub fn dlist_offset(&self, k: u8) -> u16 {
-        return self.dlist & 0xfc00 | self.dlist.overflowing_add(k as u16).0 & 0x3ff
+        return self.dlist & 0xfc00 | self.dlist.overflowing_add(k as u16).0 & 0x3ff;
     }
     pub fn inc_dlist(&mut self, k: u8) {
         self.dlist = self.dlist_offset(k);
@@ -260,9 +271,13 @@ impl Antic {
         data[0] = ram[self.dlist_offset(0) as usize];
         data[1] = ram[self.dlist_offset(1) as usize];
         data[2] = ram[self.dlist_offset(2) as usize];
-        return data
+        return data;
     }
-    pub fn create_next_mode_line(&mut self, dlist: &[u8]) -> Option<ModeLineDescr> {
+    pub fn create_next_mode_line(
+        &mut self,
+        dlist: &[u8],
+        scan_line: usize,
+    ) -> Option<ModeLineDescr> {
         let opts = MODE_OPTS::from_bits_truncate(dlist[0]);
         let mode = dlist[0] & 0xf;
         self.inc_dlist(1);
@@ -271,24 +286,26 @@ impl Antic {
             self.inc_dlist(2);
         };
         let mode_line = match mode {
-            0x0 => self.create_mode_line(opts, mode, ((dlist[0] >> 4) & 7) as usize + 1, 0),
+            0x0 => {
+                self.create_mode_line(opts, mode, ((dlist[0] >> 4) & 7) as usize + 1, 0, scan_line)
+            }
             0x1 => {
                 self.dlist = dlist[1] as u16 | ((dlist[2] as u16) << 8);
                 if opts.contains(MODE_OPTS::LMS) {
                     return None;
                 }
-                self.create_mode_line(opts, mode, 1, 0)
+                self.create_mode_line(opts, mode, 1, 0, scan_line)
             }
-            0x2 => self.create_mode_line(opts, mode, 8, 40),
-            0x4 => self.create_mode_line(opts, mode, 8, 40),
-            0xa => self.create_mode_line(opts, mode, 4, 20),
-            0xc => self.create_mode_line(opts, mode, 1, 20),
-            0xd => self.create_mode_line(opts, mode, 2, 40),
-            0xe => self.create_mode_line(opts, mode, 1, 40),
-            0xf => self.create_mode_line(opts, mode, 1, 40),
+            0x2 => self.create_mode_line(opts, mode, 8, 40, scan_line),
+            0x4 => self.create_mode_line(opts, mode, 8, 40, scan_line),
+            0xa => self.create_mode_line(opts, mode, 4, 20, scan_line),
+            0xc => self.create_mode_line(opts, mode, 1, 20, scan_line),
+            0xd => self.create_mode_line(opts, mode, 2, 40, scan_line),
+            0xe => self.create_mode_line(opts, mode, 1, 40, scan_line),
+            0xf => self.create_mode_line(opts, mode, 1, 40, scan_line),
             _ => {
                 warn!("unsupported antic vide mode {:?}", mode);
-                self.create_mode_line(opts, mode, 1, 0)
+                self.create_mode_line(opts, mode, 1, 0, scan_line)
             }
         };
         self.video_memory += mode_line.n_bytes;
