@@ -29,7 +29,7 @@ use bevy::{
     },
 };
 use emulator_6502::MOS6502;
-use render_resources::{Charset, GTIARegs, LineData, Palette};
+use render_resources::{Charset, GTIARegs, GTIARegsArray, LineData, Palette};
 use system::AtariSystem;
 use wasm_bindgen::prelude::*;
 
@@ -50,7 +50,7 @@ struct AnticLine {
     pub mode: u32,
     pub hscrol: f32,
     pub data: LineData,
-    pub gtia_regs: GTIARegs,
+    pub gtia_regs_array: GTIARegsArray,
     pub charset: Charset,
 }
 #[derive(RenderResources, Default, TypeUuid)]
@@ -131,7 +131,6 @@ fn create_mode_line(
         &pl_mem(2),
         &pl_mem(3),
     );
-    assert!(mode_line.gtia_regs.len() == mode_line.height);
 
     let charset_offset = (mode_line.chbase as usize) * 256;
 
@@ -163,7 +162,7 @@ fn create_mode_line(
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
             mode: mode_line.mode as u32,
-            gtia_regs: mode_line.gtia_regs[mode_line.gtia_regs.len()-1],
+            gtia_regs_array: mode_line.gtia_regs_array,
             line_width: mode_line.width as f32,
             hscrol: mode_line.hscrol as f32,
             data: line_data,
@@ -363,8 +362,8 @@ fn atari_system(
 
             if let Some(current_line) = &mut current_mode {
                 if n >= line_start_cycle && !is_visible {
-                    current_line.gtia_regs.push(atari_system.gtia.get_colors());
-                    assert!(current_line.gtia_regs.len() <= current_line.height);
+                    let k = scan_line - current_line.scan_line;
+                    current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
                     is_visible = true;
                 }
             }

@@ -1,5 +1,5 @@
 use bevy::log::*;
-use crate::render_resources::GTIARegs;
+use crate::render_resources::GTIARegsArray;
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -88,7 +88,7 @@ pub struct ModeLineDescr {
     pub chbase: u8,
     pub pmbase: u8,
     pub hscrol: u8,
-    pub gtia_regs: Vec<GTIARegs>,
+    pub gtia_regs_array: GTIARegsArray,
 
 }
 
@@ -245,19 +245,23 @@ impl Antic {
         let hscrol = if is_hscrol { 32 - self.hscrol * 2 } else { 0 };
 
         let hscrol_line_width = n_bytes * self.playfield_width(true, is_hscrol) / 320;
-
+        let width = if mode > 1 {
+            self.playfield_width(false, is_hscrol)
+        } else {
+            320
+        };
         ModeLineDescr {
             mode,
             opts,
             height,
             n_bytes: hscrol_line_width,
             scan_line: scan_line,
-            width: self.playfield_width(false, is_hscrol),
+            width,
             data_offset: self.video_memory,
             chbase: self.chbase,
             pmbase: self.pmbase,
             hscrol,
-            gtia_regs: vec![],
+            gtia_regs_array: GTIARegsArray::default(),
         }
     }
     pub fn dlist_offset(&self, k: u8) -> u16 {

@@ -74,11 +74,19 @@ impl_render_resource_bytes!(Palette);
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
+pub struct GTIARegsArray {
+    pub regs: [GTIARegs; 8]
+}
+
+#[repr(C)]
+#[derive(Default, Clone, Copy, Debug)]
 pub struct GTIARegs {
-    pub regs: [[u32; 4]; 3],
+    pub colors: [[u32; 4]; 2],
+    pub colors_pm: [u32; 4],
     pub player_pos: [f32; 4],
     pub player_size: [f32; 4],
     pub prior: u32,
+    pub _fill: [u32; 3],
 }
 
 impl GTIARegs {
@@ -103,11 +111,11 @@ impl GTIARegs {
         prior: u8,
     ) -> Self {
         Self {
-            regs: [
+            colors: [
                 [colbk as u32, colpf0 as u32, colpf1 as u32, colpf2 as u32],
                 [colbk as u32, colpf0 as u32, colpf1 as u32, colpf3 as u32],
-                [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
             ],
+            colors_pm: [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
             player_pos: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
             player_size: [
                 player_size(sizep0),
@@ -116,6 +124,7 @@ impl GTIARegs {
                 player_size(sizep3),
             ],
             prior: prior as u32,
+            _fill: [0, 0, 0],
         }
     }
 }
@@ -128,5 +137,5 @@ fn player_size(sizep: u8) -> f32 {
     }
 }
 
-unsafe impl Byteable for GTIARegs {}
-impl_render_resource_bytes!(GTIARegs);
+unsafe impl Byteable for GTIARegsArray {}
+impl_render_resource_bytes!(GTIARegsArray);

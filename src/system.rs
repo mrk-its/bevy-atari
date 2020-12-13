@@ -188,7 +188,7 @@ impl Interface6502 for AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0xD0 => self.gtia.write(addr, value),
-            // 0xD2 => self.pokey.write(addr, value),
+            0xD2 => self.pokey.write(addr, value),
             0xD3 => self.pia.write(addr, value),
             0xD4 => self.antic.write(addr, value),
             _ => self.ram[addr] = value,
