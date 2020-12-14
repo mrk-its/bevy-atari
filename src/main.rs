@@ -194,8 +194,8 @@ fn atari_system(
     // if perf_metrics.frame_cnt > 120 {
     //     return;
     // }
-    let enable_log = perf_metrics.frame_cnt < 2;
-    // let enable_log = false;
+    // let enable_log = perf_metrics.frame_cnt < 2;
+    let enable_log = false;
     atari_system.enable_log(enable_log);
     // let enable_log = false;
     // assert!(perf_metrics.frame_cnt < 35);
@@ -362,7 +362,7 @@ fn atari_system(
 
             if let Some(current_line) = &mut current_mode {
                 if n >= line_start_cycle && !is_visible {
-                    let k = scan_line - current_line.scan_line;
+                    let k = (scan_line - current_line.scan_line).min(7);
                     current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
                     is_visible = true;
                 }
@@ -491,7 +491,7 @@ fn setup(
             ..Default::default()
         },
         transform: Transform::from_translation(Vec3::default())
-            .mul_transform(Transform::from_scale(Vec3::new(1.0 / 3.0, 1.0 / 3.0, 1.0))),
+            .mul_transform(Transform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0))),
         ..Default::default()
     });
 }
@@ -501,9 +501,9 @@ fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 1280,
-        height: 768,
-        resizable: true,
+        width: 320*2,
+        height: 240*2,
+        resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
         canvas: Some("#bevy-canvas".to_string()),
