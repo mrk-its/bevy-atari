@@ -83,7 +83,8 @@ impl Pokey {
         value
     }
 
-    const IDLE_DELAY: usize = 100;
+    const IDLE_DELAY: usize = 20;
+
     pub fn tick(&mut self) {
         for channel in 0..4 {
             if self.delay[channel] == 0 {
@@ -209,6 +210,9 @@ impl Pokey {
                 };
                 self.clock_divider[3] = slow_clock;
                 // warn!("AUDCTL: {:?}", self.audctl);
+                for i in 0..4 {
+                    self.reset_idle(i)
+                }
             }
             _ => (),
         }
