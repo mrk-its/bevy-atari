@@ -222,7 +222,7 @@ impl Antic {
         if self.dmactl.contains(DMACTL::PLAYER_DMA) {
             start_dma_cycles += 5;
         }
-        if is_first_mode_line {
+        if is_first_mode_line && self.dmactl.contains(DMACTL::DLIST_DMA) {
             if mode == 1 {
                 start_dma_cycles += 3; // DL with ADDR
             } else {
@@ -352,7 +352,7 @@ impl Antic {
             consts::CHBASE => self.chbase = value,
             consts::NMIEN => self.nmien = NMIEN::from_bits_truncate(value),
             consts::NMIRES => self.nmist.bits = NMIST::UNUSED.bits,
-            consts::HSCROL => self.hscrol = value,
+            consts::HSCROL => self.hscrol = value & 0xf,
             consts::DLIST_L => self.dlist = self.dlist & 0xff00 | value as u16,
             consts::DLIST_H => self.dlist = self.dlist & 0xff | ((value as u16) << 8),
             consts::WSYNC => self.wsync = true, // TODO

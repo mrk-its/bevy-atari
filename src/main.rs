@@ -291,7 +291,7 @@ fn atari_system(
         }
 
         if !vblank {
-            if next_scan_line == scan_line {
+            if next_scan_line == scan_line && atari_system.antic.dmactl.contains(DMACTL::DLIST_DMA) {
                 let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
                 let mode = atari_system
                     .antic
@@ -358,10 +358,11 @@ fn atari_system(
 
         let mut is_visible = false;
 
-        if vblank {
-            assert!(current_mode.is_none());
-            assert!(dma_cycles == 0);
-        }
+        // TODO
+        // if vblank {
+        //     assert!(current_mode.is_none());
+        //     assert!(dma_cycles == 0);
+        // }
 
         while n < SCAN_LINE_CYCLES {
             // if n == 110 {
@@ -508,8 +509,8 @@ fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 320 * 2,
-        height: 240 * 2,
+        width: 320.0 * 2.0,
+        height: 248.0 * 2.0,
         resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
