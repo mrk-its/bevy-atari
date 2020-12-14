@@ -18,6 +18,10 @@
       canvas {
         background-color: white;
       }
+      #canvas-container {
+        margin: 0px auto;
+        width: 640px;
+      }
     </style>
   </head>
   <script type="module">
@@ -59,9 +63,11 @@
     }
   </script>
   <body ondrop="on_drop_handler(event);" ondragover="event.preventDefault();">
-    <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" width="384" height="256" alt="bevy" cursor="auto" style="width: 1280px; height: 720px;"></canvas>
+    <div id="canvas-container">
+    <canvas  id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <p><a href="#laserdemo">LaserDemo</a>
     <a href="#robbo">Robbo</a>
     <a href="#fred">Fred</a></p>
+  </div>
   </body>
 </html>
