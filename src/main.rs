@@ -318,7 +318,7 @@ fn atari_system(
                             enable_log,
                         );
                     }
-                    // y_extra_offset += 1.0;
+                // y_extra_offset += 1.0;
                 } else {
                     vblank = true;
                     let prev_mode_line = current_mode.take();
@@ -336,15 +336,18 @@ fn atari_system(
             }
         }
 
-        let (start_dma_cycles, line_start_cycle, dma_cycles) = if let Some(current_mode) = &current_mode {
-            atari_system.antic.get_dma_cycles(current_mode)
-        } else {
-            (0, 0, 0)
-        };
+        let (start_dma_cycles, line_start_cycle, dma_cycles) =
+            if let Some(current_mode) = &current_mode {
+                atari_system.antic.get_dma_cycles(current_mode)
+            } else {
+                (0, 0, 0)
+            };
         if enable_log {
-            info!("start_dma_cycles: {} line_start: {}, dma_cycles: {}", start_dma_cycles, line_start_cycle, dma_cycles);
+            info!(
+                "start_dma_cycles: {} line_start: {}, dma_cycles: {}",
+                start_dma_cycles, line_start_cycle, dma_cycles
+            );
         }
-
         let mut n = if wsync {
             wsync = false;
             104
@@ -354,6 +357,11 @@ fn atari_system(
         let mut last_pc = 0;
 
         let mut is_visible = false;
+
+        if vblank {
+            assert!(current_mode.is_none());
+            assert!(dma_cycles == 0);
+        }
 
         while n < SCAN_LINE_CYCLES {
             // if n == 110 {
@@ -387,7 +395,6 @@ fn atari_system(
                 } else {
                     debug.enabled = false;
                     debug.instr_cnt = 0;
-                    //panic!("STOP");
                 }
             }
 
@@ -501,8 +508,8 @@ fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 320*2,
-        height: 240*2,
+        width: 320 * 2,
+        height: 240 * 2,
         resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]

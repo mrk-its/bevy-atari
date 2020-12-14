@@ -16,7 +16,7 @@ pub enum Message {
     },
     DraggedFileData {
         data: Vec<u8>,
-    }
+    },
 }
 
 #[allow(dead_code)]
@@ -37,7 +37,5 @@ pub fn set_joystick(port: usize, up: bool, down: bool, left: bool, right: bool, 
 #[wasm_bindgen]
 pub fn set_state(data: Vec<u8>) {
     let mut guard = ARRAY.write();
-    guard.push(Message::DraggedFileData {
-        data: data,
-    });
+    guard.push(Message::DraggedFileData { data: data });
 }

@@ -1,8 +1,8 @@
 mod web_audio;
 pub use bevy::prelude::*;
-use web_audio::AudioBackend;
-use rand::{Rng, RngCore, SeedableRng};
 use rand::rngs::SmallRng;
+use rand::{Rng, RngCore, SeedableRng};
+use web_audio::AudioBackend;
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -19,7 +19,7 @@ bitflags! {
         const CLOCK_15 = 1;
         const CH2_HIGH_PASS = 2;
         const CH1_HIGH_PASS = 4;
-        const CH34_LINKED_CNT = 8;  // bug in Altirra Manual?
+        const CH34_LINKED_CNT = 8;
         const CH12_LINKED_CNT = 16;
         const CH3_FAST_CLOCK = 32;
         const CH1_FAST_CLOCK = 64;
@@ -100,17 +100,19 @@ impl Pokey {
     pub fn setup_channel(&mut self, channel: usize) {
         let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
         let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
-        let (divider, clock_divider) = if channel == 1 && is_linked_01 || channel == 3 && is_linked_23 {
-            let divider = 7 + (self.freq[channel-1] as u32) + (self.freq[channel] as u32) * 256;
-            let clock_divider = self.clock_divider[channel-1];
+        let (divider, clock_divider) = if channel == 1 && is_linked_01
+            || channel == 3 && is_linked_23
+        {
+            let divider = 7 + (self.freq[channel - 1] as u32) + (self.freq[channel] as u32) * 256;
+            let clock_divider = self.clock_divider[channel - 1];
             (divider, clock_divider)
         } else {
             let divider = 1 + (self.freq[channel] as u32);
             let clock_divider = self.clock_divider[channel];
             (divider, clock_divider)
         };
-        assert!(clock_divider>0);
-        assert!(divider>0);
+        assert!(clock_divider > 0);
+        assert!(divider > 0);
         let freq = CLOCK_177 / clock_divider as f32 / divider as f32 / 2.0;
 
         self.backend.setup_channel(
@@ -189,7 +191,9 @@ impl Pokey {
             }
             8 => {
                 self.audctl = AUDCTL::from_bits_truncate(value);
-                if self.audctl.contains(AUDCTL::CH1_HIGH_PASS) || self.audctl.contains(AUDCTL::CH1_HIGH_PASS) {
+                if self.audctl.contains(AUDCTL::CH1_HIGH_PASS)
+                    || self.audctl.contains(AUDCTL::CH1_HIGH_PASS)
+                {
                     warn!("channel: {}, {:?}", channel, self.audctl);
                 }
                 let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {

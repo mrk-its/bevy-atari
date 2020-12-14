@@ -75,7 +75,7 @@ impl_render_resource_bytes!(Palette);
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIARegsArray {
-    pub regs: [GTIARegs; 8]
+    pub regs: [GTIARegs; 8],
 }
 
 #[repr(C)]

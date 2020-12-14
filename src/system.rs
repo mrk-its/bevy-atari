@@ -1,9 +1,9 @@
 use crate::atari800_state::Atari800State;
-pub use crate::{gtia, antic};
+pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
-pub use std::{cell::RefCell, rc::Rc};
 pub use emulator_6502::Interface6502;
+pub use std::{cell::RefCell, rc::Rc};
 pub struct AtariSystem {
     pub ram: [u8; 65536],
     pub antic: Antic,

@@ -1,5 +1,5 @@
-use bevy::log::*;
 use crate::render_resources::GTIARegsArray;
+use bevy::log::*;
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -89,7 +89,6 @@ pub struct ModeLineDescr {
     pub pmbase: u8,
     pub hscrol: u8,
     pub gtia_regs_array: GTIARegsArray,
-
 }
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
@@ -216,7 +215,7 @@ impl Antic {
             0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
             0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
 
-            _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0])
+            _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
         };
         let dma_cycles = dma_cycles_arr[hscrol];
         let mut start_dma_cycles = 0;
@@ -230,7 +229,11 @@ impl Antic {
                 start_dma_cycles += 1;
             }
         }
-        (start_dma_cycles, line_start_cycle.max(start_dma_cycles), dma_cycles)
+        (
+            start_dma_cycles,
+            line_start_cycle.max(start_dma_cycles),
+            dma_cycles,
+        )
     }
 
     fn create_mode_line(

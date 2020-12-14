@@ -5,7 +5,6 @@ use bevy::{
 };
 use emulator_6502::MOS6502;
 
-
 #[derive(Debug, Clone, Copy)]
 #[repr(C, packed)]
 struct Test {
@@ -324,10 +323,9 @@ impl<'a> Atari800State<'a> {
     }
 }
 
-
 #[derive(TypeUuid)]
 #[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
-pub struct StateFile{
+pub struct StateFile {
     pub data: Vec<u8>,
 }
 

@@ -93,7 +93,8 @@ impl Gtia {
         let value = match addr {
             0x0..=0xf => {
                 //info!("reading collisions at {:x}", addr);
-                if addr == 6 || addr == 7 {  // Player2/3 collisions with playfield, for Fred
+                if addr == 6 || addr == 7 {
+                    // Player2/3 collisions with playfield, for Fred
                     0xff
                 } else {
                     self.collisions[addr]
