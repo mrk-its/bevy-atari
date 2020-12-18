@@ -1,5 +1,4 @@
 use super::{AUDC, AUDCTL, CLOCK_177};
-use bevy::utils::tracing::info;
 use lru::LruCache;
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioBuffer, AudioContext, OscillatorType};

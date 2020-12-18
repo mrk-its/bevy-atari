@@ -81,11 +81,11 @@ impl AtariSystem {
         self.antic.nmist = antic::NMIST::from_bits_truncate(antic.nmist);
         self.antic.pmbase = antic.pmbase;
 
-        self.pokey.write(0x08, pokey.audctl);
         for i in 0..4 {
             self.pokey.write(i * 2, pokey.audf[i]);
             self.pokey.write(i * 2 + 1, pokey.audc[i]);
         }
+        self.pokey.write(0x08, pokey.audctl);
 
         // self.pokey.write(0x08, 0);
         // self.pokey.write(0, 34);

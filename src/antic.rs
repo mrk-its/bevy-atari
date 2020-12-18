@@ -1,5 +1,12 @@
-use crate::render_resources::GTIARegsArray;
-use bevy::log::*;
+use crate::render_resources::{AnticLine, AtariPalette};
+use crate::render_resources::{Charset, GTIARegsArray, LineData};
+use crate::system::AtariSystem;
+use bevy::prelude::*;
+use bevy::render::pipeline::RenderPipeline;
+use bevy::{
+    prelude::{Handle, Mesh},
+    render::pipeline::PipelineDescriptor,
+};
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -89,6 +96,19 @@ pub struct ModeLineDescr {
     pub pmbase: u8,
     pub hscrol: u8,
     pub gtia_regs_array: GTIARegsArray,
+}
+
+impl ModeLineDescr {
+    pub fn next_mode_line(&self) -> usize {
+        return self.scan_line + self.height;
+    }
+}
+
+#[derive(Default)]
+pub struct AnticResources {
+    pub pipeline_handle: Handle<PipelineDescriptor>,
+    pub palette_handle: Handle<AtariPalette>,
+    pub mesh_handle: Handle<Mesh>,
 }
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
@@ -363,4 +383,91 @@ impl Antic {
     pub fn enable_log(&mut self, enable: bool) {
         self.enable_log = enable;
     }
+}
+
+pub fn create_mode_line(
+    commands: &mut Commands,
+    resources: &AnticResources,
+    mode_line: &ModeLineDescr,
+    system: &AtariSystem,
+    y_extra_offset: f32,
+    enable_log: bool,
+) {
+    // if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
+    //     // TODO - this way PM is not displayed on empty lines
+    //     return;
+    // }
+
+    // TODO - check if PM DMA is working, page 114 of AHRM
+    // if DMA is disabled display data from Graphics Data registers, p. 114
+    // TODO - add suppor for low-res sprites
+    let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
+
+    let pl_mem = |n: usize| {
+        if system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
+            let beg = if pm_hires {
+                0x400
+                    + n * 0x100
+                    + mode_line.scan_line
+                    + (mode_line.pmbase & 0b11111000) as usize * 256
+            } else {
+                0x200
+                    + n * 0x80
+                    + mode_line.scan_line / 2
+                    + (mode_line.pmbase & 0b11111100) as usize * 256
+            };
+            system.ram[beg..beg + 16].to_owned()
+        } else {
+            let v = system.gtia.player_graphics[n];
+            vec![v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v]
+        }
+    };
+
+    let line_data = LineData::new(
+        &system.ram[mode_line.data_offset..mode_line.data_offset + 48],
+        &pl_mem(0),
+        &pl_mem(1),
+        &pl_mem(2),
+        &pl_mem(3),
+    );
+
+    let charset_offset = (mode_line.chbase as usize) * 256;
+
+    // TODO suport 512 byte charsets?
+    let charset = Charset::new(&system.ram[charset_offset..charset_offset + 1024]);
+
+    commands
+        .spawn(MeshBundle {
+            mesh: resources.mesh_handle.clone(),
+            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                resources.pipeline_handle.clone_weak(),
+            )]),
+            transform: Transform::from_translation(Vec3::new(
+                0.0,
+                120.0
+                    - (mode_line.scan_line as f32)
+                    - y_extra_offset
+                    - mode_line.height as f32 / 2.0
+                    + 8.0,
+                0.0,
+            ))
+            .mul_transform(Transform::from_scale(Vec3::new(
+                mode_line.width as f32,
+                mode_line.height as f32,
+                1.0,
+            ))),
+            ..Default::default()
+        })
+        .with(AnticLine {
+            // chbase: mode_line.chbase as u32,
+            mode: mode_line.mode as u32,
+            gtia_regs_array: mode_line.gtia_regs_array,
+            line_width: mode_line.width as f32,
+            hscrol: mode_line.hscrol as f32,
+            data: line_data,
+            charset: charset,
+            start_scan_line: mode_line.scan_line,
+            end_scan_line: mode_line.next_mode_line(),
+        })
+        .with(resources.palette_handle.clone_weak());
 }

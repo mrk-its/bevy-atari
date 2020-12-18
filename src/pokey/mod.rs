@@ -1,7 +1,7 @@
 mod web_audio;
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
-use rand::{Rng, RngCore, SeedableRng};
+use rand::{Rng, SeedableRng};
 use web_audio::AudioBackend;
 
 const RANDOM: usize = 0x0A;

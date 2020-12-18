@@ -41,7 +41,7 @@ layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
     vec4 palette[256];
 };
 
-#define get_color_reg(line,s, k) gtia[line].color_regs[s][k]
+#define get_color_reg(line, k) gtia[line].color_regs[k>>2][k&3]
 
 #define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
 #define get_player_byte(_player, offset) (int(_player[(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
@@ -72,63 +72,44 @@ void main() {
     float px_scrolled = px + float(hscrol);  // pixel x position
     vec4 player_pos = gtia[0].player_pos * 2.0 + vec4(line_width / 2.0 - 256.0);
     vec4 player_pos_end = player_pos + gtia[0].player_size;
+    int y = 0;
+    bool hires=false;
+
+    int color_reg_index = 0; // bg_color
     if(mode == 0x0) {
-        int y = int(v_Uv[1] * 7.9);
-        o_Target = encodeColor(palette[get_color_reg(y, 0, 0)]);
-        return;
+        y = int(v_Uv[1] * 7.9);
+        o_Target = encodeColor(palette[get_color_reg(y, 0)]);
     } else if(mode == 0x2) {
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);
         int x = 7 - int(frac * 8.0);
-        int y = int(v_Uv[1] * 7.9);
+        y = int(v_Uv[1] * 7.9);
 
         int c = get_byte(data, n);
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
         int byte = get_byte(charset, offs);
 
-        int index = (((byte >> x) & 1) ^ inv);
-        int bg_index = get_color_reg(y, 0, 3);
-        int fg_index = get_color_reg(y, 0, 2);
-        fg_index = (fg_index & 0xf) | (bg_index & 0xf0);
-        int colors[2] = int[](bg_index, fg_index);
-        o_Target = encodeColor(palette[colors[index]]);
-        return;
+        int pixel_val = (((byte >> x) & 1) ^ inv);
+        color_reg_index = 3 - pixel_val;
+        hires = true;
     } else if(mode == 0x04) {
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);
         int x = 6 - int(frac * 4.0) * 2;
-        int y = int(v_Uv[1] * 7.9);
+        y = int(v_Uv[1] * 7.99);
 
         int c = get_byte(data, n);
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
         int byte = get_byte(charset, offs);
 
-        int index = (byte >> x) & 3;
-        o_Target = encodeColor(palette[get_color_reg(y, inv, index)]);
-        // TODO - implement real priorities
-        // Robbo hack (ovewrite bg with players color)
-        if(gtia[0].prior[0]==4 && index>0) return;
-        int color_reg = 0;
-        if(get_player_pixel(0, px, y, player_pos)) {
-            color_reg |= gtia[0].colpm[0];
-        }
-        if(get_player_pixel(1, px, y, player_pos)) {
-            color_reg |= gtia[0].colpm[1];
-        }
-        if(get_player_pixel(2, px, y, player_pos)) {
-            color_reg |= gtia[0].colpm[2];
+        color_reg_index = (byte >> x) & 3;
+        if(inv != 0 && color_reg_index == 3) {
+            color_reg_index = 4;
         };
-        if(get_player_pixel(3, px, y, player_pos)) {
-            color_reg |= gtia[0].colpm[3];
-        };
-        if(color_reg>0) {
-            o_Target = encodeColor(palette[color_reg]);
-        };
-        return;
     } else if(mode == 0xa) {
         float w = px_scrolled / 16.0;
         int n = int(w); // byte offset
@@ -136,10 +117,7 @@ void main() {
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
 
         int byte = get_byte(data, n);
-        int index = (byte >> bit_offs) & 3;
-        o_Target = encodeColor(palette[get_color_reg(0, 0, index)]);
-        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
-        return;
+        color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0x0c) {
         float w = px_scrolled / 16.0;
         int n = int(w); // byte offset
@@ -147,10 +125,7 @@ void main() {
         int bit_offs = 7-int(frac * 8.0); // bit offset in byte
 
         int byte = get_byte(data, n);
-        int index = (byte >> bit_offs) & 1;
-        o_Target = encodeColor(palette[get_color_reg(0, 0, index)]);
-        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
-        return;
+        color_reg_index = (byte >> bit_offs) & 1;
     } else if(mode == 0x0d) {
         float w = px_scrolled / 8.0;
         int n = int(w); // byte offset
@@ -158,10 +133,7 @@ void main() {
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
 
         int byte = get_byte(data, n);
-        int index = (byte >> bit_offs) & 3;
-        o_Target = encodeColor(palette[get_color_reg(0, 0, index)]);
-        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
-        return;
+        color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0x0e) {
         float w = px_scrolled / 8.0;
         int n = int(w); // byte offset
@@ -169,25 +141,47 @@ void main() {
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
 
         int byte = get_byte(data, n);
-        int index = (byte >> bit_offs) & 3;
-        o_Target = encodeColor(palette[get_color_reg(0, 0, index)]);
-        // o_Target = vec4(1.0, 1.0, 0.0, 1.0);
-        return;
+        color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0x0f) {
+
         float w = px_scrolled / 8.0;
         int n = int(w); // byte offset
         float frac = w - float(n);
         int bit_offs = 7-int(frac * 8.0); // bit offset in byte
 
         int byte = get_byte(data, n);
-        int index = (byte >> bit_offs) & 1;
+        int pixel_val = (byte >> bit_offs) & 1;
+        color_reg_index = 3 - pixel_val;
+        hires = true;
+    };
 
-        int bg_index = get_color_reg(0, 0, 3);
-        int fg_index = get_color_reg(0, 0, 2);
-        fg_index = (fg_index & 0xf) | (bg_index & 0xf0);
-        int colors[2] = int[](bg_index, fg_index);
-        o_Target = encodeColor(palette[colors[index]]);
-        return;
+    int color_index = get_color_reg(y, color_reg_index);
+
+    if(hires && color_reg_index == 2) {
+        color_index = (color_index & 0xf) | (get_color_reg(y, 3) & 0xf0);
     }
-    o_Target = vec4(0.0, 0.0, 0.0, 1.0);
+
+    o_Target = encodeColor(palette[color_index]);
+    // TODO - implement real priorities
+    // Robbo hack (ovewrite bg with players color)
+    if(gtia[0].prior[0]==4 && color_reg_index>0) return;
+
+    // sprites!
+
+    int color_reg = 0;
+    if(get_player_pixel(0, px, y, player_pos)) {
+        color_reg |= gtia[0].colpm[0];
+    }
+    if(get_player_pixel(1, px, y, player_pos)) {
+        color_reg |= gtia[0].colpm[1];
+    }
+    if(get_player_pixel(2, px, y, player_pos)) {
+        color_reg |= gtia[0].colpm[2];
+    };
+    if(get_player_pixel(3, px, y, player_pos)) {
+        color_reg |= gtia[0].colpm[3];
+    };
+    if(color_reg>0) {
+        o_Target = encodeColor(palette[color_reg]);
+    };
 }

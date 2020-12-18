@@ -1,0 +1,76 @@
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <style>
+      body {
+        background: linear-gradient(
+          135deg,
+          white 0%,
+          white 49%,
+          black 49%,
+          black 51%,
+          white 51%,
+          white 100%
+        );
+        background-repeat: repeat;
+        background-size: 20px 20px;
+      }
+      canvas {
+        background-color: white;
+      }
+      #canvas-container {
+        margin: 0px auto;
+        width: 768px;
+      }
+    </style>
+  </head>
+  <script type="module">
+    import init, {set_joystick, set_state} from './target_test/wasm.js'
+    async function run() {
+      try {
+        await init()
+      } catch (e) {
+      }
+      // function random_moves() {
+      //   // set_joystick param: port, up, down, left, right, fire
+      //   set_joystick(0, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.2);
+      //   setTimeout(random_moves, 100)
+      // }
+      // random_moves();
+      window.set_state = set_state;
+    }
+    run();
+
+    function auto_focus() {
+      let canvas = document.getElementsByTagName("canvas");
+      if (!canvas.length) {
+        setTimeout(auto_focus, 100);
+      } else {
+        canvas[0].focus();
+      }
+    }
+    auto_focus()
+  </script>
+
+  <script>
+    function on_drop_handler(event) {
+      console.log("dropped:", event);
+      event.dataTransfer.files[0].arrayBuffer().then(function(data) {
+        console.log(data);
+        set_state(new Uint8Array(data));
+      })
+      event.preventDefault();
+    }
+  </script>
+  <body ondrop="on_drop_handler(event);" ondragover="event.preventDefault();">
+    <div id="canvas-container">
+    <canvas  id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
+    <p><a href="#laserdemo">LaserDemo</a>
+    <a href="#robbo">Robbo</a>
+    <a href="#fred">Fred</a></p>
+    <p><a href="#revenge">Revenge of Magnus</a>
+      <a href="#thetop2_2">TheTop2</a></p>
+      <p><a href="#altirra-basic">Altirra Basic</a></p>
+      </div>
+  </body>
+</html>

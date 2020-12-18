@@ -2,11 +2,13 @@ use crate::gtia::atari_color;
 use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
+use bevy::reflect::TypeUuid;
 use bevy::render::{
     impl_render_resource_bytes,
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
+use bevy::{prelude::*, render::renderer::RenderResources};
 use std::convert::TryInto;
 
 #[repr(C)]
@@ -81,7 +83,7 @@ pub struct GTIARegsArray {
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
 pub struct GTIARegs {
-    pub colors: [[u32; 4]; 2],
+    pub colors: [u32; 8],
     pub colors_pm: [u32; 4],
     pub player_pos: [f32; 4],
     pub player_size: [f32; 4],
@@ -112,8 +114,14 @@ impl GTIARegs {
     ) -> Self {
         Self {
             colors: [
-                [colbk as u32, colpf0 as u32, colpf1 as u32, colpf2 as u32],
-                [colbk as u32, colpf0 as u32, colpf1 as u32, colpf3 as u32],
+                colbk as u32,
+                colpf0 as u32,
+                colpf1 as u32,
+                colpf2 as u32,
+                colpf3 as u32,
+                0,
+                0,
+                0,
             ],
             colors_pm: [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
             player_pos: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
@@ -139,3 +147,23 @@ fn player_size(sizep: u8) -> f32 {
 
 unsafe impl Byteable for GTIARegsArray {}
 impl_render_resource_bytes!(GTIARegsArray);
+
+#[derive(RenderResources, TypeUuid)]
+#[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
+pub struct AnticLine {
+    pub line_width: f32,
+    pub mode: u32,
+    pub hscrol: f32,
+    pub data: LineData,
+    pub gtia_regs_array: GTIARegsArray,
+    pub charset: Charset,
+    #[render_resources(ignore)]
+    pub start_scan_line: usize,
+    #[render_resources(ignore)]
+    pub end_scan_line: usize,
+}
+#[derive(RenderResources, Default, TypeUuid)]
+#[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
+pub struct AtariPalette {
+    pub palette: Palette,
+}
