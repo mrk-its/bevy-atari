@@ -442,6 +442,10 @@ pub fn create_mode_line(
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 resources.pipeline_handle.clone_weak(),
             )]),
+            visible: Visible {
+                is_transparent: true,
+                is_visible: true,
+            },
             transform: Transform::from_translation(Vec3::new(
                 0.0,
                 120.0
