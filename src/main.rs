@@ -56,15 +56,14 @@ struct State {
     handle: Handle<StateFile>,
     initialized: bool,
 }
-
-fn gunzip(data: &[u8]) -> Vec<u8> {
-    let mut decoder = flate2::read::GzDecoder::new(&data[..]);
-    let mut result = Vec::new();
-    decoder.read_to_end(&mut result).unwrap();
-    result
+#[derive(Debug)]
+enum BreakPoint {
+    PC(u16),
+    NotPC(u16),
+    ScanLine(usize),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct FrameState {
     scan_line: usize,
     cycle: usize,
@@ -74,6 +73,26 @@ struct FrameState {
     visible_cycle: usize,
     dma_cycles: usize,
     current_mode: Option<ModeLineDescr>,
+    paused: bool,
+    break_point: Option<BreakPoint>,
+}
+
+impl FrameState {
+    fn set_breakpoint(&mut self, break_point: BreakPoint) {
+        self.paused = false;
+        self.break_point = Some(break_point);
+    }
+    fn clear_break_point(&mut self) {
+        self.paused = true;
+        self.break_point = None;
+    }
+}
+
+fn gunzip(data: &[u8]) -> Vec<u8> {
+    let mut decoder = flate2::read::GzDecoder::new(&data[..]);
+    let mut result = Vec::new();
+    decoder.read_to_end(&mut result).unwrap();
+    result
 }
 
 fn reload_system(
@@ -127,7 +146,25 @@ fn reload_system(
             }
         }
     }
-    if atari_system.handle_keyboard(&keyboard) {
+    if keyboard.just_pressed(KeyCode::F9) {
+        if !frame.paused {
+            frame.set_breakpoint(BreakPoint::ScanLine(248))
+        } else {
+            frame.break_point = None;
+            frame.paused = false;
+        }
+    } if keyboard.just_pressed(KeyCode::F10) {
+        let next_scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
+        frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
+    } if keyboard.just_pressed(KeyCode::F11) {
+        if atari_system.ram[cpu.program_counter as usize] == 0x20 { // JSR
+            frame.set_breakpoint(BreakPoint::PC(cpu.program_counter + 3));
+        } else {
+            frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+        }
+    } else if keyboard.just_pressed(KeyCode::F12) {
+        frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+    } else if atari_system.handle_keyboard(&keyboard) {
         cpu.interrupt_request();
     }
 }
@@ -151,10 +188,19 @@ fn debug_overlay_system(
     cpu: ResMut<MOS6502>,
 ) {
     let mut data = vec![];
+    let f = cpu.status_register;
     data.extend(atascii_to_screen(
         &format!(
-            "A: {:02x}   X: {:02x}   Y: {:02x}   S: {:02x}   {:3} / {:3}       ",
-            cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer, frame.scan_line, frame.cycle,
+            "A: {:02x}   X: {:02x}   Y: {:02x}   S: {:02x}   F: {}{}-{}{}{}{}{}     {:3} / {:<3}       ",
+            cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer,
+            if f & 0x80 > 0 {'N'} else {'-'},
+            if f & 0x40 > 0 {'V'} else {'-'},
+            if f & 0x10 > 0 {'B'} else {'-'},
+            if f & 0x08 > 0 {'D'} else {'-'},
+            if f & 0x04 > 0 {'I'} else {'-'},
+            if f & 0x02 > 0 {'Z'} else {'-'},
+            if f & 0x01 > 0 {'C'} else {'-'},
+            frame.scan_line, frame.cycle,
         ),
         false,
     ));
@@ -189,22 +235,28 @@ fn atari_system(
     if !state.initialized {
         return;
     }
-
+    if frame.paused {
+        return;
+    }
     let enable_log = false;
     atari_system.enable_log(enable_log);
 
-    // if frame.scan_line == 0 && frame.cycle == 0 {
-    //     for (entity, antic_line) in antic_lines.iter() {
-    //         commands.despawn(entity);
-    //     }
-    // }
-    for (entity, antic_line) in antic_lines.iter() {
-        if frame.scan_line >= antic_line.start_scan_line && frame.scan_line < antic_line.end_scan_line {
+    if frame.scan_line == 0 {
+        frame.vblank = false;
+    }
+
+    if frame.scan_line == 0 && frame.cycle == 0 {
+        for (entity, antic_line) in antic_lines.iter() {
             commands.despawn(entity);
         }
     }
+    // for (entity, antic_line) in antic_lines.iter() {
+    //     if frame.scan_line >= antic_line.start_scan_line && frame.scan_line < antic_line.end_scan_line {
+    //         commands.despawn(entity);
+    //     }
+    // }
 
-    while frame.scan_line < MAX_SCAN_LINES {
+    'outer: loop {
         atari_system.antic.scan_line = frame.scan_line;
 
         if !frame.vblank && frame.cycle == 0 {
@@ -250,7 +302,7 @@ fn atari_system(
             }
         }
 
-        if frame.scan_line == 248 {
+        if frame.scan_line == 248 && frame.cycle == 0 {
             frame.vblank = true;
             if atari_system.antic.nmien.contains(NMIEN::VBI) {
                 if enable_log {
@@ -294,7 +346,7 @@ fn atari_system(
         //     assert!(dma_cycles == 0);
         // }
 
-        while frame.cycle < SCAN_LINE_CYCLES {
+        loop {
             // if n == 110 {
             //     atari_system.antic.scan_line = scan_line + 1;
             // }
@@ -327,23 +379,39 @@ fn atari_system(
                     break;
                 }
             }
-            frame.cycle += 1;
+            if let Some(BreakPoint::PC(pc)) = frame.break_point {
+                if cpu.program_counter == pc {
+                    frame.clear_break_point();
+                }
+            }
+            if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
+                if cpu.program_counter != pc {
+                    frame.clear_break_point();
+                }
+            }
+
+            frame.cycle = (frame.cycle + 1) % SCAN_LINE_CYCLES;
+            if frame.cycle == 0 {
+                frame.is_visible = false;
+                frame.scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
+            }
+            if frame.paused {
+                break 'outer;
+            } else if frame.cycle == 0 {
+                break;
+            }
         }
-        if frame.cycle == SCAN_LINE_CYCLES {
-            frame.cycle = 0;
-            frame.is_visible = false;
+
+        if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
+            if *scan_line == frame.scan_line {
+                frame.paused = true;
+                frame.break_point = None;
+                break;
+            }
         }
-        frame.scan_line += 1;
-        break;
-        // if let Some(cur) = &frame.current_mode {
-        //     if cur.next_mode_line() == frame.scan_line {
-        //         break;
-        //     }
-        // }
-    }
-    if frame.scan_line == MAX_SCAN_LINES {
-        frame.scan_line = 0;
-        frame.vblank = false;
+        if frame.scan_line == 0 {
+            break;
+        }
     }
     perf_metrics.frame_cnt += 1;
 }
