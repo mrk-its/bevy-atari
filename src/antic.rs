@@ -2,11 +2,15 @@ use crate::render_resources::{AnticLine, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
 use bevy::prelude::*;
+use bevy::reflect::TypeUuid;
 use bevy::render::pipeline::RenderPipeline;
 use bevy::{
     prelude::{Handle, Mesh},
     render::pipeline::PipelineDescriptor,
 };
+
+pub const ATARI_PALETTE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 13714196555738289155);
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -442,10 +446,10 @@ pub fn create_mode_line(
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 resources.pipeline_handle.clone_weak(),
             )]),
-            visible: Visible {
-                is_transparent: true,
-                is_visible: true,
-            },
+            // visible: Visible {
+            //     is_transparent: true,
+            //     is_visible: true,
+            // },
             transform: Transform::from_translation(Vec3::new(
                 0.0,
                 120.0

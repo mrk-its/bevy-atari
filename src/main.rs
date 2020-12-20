@@ -14,6 +14,7 @@ mod render_resources;
 mod system;
 use antic::{create_mode_line, AnticResources, ModeLineDescr, DMACTL, MODE_OPTS, NMIEN};
 use atari800_state::{Atari800StateLoader, StateFile};
+use bevy::reflect::TypeUuid;
 use bevy::{
     prelude::*,
     render::{
@@ -26,7 +27,6 @@ use bevy::{
         shader::{ShaderStage, ShaderStages},
     },
 };
-use bevy::reflect::TypeUuid;
 
 use bevy::{render::pipeline::RenderPipeline, winit::WinitConfig};
 use emulator_6502::MOS6502;
@@ -95,11 +95,69 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
     result
 }
 
+#[derive(Default)]
+struct AutoRepeatTimer {
+    timer: Timer
+}
+
+fn keyboard_system(
+    time: Res<Time>,
+    keyboard: Res<Input<KeyCode>>,
+    mut autorepeat_disabled: Local<AutoRepeatTimer>,
+    mut frame: ResMut<FrameState>,
+    mut atari_system: ResMut<AtariSystem>,
+    mut cpu: ResMut<MOS6502>,
+) {
+    let handled = if autorepeat_disabled.timer.finished() {
+        let mut handled = true;
+        if keyboard.pressed(KeyCode::F9) {
+            if !frame.paused {
+                frame.set_breakpoint(BreakPoint::ScanLine(248))
+            } else {
+                frame.break_point = None;
+                frame.paused = false;
+            }
+        } else if keyboard.pressed(KeyCode::F10) {
+            info!("timer: {:?}",autorepeat_disabled.timer);
+            let next_scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
+            frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
+        } else if keyboard.pressed(KeyCode::F11) {
+            if atari_system.ram[cpu.program_counter as usize] == 0x20 {
+                // JSR
+                frame.set_breakpoint(BreakPoint::PC(cpu.program_counter + 3));
+            } else {
+                frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+            }
+        } else if keyboard.pressed(KeyCode::F12) {
+            frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+        } else {
+            handled = false;
+        };
+        handled
+    } else {
+        false
+    };
+    for _ in keyboard.get_just_pressed() {
+        autorepeat_disabled.timer.set_duration(0.2);
+        autorepeat_disabled.timer.set_repeating(false);
+        autorepeat_disabled.timer.reset();
+        break;
+    }
+    for _ in keyboard.get_just_released() {
+        autorepeat_disabled.timer.set_duration(0.0);
+        autorepeat_disabled.timer.reset();
+        break;
+    }
+    autorepeat_disabled.timer.tick(time.delta_seconds());
+    if !handled && atari_system.handle_keyboard(&keyboard) {
+        cpu.interrupt_request();
+    }
+}
+
 fn reload_system(
     mut state: ResMut<State>,
     state_files: ResMut<Assets<StateFile>>,
     asset_server: Res<AssetServer>,
-    keyboard: Res<Input<KeyCode>>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
     mut cpu: ResMut<MOS6502>,
@@ -145,27 +203,6 @@ fn reload_system(
                 }
             }
         }
-    }
-    if keyboard.just_pressed(KeyCode::F9) {
-        if !frame.paused {
-            frame.set_breakpoint(BreakPoint::ScanLine(248))
-        } else {
-            frame.break_point = None;
-            frame.paused = false;
-        }
-    } if keyboard.just_pressed(KeyCode::F10) {
-        let next_scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
-        frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
-    } if keyboard.just_pressed(KeyCode::F11) {
-        if atari_system.ram[cpu.program_counter as usize] == 0x20 { // JSR
-            frame.set_breakpoint(BreakPoint::PC(cpu.program_counter + 3));
-        } else {
-            frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
-        }
-    } else if keyboard.just_pressed(KeyCode::F12) {
-        frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
-    } else if atari_system.handle_keyboard(&keyboard) {
-        cpu.interrupt_request();
     }
 }
 
@@ -218,7 +255,8 @@ fn debug_overlay_system(
         text.charset = Charset::new(&atari_system.ram[0xe000..0xe400])
     }
     for (_, mut transform) in scan_line.iter_mut() {
-        *transform = GlobalTransform::from_translation(Vec3::new(0.0, 128.0 - frame.scan_line as f32, 0.1));
+        *transform =
+            GlobalTransform::from_translation(Vec3::new(0.0, 128.0 - frame.scan_line as f32, 0.1));
     }
 }
 
@@ -395,6 +433,8 @@ fn atari_system(
             if frame.cycle == 0 {
                 frame.is_visible = false;
                 frame.scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
+            } else if frame.cycle >= 110 {
+                atari_system.antic.scan_line = frame.scan_line + 1;
             }
             if frame.paused {
                 break 'outer;
@@ -454,7 +494,6 @@ fn setup(
 
     atari_text::create_atari_text_pipeline(&mut *render_graph, &mut *shaders, &mut pipelines);
 
-
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticCharset resources to our shader
     render_graph.add_system_node(
         "atari_palette",
@@ -469,7 +508,7 @@ fn setup(
 
     // Add a Render Graph edge connecting our new "antic_line" node to the main pass node. This ensures "antic_line" runs before the main pass
     render_graph
-        .add_node_edge("antic_line", "atari_text")
+        .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
 
 
@@ -491,19 +530,14 @@ fn setup(
         shaded: false,
     });
 
-    commands.spawn(
-        PbrBundle {
+    commands
+        .spawn(PbrBundle {
             mesh: scan_line_mesh_handle.clone(),
-            transform: Transform::from_translation(Vec3::new(
-                0.0,
-                0.0,
-                0.0,
-            )),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
             material: red_material_handle,
             ..Default::default()
-        }
-    ).with(ScanLine);
-
+        })
+        .with(ScanLine);
 
     let width = 18.0;
     let height = 20.0;
@@ -593,6 +627,7 @@ fn main() {
         .add_resource(AnticResources::default())
         .add_resource(FrameState::default())
         .add_startup_system(setup.system())
+        .add_system_to_stage("pre_update", keyboard_system.system())
         .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .add_system(atari_system.system())
