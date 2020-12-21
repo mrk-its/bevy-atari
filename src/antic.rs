@@ -1,3 +1,5 @@
+use std::str::Chars;
+
 use crate::render_resources::{AnticLine, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
@@ -7,6 +9,7 @@ use bevy::render::pipeline::RenderPipeline;
 use bevy::{
     prelude::{Handle, Mesh},
     render::pipeline::PipelineDescriptor,
+    sprite::QUAD_HANDLE,
 };
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
@@ -27,6 +30,14 @@ mod consts {
     pub const NMIST: usize = 0x0f;
     pub const NMIRES: usize = 0x0f;
 }
+use wasm_bindgen::prelude::*;
+
+const PAL_SCAN_LINES: usize = 312;
+#[allow(dead_code)]
+const NTSC_SCAN_LINES: usize = 262;
+
+pub const MAX_SCAN_LINES: usize = PAL_SCAN_LINES;
+pub const SCAN_LINE_CYCLES: usize = 114;
 
 bitflags! {
     #[derive(Default)]
@@ -73,19 +84,102 @@ bitflags! {
 
 #[derive(Default)]
 pub struct Antic {
+    pub dlist_data: [u8; 3],
+    pub vblank: bool,
+    pub line_height: usize,
+    pub n_bytes: usize,
+    pub line_voffset: usize,
+    pub start_scan_line: usize,
+    pub next_scan_line: usize,
     pub dmactl: DMACTL,
     pub nmist: NMIST,
     pub nmien: NMIEN,
     pub chactl: u8,
     pub chbase: u8,
     pub hscrol: u8,
+    pub vscrol: u8,
     pub pmbase: u8,
     pub dlist: u16,
     pub scan_line: usize,
+    pub vcount: u8,
     pub video_memory: usize,
     pub wsync: bool,
     enable_log: bool,
+    pub is_vscroll: bool,
 }
+
+#[derive(Default, Debug, Copy, Clone)]
+pub struct AnticModeDescr {
+    pub height: usize,
+    pub n_bytes: usize,
+}
+
+const ANTIC_MODES: [AnticModeDescr; 16] = [
+    AnticModeDescr {
+        height: 1,
+        n_bytes: 0,
+    },
+    AnticModeDescr {
+        height: 1,
+        n_bytes: 0,
+    },
+    AnticModeDescr {
+        height: 8,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 10,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 8,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 16,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 8,
+        n_bytes: 20,
+    },
+    AnticModeDescr {
+        height: 16,
+        n_bytes: 20,
+    },
+    AnticModeDescr {
+        height: 8,
+        n_bytes: 10,
+    },
+    AnticModeDescr {
+        height: 4,
+        n_bytes: 10,
+    },
+    AnticModeDescr {
+        height: 4,
+        n_bytes: 20,
+    },
+    AnticModeDescr {
+        height: 2,
+        n_bytes: 20,
+    },
+    AnticModeDescr {
+        height: 1,
+        n_bytes: 20,
+    },
+    AnticModeDescr {
+        height: 2,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 1,
+        n_bytes: 40,
+    },
+    AnticModeDescr {
+        height: 1,
+        n_bytes: 40,
+    },
+];
 
 #[derive(Debug)]
 pub struct ModeLineDescr {
@@ -95,10 +189,13 @@ pub struct ModeLineDescr {
     pub width: usize,
     pub height: usize,
     pub n_bytes: usize,
+    pub line_voffset: usize,
     pub data_offset: usize,
     pub chbase: u8,
     pub pmbase: u8,
     pub hscrol: u8,
+    pub line_data: LineData,
+    pub charset: Charset,
     pub gtia_regs_array: GTIARegsArray,
 }
 
@@ -112,7 +209,6 @@ impl ModeLineDescr {
 pub struct AnticResources {
     pub pipeline_handle: Handle<PipelineDescriptor>,
     pub palette_handle: Handle<AtariPalette>,
-    pub mesh_handle: Handle<Mesh>,
 }
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
@@ -165,6 +261,20 @@ const MODE_DF_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
 ];
 
 impl Antic {
+    pub fn set_scan_line(&mut self, scan_line: usize, cycle: usize) {
+        self.scan_line = scan_line;
+        let scan_line = if cycle >= 110 {
+            (scan_line + 1) % MAX_SCAN_LINES
+        } else {
+            scan_line
+        };
+        self.vcount = (scan_line / 2) as u8;
+        if self.scan_line < 8 || self.scan_line >= 248 {
+            self.next_scan_line = 8;
+            self.is_vscroll = false;
+            self.line_voffset = 0;
+        }
+    }
     fn playfield_width_index(&self, hscroll: bool) -> usize {
         match (hscroll, self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK) {
             (false, DMACTL::EMPTY) => 0,
@@ -208,40 +318,69 @@ impl Antic {
         self.nmist.remove(NMIST::VBI);
     }
 
-    pub fn get_dma_cycles(&self, current_line: &ModeLineDescr) -> (usize, usize, usize) {
+    pub fn is_vbi(&mut self) -> bool {
+        let vbi = self.scan_line == 248 && self.nmien.contains(NMIEN::VBI);
+        if vbi {
+            self.set_vbi();
+        }
+        vbi
+    }
+
+    pub fn is_dli(&mut self) -> bool {
+        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+        if opts.contains(MODE_OPTS::DLI) && self.nmien.contains(NMIEN::DLI) && self.scan_line >= 8 && self.scan_line < 248 {
+            if self.scan_line == self.start_scan_line + self.line_height - 1 {
+                self.set_dli();
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn get_dma_cycles(&self) -> (usize, usize, usize) {
+        if self.scan_line < 8 || self.scan_line >= 248 {
+            return (0, 0, 0);
+        }
         // TODO - take hscroll into account for steal start value
+        let is_first_mode_line = self.scan_line == self.start_scan_line;
+        let mode = self.dlist_data[0] & 0x0f;
 
-        let is_hscrol = current_line.opts.contains(MODE_OPTS::HSCROL);
-        let is_first_mode_line = current_line.scan_line == self.scan_line;
-        let hscrol = if is_hscrol {
-            self.hscrol as usize / 2
+        let (line_start_cycle, dma_cycles) = if (self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK).bits() > 0 {
+            let opts: MODE_OPTS = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+
+            let is_hscrol = opts.contains(MODE_OPTS::HSCROL);
+            let hscrol = if is_hscrol {
+                self.hscrol as usize / 2
+            } else {
+                0
+            };
+            let playfield_width_index = self.playfield_width_index(is_hscrol);
+            let (line_start_cycle, dma_cycles_arr) = match mode {
+                0x2..=0x5 => {
+                    if is_first_mode_line {
+                        MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
+                    } else {
+                        MODE_25_STEALED_CYCLES[playfield_width_index]
+                    }
+                }
+                0x6..=0x7 => {
+                    if is_first_mode_line {
+                        MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
+                    } else {
+                        MODE_67_STEALED_CYCLES[playfield_width_index]
+                    }
+                }
+                0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index],
+                0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
+                0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
+
+                _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+            };
+            (line_start_cycle, dma_cycles_arr[hscrol])
         } else {
-            0
+            (0, 0)
         };
-        let playfield_width_index = self.playfield_width_index(is_hscrol);
-        let mode = current_line.mode;
-        let (mut line_start_cycle, dma_cycles_arr) = match mode {
-            0x2..=0x5 => {
-                if is_first_mode_line {
-                    MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
-                } else {
-                    MODE_25_STEALED_CYCLES[playfield_width_index]
-                }
-            }
-            0x6..=0x7 => {
-                if is_first_mode_line {
-                    MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
-                } else {
-                    MODE_67_STEALED_CYCLES[playfield_width_index]
-                }
-            }
-            0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index],
-            0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
-            0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
 
-            _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
-        };
-        let dma_cycles = dma_cycles_arr[hscrol];
         let mut start_dma_cycles = 0;
         if self.dmactl.contains(DMACTL::PLAYER_DMA) {
             start_dma_cycles += 5;
@@ -280,7 +419,8 @@ impl Antic {
         ModeLineDescr {
             mode,
             opts,
-            height,
+            height: self.line_height,
+            line_voffset: self.line_voffset,
             n_bytes: hscrol_line_width,
             scan_line: scan_line,
             width,
@@ -288,47 +428,99 @@ impl Antic {
             chbase: self.chbase,
             pmbase: self.pmbase,
             hscrol,
+            line_data: LineData::default(),
+            charset: Charset::default(),
             gtia_regs_array: GTIARegsArray::default(),
         }
     }
+
     pub fn dlist_offset(&self, k: u8) -> u16 {
         return self.dlist & 0xfc00 | self.dlist.overflowing_add(k as u16).0 & 0x3ff;
     }
+
     pub fn inc_dlist(&mut self, k: u8) {
         self.dlist = self.dlist_offset(k);
     }
-    pub fn prefetch_dlist(&self, ram: &[u8]) -> [u8; 3] {
-        let mut data = [0; 3];
-        data[0] = ram[self.dlist_offset(0) as usize];
-        data[1] = ram[self.dlist_offset(1) as usize];
-        data[2] = ram[self.dlist_offset(2) as usize];
-        return data;
+
+    pub fn prefetch_dlist(&self, ram: &[u8]) -> Option<[u8; 3]> {
+        if self.dmactl.contains(DMACTL::DLIST_DMA)
+            && (self.scan_line == 8 || self.scan_line == self.next_scan_line)
+        {
+            let mut data: [u8; 3] = [0; 3];
+            data[0] = ram[self.dlist_offset(0) as usize];
+            data[1] = ram[self.dlist_offset(1) as usize];
+            data[2] = ram[self.dlist_offset(2) as usize];
+            Some(data)
+        } else {
+            None
+        }
     }
-    pub fn create_next_mode_line(
-        &mut self,
-        dlist: &[u8],
-        scan_line: usize,
-    ) -> Option<ModeLineDescr> {
-        let opts = MODE_OPTS::from_bits_truncate(dlist[0]);
-        let mode = dlist[0] & 0xf;
+
+    pub fn set_dlist_data(&mut self, dlist_data: [u8; 3]) {
+        self.dlist_data = dlist_data;
+        let mode = self.dlist_data[0] & 0xf;
+        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
         self.inc_dlist(1);
         if opts.contains(MODE_OPTS::LMS) && mode > 1 {
-            self.video_memory = dlist[1] as usize + (dlist[2] as usize * 256);
+            self.video_memory = self.dlist_data[1] as usize + (self.dlist_data[2] as usize * 256);
+            // info!("LMS: {:04x}", self.video_memory);
             self.inc_dlist(2);
-        };
-        let mode_line = match mode {
-            0x0 => {
-                self.create_mode_line(opts, mode, ((dlist[0] >> 4) & 7) as usize + 1, 0, scan_line)
+        }
+        if mode == 1 {
+            self.dlist = self.dlist_data[1] as u16 | ((self.dlist_data[2] as u16) << 8);
+            if opts.contains(MODE_OPTS::LMS) {
+                // info!("dlist restart");
+                self.start_scan_line = self.scan_line;
+                self.next_scan_line = 8;
+                return;
             }
+        }
+        let current_mode = &ANTIC_MODES[mode as usize];
+        self.line_height = current_mode.height;
+        self.n_bytes = current_mode.n_bytes;
+        if mode == 0 {
+            self.line_height = ((self.dlist_data[0] >> 4) & 7) as usize + 1;
+        }
+        let is_vscroll = mode > 0 && opts.contains(MODE_OPTS::VSCROL);
+        self.line_voffset = 0;
+        if is_vscroll && !self.is_vscroll {
+            self.line_voffset = self.vscrol as usize;
+            self.line_height -= self.line_voffset;
+            // entering vscroll region
+        } else if !is_vscroll && self.is_vscroll {
+            self.line_height = self.vscrol as usize + 1;
+            // leaving scroll region
+        }
+
+        self.is_vscroll = is_vscroll;
+        self.start_scan_line = self.scan_line;
+        self.next_scan_line = self.scan_line + self.line_height;
+        // info!(
+        //     "mode: {:?} opts: {:?} {:?} scan_line: {} next: {}",
+        //     mode, opts, current_mode, self.start_scan_line, self.next_scan_line
+        // );
+    }
+
+    pub fn create_next_mode_line(&mut self) -> Option<ModeLineDescr> {
+        let scan_line = self.scan_line;
+        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+        let mode = self.dlist_data[0] & 0xf;
+        let mode_line = match mode {
+            0x0 => self.create_mode_line(
+                opts,
+                mode,
+                ((self.dlist_data[0] >> 4) & 7) as usize + 1,
+                0,
+                scan_line,
+            ),
             0x1 => {
-                self.dlist = dlist[1] as u16 | ((dlist[2] as u16) << 8);
                 if opts.contains(MODE_OPTS::LMS) {
                     return None;
                 }
                 self.create_mode_line(opts, mode, 1, 0, scan_line)
             }
             0x2 => self.create_mode_line(opts, mode, 8, 40, scan_line),
-            0x4 => self.create_mode_line(opts, mode, 8, 40, scan_line),
+            0x4 => self.create_mode_line(opts, mode, self.line_height, 40, scan_line),
             0xa => self.create_mode_line(opts, mode, 4, 20, scan_line),
             0xc => self.create_mode_line(opts, mode, 1, 20, scan_line),
             0xd => self.create_mode_line(opts, mode, 2, 40, scan_line),
@@ -355,7 +547,7 @@ impl Antic {
         let addr = addr & 0xf;
         let value = match addr {
             consts::NMIST => self.nmist.bits | 0x1f,
-            consts::VCOUNT => (self.scan_line >> 1) as u8,
+            consts::VCOUNT => self.vcount,
             _ => 0x00,
         };
         // bevy::log::warn!("ANTIC read: {:02x}: {:02x}", addr, value);
@@ -377,10 +569,10 @@ impl Antic {
             consts::NMIEN => self.nmien = NMIEN::from_bits_truncate(value),
             consts::NMIRES => self.nmist.bits = NMIST::UNUSED.bits,
             consts::HSCROL => self.hscrol = value & 0xf,
+            consts::VSCROL => self.vscrol = value & 0xf,
             consts::DLIST_L => self.dlist = self.dlist & 0xff00 | value as u16,
             consts::DLIST_H => self.dlist = self.dlist & 0xff | ((value as u16) << 8),
             consts::WSYNC => self.wsync = true, // TODO
-            consts::VSCROL => (),               // TODO
             _ => bevy::log::warn!("unsupported antic write reg: {:x?}", addr),
         }
     }
@@ -389,36 +581,23 @@ impl Antic {
     }
 }
 
-pub fn create_mode_line(
-    commands: &mut Commands,
-    resources: &AnticResources,
-    mode_line: &ModeLineDescr,
+pub fn create_line_data(
     system: &AtariSystem,
-    y_extra_offset: f32,
-    enable_log: bool,
-) {
-    // if mode_line.n_bytes == 0 || mode_line.width == 0 || mode_line.height == 0 {
-    //     // TODO - this way PM is not displayed on empty lines
-    //     return;
-    // }
-
+    scan_line: usize,
+    pmbase: u8,
+    data_offset: usize,
+) -> LineData {
+    let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
     // TODO - check if PM DMA is working, page 114 of AHRM
     // if DMA is disabled display data from Graphics Data registers, p. 114
     // TODO - add suppor for low-res sprites
-    let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
 
     let pl_mem = |n: usize| {
         if system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
             let beg = if pm_hires {
-                0x400
-                    + n * 0x100
-                    + mode_line.scan_line
-                    + (mode_line.pmbase & 0b11111000) as usize * 256
+                0x400 + n * 0x100 + scan_line + (pmbase & 0b11111000) as usize * 256
             } else {
-                0x200
-                    + n * 0x80
-                    + mode_line.scan_line / 2
-                    + (mode_line.pmbase & 0b11111100) as usize * 256
+                0x200 + n * 0x80 + scan_line / 2 + (pmbase & 0b11111100) as usize * 256
             };
             system.ram[beg..beg + 16].to_owned()
         } else {
@@ -427,22 +606,25 @@ pub fn create_mode_line(
         }
     };
 
-    let line_data = LineData::new(
-        &system.ram[mode_line.data_offset..mode_line.data_offset + 48],
+    LineData::new(
+        &system.ram[data_offset..data_offset + 48],
         &pl_mem(0),
         &pl_mem(1),
         &pl_mem(2),
         &pl_mem(3),
-    );
+    )
+}
 
-    let charset_offset = (mode_line.chbase as usize) * 256;
-
-    // TODO suport 512 byte charsets?
-    let charset = Charset::new(&system.ram[charset_offset..charset_offset + 1024]);
-
+pub fn create_mode_line(
+    commands: &mut Commands,
+    resources: &AnticResources,
+    mode_line: &ModeLineDescr,
+    y_extra_offset: f32,
+) {
+    // info!("drawing: {:?}", mode_line);
     commands
         .spawn(MeshBundle {
-            mesh: resources.mesh_handle.clone(),
+            mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 resources.pipeline_handle.clone_weak(),
             )]),
@@ -471,9 +653,11 @@ pub fn create_mode_line(
             mode: mode_line.mode as u32,
             gtia_regs_array: mode_line.gtia_regs_array,
             line_width: mode_line.width as f32,
+            line_height: mode_line.height as f32,
+            line_voffset: mode_line.line_voffset as f32,
             hscrol: mode_line.hscrol as f32,
-            data: line_data,
-            charset: charset,
+            data: mode_line.line_data,
+            charset: mode_line.charset,
             start_scan_line: mode_line.scan_line,
             end_scan_line: mode_line.next_mode_line(),
         })

@@ -17,6 +17,14 @@ pub struct Charset {
     pub data: [u8; 1024],
 }
 
+impl Default for Charset {
+    fn default() -> Self {
+        Self {
+            data: [0; 1024],
+        }
+    }
+}
+
 impl Charset {
     pub fn new(src: &[u8]) -> Self {
         Self {
@@ -37,7 +45,17 @@ pub struct LineData {
     pub player2: [u8; 16],
     pub player3: [u8; 16],
 }
-
+impl Default for LineData {
+    fn default() -> Self {
+        Self {
+            data: [0; 48],
+            player0: [0; 16],
+            player1: [0; 16],
+            player2: [0; 16],
+            player3: [0; 16],
+        }
+    }
+}
 impl LineData {
     pub fn new(src: &[u8], player0: &[u8], player1: &[u8], player2: &[u8], player3: &[u8]) -> Self {
         Self {
@@ -148,12 +166,14 @@ fn player_size(sizep: u8) -> f32 {
 unsafe impl Byteable for GTIARegsArray {}
 impl_render_resource_bytes!(GTIARegsArray);
 
-#[derive(RenderResources, TypeUuid)]
+#[derive(RenderResources, TypeUuid, Debug)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
-pub struct AnticLine {
+pub struct  AnticLine {
     pub line_width: f32,
     pub mode: u32,
     pub hscrol: f32,
+    pub line_height: f32,
+    pub line_voffset: f32,
     pub data: LineData,
     pub gtia_regs_array: GTIARegsArray,
     pub charset: Charset,

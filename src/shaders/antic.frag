@@ -37,6 +37,14 @@ layout(std140) uniform AnticLine_hscrol { // set = 1 binding = 6
     float hscrol;
 };
 
+layout(std140) uniform AnticLine_line_height { // set = 1 binding = 7
+    float line_height;
+};
+
+layout(std140) uniform AnticLine_line_voffset { // set = 1 binding = 8
+    float line_voffset;
+};
+
 layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
     vec4 palette[256];
 };
@@ -72,19 +80,18 @@ void main() {
     float px_scrolled = px + float(hscrol);  // pixel x position
     vec4 player_pos = gtia[0].player_pos * 2.0 + vec4(line_width / 2.0 - 256.0);
     vec4 player_pos_end = player_pos + gtia[0].player_size;
-    int y = 0;
+    int cy = int(v_Uv[1] * line_height * 0.99);
+    int y = cy + int(line_voffset);
     bool hires=false;
 
     int color_reg_index = 0; // bg_color
     if(mode == 0x0) {
-        y = int(v_Uv[1] * 7.9);
         o_Target = encodeColor(palette[get_color_reg(y, 0)]);
     } else if(mode == 0x2) {
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);
         int x = 7 - int(frac * 8.0);
-        y = int(v_Uv[1] * 7.9);
 
         int c = get_byte(data, n);
         int inv = c >> 7;
@@ -99,7 +106,6 @@ void main() {
         int n = int(w);
         float frac = w - float(n);
         int x = 6 - int(frac * 4.0) * 2;
-        y = int(v_Uv[1] * 7.99);
 
         int c = get_byte(data, n);
         int inv = c >> 7;
@@ -155,7 +161,7 @@ void main() {
         hires = true;
     };
 
-    int color_index = get_color_reg(y, color_reg_index);
+    int color_index = get_color_reg(cy, color_reg_index);
 
     if(hires && color_reg_index == 2) {
         color_index = (color_index & 0xf) | (get_color_reg(y, 3) & 0xf0);
@@ -169,16 +175,16 @@ void main() {
     // sprites!
 
     int color_reg = 0;
-    if(get_player_pixel(0, px, y, player_pos)) {
+    if(get_player_pixel(0, px, cy, player_pos)) {
         color_reg |= gtia[0].colpm[0];
     }
-    if(get_player_pixel(1, px, y, player_pos)) {
+    if(get_player_pixel(1, px, cy, player_pos)) {
         color_reg |= gtia[0].colpm[1];
     }
-    if(get_player_pixel(2, px, y, player_pos)) {
+    if(get_player_pixel(2, px, cy, player_pos)) {
         color_reg |= gtia[0].colpm[2];
     };
-    if(get_player_pixel(3, px, y, player_pos)) {
+    if(get_player_pixel(3, px, cy, player_pos)) {
         color_reg |= gtia[0].colpm[3];
     };
     if(color_reg>0) {

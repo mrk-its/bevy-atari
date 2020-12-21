@@ -12,7 +12,10 @@ pub mod pia;
 pub mod pokey;
 mod render_resources;
 mod system;
-use antic::{create_mode_line, AnticResources, ModeLineDescr, DMACTL, MODE_OPTS, NMIEN};
+use antic::{
+    create_mode_line, AnticResources, ModeLineDescr, DMACTL, MAX_SCAN_LINES, MODE_OPTS, NMIEN,
+    SCAN_LINE_CYCLES,
+};
 use atari800_state::{Atari800StateLoader, StateFile};
 use bevy::reflect::TypeUuid;
 use bevy::{
@@ -26,20 +29,13 @@ use bevy::{
         render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
         shader::{ShaderStage, ShaderStages},
     },
+    sprite::QUAD_HANDLE,
 };
-
 use bevy::{render::pipeline::RenderPipeline, winit::WinitConfig};
 use emulator_6502::MOS6502;
 use render_resources::{AnticLine, AtariPalette, Charset};
 use system::AtariSystem;
 use wasm_bindgen::prelude::*;
-
-const SCAN_LINE_CYCLES: usize = 114;
-const PAL_SCAN_LINES: usize = 312;
-#[allow(dead_code)]
-const NTSC_SCAN_LINES: usize = 262;
-
-const MAX_SCAN_LINES: usize = PAL_SCAN_LINES;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
@@ -97,7 +93,7 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
 
 #[derive(Default)]
 struct AutoRepeatTimer {
-    timer: Timer
+    timer: Timer,
 }
 
 fn keyboard_system(
@@ -118,7 +114,6 @@ fn keyboard_system(
                 frame.paused = false;
             }
         } else if keyboard.pressed(KeyCode::F10) {
-            info!("timer: {:?}",autorepeat_disabled.timer);
             let next_scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
             frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
         } else if keyboard.pressed(KeyCode::F11) {
@@ -174,9 +169,6 @@ fn reload_system(
             let data = gunzip(&state_file.data);
             let a800_state = atari800_state::Atari800State::new(&data);
             a800_state.reload(&mut *atari_system, &mut *cpu);
-            let data = &atari_system.ram[0xe000..0xe400];
-            info!("charset data: {:x?}", data);
-
             *frame = FrameState::default();
             frame.scan_line = 248;
             state.initialized = true;
@@ -219,7 +211,8 @@ fn atascii_to_screen(text: &str, inv: bool) -> Vec<u8> {
 
 fn debug_overlay_system(
     atari_system: Res<AtariSystem>,
-    mut text_areas: Query<&mut atari_text::TextArea>,
+    mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
+    mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
     mut scan_line: Query<(&ScanLine, &mut GlobalTransform)>,
     mut frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
@@ -250,13 +243,26 @@ fn debug_overlay_system(
             data.extend(atascii_to_screen(&line, i.address == pc));
         }
     }
-    for mut text in text_areas.iter_mut() {
+    for mut text in cpu_debug.iter_mut() {
         &text.data.data[..data.len()].copy_from_slice(&data);
-        text.charset = Charset::new(&atari_system.ram[0xe000..0xe400])
+    }
+    for mut text in antic_debug.iter_mut() {
+        let status_text = format!(
+            " DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x} ",
+            atari_system.antic.dmactl.bits(),
+            atari_system.antic.chbase,
+            atari_system.antic.hscrol,
+            atari_system.antic.vscrol,
+            atari_system.antic.pmbase,
+            atari_system.antic.vcount,
+        );
+        let data = atascii_to_screen(&status_text, false);
+        &text.data.data[..data.len()].copy_from_slice(&data);
     }
     for (_, mut transform) in scan_line.iter_mut() {
         *transform =
-            GlobalTransform::from_translation(Vec3::new(0.0, 128.0 - frame.scan_line as f32, 0.1));
+            GlobalTransform::from_translation(Vec3::new(0.0, 128.0 - frame.scan_line as f32, 0.1))
+                .mul_transform(Transform::from_scale(Vec3::new(384.0, 1.0, 1.0)));
     }
 }
 
@@ -268,7 +274,6 @@ fn atari_system(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
-    mut perf_metrics: Local<PerfMetrics>,
 ) {
     if !state.initialized {
         return;
@@ -276,185 +281,128 @@ fn atari_system(
     if frame.paused {
         return;
     }
-    let enable_log = false;
-    atari_system.enable_log(enable_log);
-
     if frame.scan_line == 0 {
         frame.vblank = false;
     }
-
     if frame.scan_line == 0 && frame.cycle == 0 {
         for (entity, antic_line) in antic_lines.iter() {
             commands.despawn(entity);
         }
     }
-    // for (entity, antic_line) in antic_lines.iter() {
-    //     if frame.scan_line >= antic_line.start_scan_line && frame.scan_line < antic_line.end_scan_line {
-    //         commands.despawn(entity);
-    //     }
-    // }
 
-    'outer: loop {
-        atari_system.antic.scan_line = frame.scan_line;
-
+    loop {
+        atari_system
+            .antic
+            .set_scan_line(frame.scan_line, frame.cycle);
         if frame.cycle == 0 {
-            if !frame.vblank {
-                let next_scan_line = frame
-                    .current_mode
-                    .as_ref()
-                    .map(|m| m.next_mode_line())
-                    .unwrap_or(8);
-                if atari_system.antic.dmactl.contains(DMACTL::DLIST_DMA)
-                    && frame.scan_line == next_scan_line
-                {
-                    let dlist_data = atari_system.antic.prefetch_dlist(&atari_system.ram);
-                    let mode = atari_system
-                        .antic
-                        .create_next_mode_line(&dlist_data, next_scan_line);
-                    if let Some(mode_line) = mode {
-                        let prev_mode_line = frame.current_mode.replace(mode_line);
-                        if let Some(prev_mode_line) = prev_mode_line {
-                            create_mode_line(
-                                commands,
-                                &antic_resources,
-                                &prev_mode_line,
-                                &atari_system,
-                                0.0,
-                                enable_log,
-                            );
-                        }
-                    // y_extra_offset += 1.0;
-                    } else {
-                        frame.vblank = true;
-                        let prev_mode_line = frame.current_mode.take();
-                        if let Some(prev_mode_line) = prev_mode_line {
-                            create_mode_line(
-                                commands,
-                                &antic_resources,
-                                &prev_mode_line,
-                                &atari_system,
-                                0.0,
-                                enable_log,
-                            );
-                        }
-                    }
-                }
-            }
 
-            if frame.scan_line == 248 {
-                frame.vblank = true;
-                if atari_system.antic.nmien.contains(NMIEN::VBI) {
-                    if enable_log {
-                        info!("VBI, scanline: {}", frame.scan_line);
-                    }
-                    atari_system.antic.set_vbi();
-                    cpu.non_maskable_interrupt_request();
-                }
-            } else if atari_system.antic.nmien.contains(NMIEN::DLI) {
-                if let Some(mode_line) = &frame.current_mode {
-                    if mode_line.opts.contains(MODE_OPTS::DLI)
-                        && frame.scan_line == (mode_line.next_mode_line() - 1)
-                    {
-                        if enable_log {
-                            info!("DLI, scanline: {}", frame.scan_line);
-                        }
-                        atari_system.antic.set_dli();
-                        cpu.non_maskable_interrupt_request();
-                    }
-                }
-            }
-        }
-        if frame.wsync {
-            frame.wsync = false;
-            frame.cycle = 104;
-        } else if frame.cycle == 0 {
-            let (start_dma_cycles, line_start_cycle, dma_cycles) =
-                if let Some(current_mode) = &frame.current_mode {
-                    atari_system.antic.get_dma_cycles(current_mode)
-                } else {
-                    (0, 0, 0)
-                };
-            frame.cycle = start_dma_cycles;
-            frame.visible_cycle = line_start_cycle;
-            frame.dma_cycles = dma_cycles;
-        }
-
-        // TODO
-        // if vblank {
-        //     assert!(current_mode.is_none());
-        //     assert!(dma_cycles == 0);
-        // }
-
-        loop {
-            // if n == 110 {
-            //     atari_system.antic.scan_line = scan_line + 1;
+            // if frame.scan_line == 8 {
+            //     let offs = atari_system.antic.dlist_offset(0) as usize;
+            //     info!("dlist: offs: {:04x} {:x?}", offs, &atari_system.ram[offs..offs+128]);
             // }
 
-            if frame.cycle >= frame.visible_cycle && !frame.is_visible {
-                let current_scan_line = frame.scan_line;
-                if let Some(current_line) = &mut frame.current_mode {
-                    let k = (current_scan_line - current_line.scan_line).min(7);
-                    current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
-                    frame.is_visible = true;
-                }
+            frame.is_visible = false;
+            if let Some(dlist_data) = atari_system.antic.prefetch_dlist(&atari_system.ram) {
+                atari_system.antic.set_dlist_data(dlist_data);
             }
 
-            if frame.cycle == frame.visible_cycle {
-                frame.cycle += frame.dma_cycles;
-            }
+            let cycles = atari_system.antic.get_dma_cycles();
+            frame.cycle = cycles.0;
+            frame.visible_cycle = cycles.1;
+            frame.dma_cycles = cycles.2;
 
-            cpu.cycle(&mut *atari_system);
-            perf_metrics.cpu_cycle_cnt += 1;
-            atari_system.tick();
-            if atari_system.antic.wsync() {
-                if enable_log {
-                    warn!("WSYNC, cycle: {}", frame.cycle);
+            if atari_system.antic.is_vbi() {
+                frame.vblank = true;
+                cpu.non_maskable_interrupt_request();
+            } else if atari_system.antic.is_dli() {
+                cpu.non_maskable_interrupt_request();
+            }
+            if frame.wsync {
+                frame.wsync = false;
+                frame.cycle = 104;
+            }
+        }
+
+        if frame.cycle >= frame.visible_cycle && !frame.is_visible {
+            // info!("here: {} {}", frame.cycle, frame.visible_cycle);
+            if frame.scan_line >= 8 && frame.scan_line == atari_system.antic.start_scan_line {
+                let mode_line = atari_system.antic.create_next_mode_line();
+                let prev_mode_line = frame.current_mode.take();
+                if let Some(prev_mode_line) = prev_mode_line {
+                    create_mode_line(commands, &antic_resources, &prev_mode_line, 0.0);
                 }
-                if frame.cycle < 104 {
-                    frame.cycle = 104;
+                if mode_line.is_some() {
+                    // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
+                    frame.current_mode = mode_line;
                 } else {
-                    frame.wsync = true;
-                    frame.cycle = 0;
+                    frame.vblank = true;
+                }
+            }
+
+            let current_scan_line = frame.scan_line;
+            if let Some(current_line) = &mut frame.current_mode {
+                let k = (current_scan_line - current_line.scan_line).min(7);
+                current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
+                // info!("current_mode: {:?}, k: line: {}", current_line, k);
+                if k == 0 {
+                    let charset_offset = (current_line.chbase as usize) * 256;
+                    // TODO suport 512 byte charsets?
+                    current_line.line_data = antic::create_line_data(
+                        &atari_system,
+                        current_scan_line,
+                        current_line.pmbase,
+                        current_line.data_offset,
+                    );
+                    current_line.charset =
+                        Charset::new(&atari_system.ram[charset_offset..charset_offset + 1024]);
+                }
+            }
+            frame.is_visible = true;
+        }
+
+        if frame.cycle == frame.visible_cycle {
+            frame.cycle += frame.dma_cycles;
+        }
+
+        cpu.cycle(&mut *atari_system);
+        atari_system.tick();
+        if atari_system.antic.wsync() {
+            if frame.cycle < 104 {
+                frame.cycle = 104;
+            } else {
+                frame.wsync = true;
+                frame.cycle = SCAN_LINE_CYCLES - 1;
+            }
+        }
+        if let Some(BreakPoint::PC(pc)) = frame.break_point {
+            if cpu.program_counter == pc {
+                frame.clear_break_point();
+            }
+        }
+        if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
+            if cpu.program_counter != pc {
+                frame.clear_break_point();
+            }
+        }
+
+        frame.cycle = (frame.cycle + 1) % SCAN_LINE_CYCLES;
+        if frame.cycle == 0 {
+            frame.scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
+            if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
+                if *scan_line == frame.scan_line {
+                    frame.paused = true;
+                    frame.break_point = None;
                     break;
                 }
             }
-            if let Some(BreakPoint::PC(pc)) = frame.break_point {
-                if cpu.program_counter == pc {
-                    frame.clear_break_point();
-                }
-            }
-            if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
-                if cpu.program_counter != pc {
-                    frame.clear_break_point();
-                }
-            }
-
-            frame.cycle = (frame.cycle + 1) % SCAN_LINE_CYCLES;
-            if frame.cycle == 0 {
-                frame.is_visible = false;
-                frame.scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
-            } else if frame.cycle >= 110 {
-                atari_system.antic.scan_line = frame.scan_line + 1;
-            }
-            if frame.paused {
-                break 'outer;
-            } else if frame.cycle == 0 {
+            if frame.scan_line == 0 {
                 break;
             }
         }
-
-        if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
-            if *scan_line == frame.scan_line {
-                frame.paused = true;
-                frame.break_point = None;
-                break;
-            }
-        }
-        if frame.scan_line == 0 {
+        if frame.paused {
             break;
         }
     }
-    perf_metrics.frame_cnt += 1;
 }
 
 pub fn get_fragment() -> Result<String, JsValue> {
@@ -468,6 +416,9 @@ pub fn get_fragment() -> Result<String, JsValue> {
 }
 
 pub struct ScanLine;
+pub struct CPUDebug;
+pub struct AnticDebug;
+
 pub const SCANLINE_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
@@ -476,7 +427,6 @@ fn setup(
     mut antic_resources: ResMut<AnticResources>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
-    mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
@@ -491,8 +441,6 @@ fn setup(
 
     // Create a new shader pipeline
     antic_resources.pipeline_handle = pipelines.add(pipeline_descr);
-
-    atari_text::create_atari_text_pipeline(&mut *render_graph, &mut *shaders, &mut pipelines);
 
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticCharset resources to our shader
     render_graph.add_system_node(
@@ -511,18 +459,7 @@ fn setup(
         .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
 
-
-
     antic_resources.palette_handle = palettes.add(AtariPalette::default());
-    antic_resources.mesh_handle = meshes.add(Mesh::from(shape::Quad {
-        size: Vec2::new(1.0, 1.0),
-        flip: false,
-    }));
-
-    let scan_line_mesh_handle = meshes.add(Mesh::from(shape::Quad {
-        size: Vec2::new(384.0, 1.0),
-        flip: false,
-    }));
 
     let red_material_handle = materials.add(StandardMaterial {
         albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
@@ -532,42 +469,11 @@ fn setup(
 
     commands
         .spawn(PbrBundle {
-            mesh: scan_line_mesh_handle.clone(),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            mesh: QUAD_HANDLE.typed(),
             material: red_material_handle,
             ..Default::default()
         })
         .with(ScanLine);
-
-    let width = 18.0;
-    let height = 20.0;
-
-    commands
-        .spawn(MeshBundle {
-            mesh: antic_resources.mesh_handle.clone(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                atari_text::ATARI_TEXT_PIPELINE_HANDLE.typed(),
-            )]),
-            transform: Transform::from_translation(Vec3::new(
-                192.0 - width * 4.0 / 2.0,
-                128.0 - height * 4.0 / 2.0,
-                0.2,
-            ))
-            .mul_transform(Transform::from_scale(Vec3::new(
-                1.0 * width * 4.0,
-                1.0 * height * 4.0,
-                1.0,
-            ))),
-            ..Default::default()
-        })
-        .with(atari_text::TextArea {
-            width,
-            height,
-            fg_color: Color::rgba_u8(0x00, 0xff, 0, 0xff),
-            bg_color: Color::rgba_u8(0x00, 0xff, 0, 0x3f),
-            data: atari_text::TextAreaData { data: [0; 1024] },
-            charset: Charset { data: [0x0; 1024] },
-        });
 
     // Setup our world
     // commands.spawn(Camera3dBundle {
@@ -575,6 +481,12 @@ fn setup(
     //         .looking_at(Vec3::new(-2.0 * 8.0, -0.0 * 8.0, 0.0), Vec3::unit_y()),
     //     ..Default::default()
     // });
+    commands
+        .spawn(atari_text::TextAreaBundle::new(18.0, 20.0, 192.0, 128.0))
+        .with(CPUDebug);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(12.0, 20.0, -192.0, 128.0))
+        .with(AnticDebug);
 
     commands.spawn(Camera2dBundle {
         orthographic_projection: OrthographicProjection {
@@ -610,6 +522,7 @@ fn main() {
         return_from_run: false,
     });
     app.add_plugins(DefaultPlugins);
+    app.add_plugin(atari_text::AtartTextPlugin::default());
 
     // app.add_stage_before("UPDATE", "pre_update", SystemStage::parallel());
 
@@ -621,7 +534,7 @@ fn main() {
         .add_asset::<StateFile>()
         .init_asset_loader::<Atari800StateLoader>()
         .add_resource(State::default())
-        .add_resource(ClearColor(gtia::atari_color(0)))
+        .add_resource(ClearColor(gtia::atari_color(2)))
         .add_resource(AtariSystem::new())
         .add_resource(MOS6502::default())
         .add_resource(AnticResources::default())
