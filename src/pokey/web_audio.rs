@@ -128,7 +128,7 @@ impl AudioBackend {
     }
     pub fn create_noise_buffer(&mut self, noise_descr: &NoiseDescr) -> Option<&AudioBuffer> {
         if !self.noise_buffer_cache.contains(noise_descr) {
-            let (noise_data, poly_name) = if noise_descr.ctl.contains(AUDC::NOISE_4BIT) {
+            let (noise_data, _poly_name) = if noise_descr.ctl.contains(AUDC::NOISE_4BIT) {
                 (&mut self.poly_4, "4bit")
             } else if noise_descr.audctl.contains(AUDCTL::POLY_9BIT) {
                 (&mut self.poly_9, "9bit")

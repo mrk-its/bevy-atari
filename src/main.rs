@@ -12,18 +12,15 @@ pub mod pia;
 pub mod pokey;
 mod render_resources;
 mod system;
-use antic::{
-    create_mode_line, AnticResources, ModeLineDescr, DMACTL, MAX_SCAN_LINES, MODE_OPTS, NMIEN,
-    SCAN_LINE_CYCLES,
-};
+use antic::{create_mode_line, ModeLineDescr, MAX_SCAN_LINES, SCAN_LINE_CYCLES};
 use atari800_state::{Atari800StateLoader, StateFile};
 use bevy::reflect::TypeUuid;
+use bevy::winit::WinitConfig;
 use bevy::{
     prelude::*,
     render::{
         camera::{OrthographicProjection, WindowOrigin},
         entity::Camera2dBundle,
-        mesh::shape,
         pass::ClearColor,
         pipeline::{CullMode, PipelineDescriptor},
         render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
@@ -31,7 +28,6 @@ use bevy::{
     },
     sprite::QUAD_HANDLE,
 };
-use bevy::{render::pipeline::RenderPipeline, winit::WinitConfig};
 use emulator_6502::MOS6502;
 use render_resources::{AnticLine, AtariPalette, Charset};
 use system::AtariSystem;
@@ -40,18 +36,19 @@ use wasm_bindgen::prelude::*;
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
 
+#[derive(Clone, Debug)]
+enum EmulatorState {
+    Loading,
+    Running,
+    Debugging,
+}
+
 #[derive(Debug, Default)]
 struct PerfMetrics {
     frame_cnt: usize,
     cpu_cycle_cnt: usize,
 }
 
-#[derive(Default)]
-struct State {
-    requested_file: String,
-    handle: Handle<StateFile>,
-    initialized: bool,
-}
 #[derive(Debug)]
 enum BreakPoint {
     PC(u16),
@@ -149,55 +146,6 @@ fn keyboard_system(
     }
 }
 
-fn reload_system(
-    mut state: ResMut<State>,
-    state_files: ResMut<Assets<StateFile>>,
-    asset_server: Res<AssetServer>,
-    mut frame: ResMut<FrameState>,
-    mut atari_system: ResMut<AtariSystem>,
-    mut cpu: ResMut<MOS6502>,
-) {
-    let requested_file = get_fragment().unwrap_or("laserdemo".to_string());
-    if requested_file != state.requested_file {
-        state.requested_file = requested_file;
-        state.initialized = false;
-        let file_name = format!("{}.state", state.requested_file);
-        state.handle = asset_server.load(file_name.as_str());
-    }
-    if !state.initialized {
-        if let Some(state_file) = state_files.get(&state.handle) {
-            let data = gunzip(&state_file.data);
-            let a800_state = atari800_state::Atari800State::new(&data);
-            a800_state.reload(&mut *atari_system, &mut *cpu);
-            *frame = FrameState::default();
-            frame.scan_line = 248;
-            state.initialized = true;
-        }
-    }
-    {
-        let mut guard = js_api::ARRAY.write();
-        for event in guard.drain(..) {
-            match event {
-                js_api::Message::JoyState {
-                    port,
-                    up,
-                    down,
-                    left,
-                    right,
-                    fire,
-                } => atari_system.set_joystick(port, up, down, left, right, fire),
-                js_api::Message::DraggedFileData { data } => {
-                    let data = gunzip(&data);
-                    let state = atari800_state::Atari800State::new(&data);
-                    state.reload(&mut *atari_system, &mut *cpu);
-                    *frame = FrameState::default();
-                    frame.scan_line = 248;
-                }
-            }
-        }
-    }
-}
-
 fn atascii_to_screen(text: &str, inv: bool) -> Vec<u8> {
     text.as_bytes()
         .iter()
@@ -214,7 +162,7 @@ fn debug_overlay_system(
     mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
     mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
     mut scan_line: Query<(&ScanLine, &mut GlobalTransform)>,
-    mut frame: ResMut<FrameState>,
+    frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
 ) {
     let mut data = vec![];
@@ -268,24 +216,22 @@ fn debug_overlay_system(
 
 fn atari_system(
     commands: &mut Commands,
-    state: ResMut<State>,
-    antic_resources: ResMut<AnticResources>,
     antic_lines: Query<(Entity, &AnticLine)>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
 ) {
-    if !state.initialized {
-        return;
-    }
     if frame.paused {
         return;
     }
     if frame.scan_line == 0 {
         frame.vblank = false;
     }
-    if frame.scan_line == 0 && frame.cycle == 0 {
-        for (entity, antic_line) in antic_lines.iter() {
+
+    let debug_mode = frame.paused || frame.break_point.is_some();
+
+    if !debug_mode && frame.scan_line == 0 && frame.cycle == 0 {
+        for (entity, _) in antic_lines.iter() {
             commands.despawn(entity);
         }
     }
@@ -295,12 +241,10 @@ fn atari_system(
             .antic
             .set_scan_line(frame.scan_line, frame.cycle);
         if frame.cycle == 0 {
-
             // if frame.scan_line == 8 {
             //     let offs = atari_system.antic.dlist_offset(0) as usize;
             //     info!("dlist: offs: {:04x} {:x?}", offs, &atari_system.ram[offs..offs+128]);
             // }
-
             frame.is_visible = false;
             if let Some(dlist_data) = atari_system.antic.prefetch_dlist(&atari_system.ram) {
                 atari_system.antic.set_dlist_data(dlist_data);
@@ -329,7 +273,18 @@ fn atari_system(
                 let mode_line = atari_system.antic.create_next_mode_line();
                 let prev_mode_line = frame.current_mode.take();
                 if let Some(prev_mode_line) = prev_mode_line {
-                    create_mode_line(commands, &antic_resources, &prev_mode_line, 0.0);
+                    if debug_mode {
+                        for (entity, antic_line) in antic_lines.iter() {
+                            let not_intersects = antic_line.start_scan_line
+                                >= prev_mode_line.next_mode_line()
+                                || prev_mode_line.scan_line >= antic_line.end_scan_line;
+                            if !not_intersects {
+                                commands.despawn(entity);
+                            }
+                        }
+                    }
+                    create_mode_line(commands, &prev_mode_line, 0.0);
+
                 }
                 if mode_line.is_some() {
                     // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
@@ -405,6 +360,38 @@ fn atari_system(
     }
 }
 
+pub struct ScanLine;
+pub struct CPUDebug;
+pub struct AnticDebug;
+
+pub const SCANLINE_MESH_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
+
+fn loading(
+    mut state: ResMut<State<EmulatorState>>,
+    mut assets: ResMut<Assets<StateFile>>,
+    mut atari_system: ResMut<AtariSystem>,
+    mut frame: ResMut<FrameState>,
+    mut cpu: ResMut<MOS6502>,
+) {
+    for (_, state_file) in assets.iter() {
+        let data = gunzip(&state_file.data);
+        let a800_state = atari800_state::Atari800State::new(&data);
+        a800_state.reload(&mut *atari_system, &mut *cpu);
+        *frame = FrameState::default();
+        frame.scan_line = 248;
+        state.set_next(EmulatorState::Running).unwrap();
+        info!("LOADED! {:?}", *state);
+    }
+    assets.clear()
+
+    // state.set_next(EmulatorState::Running).ok();
+}
+
+#[derive(Default)]
+struct FragmentState {
+    fragment: Option<String>,
+}
 pub fn get_fragment() -> Result<String, JsValue> {
     let win = web_sys::window().unwrap();
     let loc = win.location();
@@ -415,22 +402,53 @@ pub fn get_fragment() -> Result<String, JsValue> {
     Ok(v[1..].to_string())
 }
 
-pub struct ScanLine;
-pub struct CPUDebug;
-pub struct AnticDebug;
-
-pub const SCANLINE_MESH_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
+fn events(
+    mut state: ResMut<State<EmulatorState>>,
+    mut current_fragment: Local<FragmentState>,
+    asset_server: Res<AssetServer>,
+    mut atari_system: ResMut<AtariSystem>,
+    mut assets: ResMut<Assets<StateFile>>,
+) {
+    let f = get_fragment().ok();
+    if f.is_some() && f != current_fragment.fragment {
+        current_fragment.fragment = f;
+        state.set_next(EmulatorState::Loading).unwrap();
+        let _: Handle<StateFile> = asset_server
+            .load(format!("{}.state", current_fragment.fragment.as_ref().unwrap()).as_str());
+    }
+    {
+        let mut guard = js_api::ARRAY.write();
+        for event in guard.drain(..) {
+            match event {
+                js_api::Message::JoyState {
+                    port,
+                    up,
+                    down,
+                    left,
+                    right,
+                    fire,
+                } => atari_system.set_joystick(port, up, down, left, right, fire),
+                js_api::Message::DraggedFileData { data } => {
+                    assets.add(StateFile { data});
+                    state.set_next(EmulatorState::Loading).unwrap();
+                }
+            }
+        }
+    }
+}
 
 fn setup(
     commands: &mut Commands,
-    mut antic_resources: ResMut<AnticResources>,
+    asset_server: Res<AssetServer>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
 ) {
+    //emulator_state.set_next(EmulatorState::Loading("laserdemo".to_string())).unwrap();
+    let _: Handle<StateFile> = asset_server.load("laserdemo.state");
+
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
@@ -440,8 +458,7 @@ fn setup(
     }
 
     // Create a new shader pipeline
-    antic_resources.pipeline_handle = pipelines.add(pipeline_descr);
-
+    pipelines.set_untracked(antic::ANTIC_PIPELINE_HANDLE, pipeline_descr);
     // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticCharset resources to our shader
     render_graph.add_system_node(
         "atari_palette",
@@ -459,8 +476,7 @@ fn setup(
         .add_node_edge("antic_line", base::node::MAIN_PASS)
         .unwrap();
 
-    antic_resources.palette_handle = palettes.add(AtariPalette::default());
-
+    palettes.set_untracked(antic::ATARI_PALETTE_HANDLE, AtariPalette::default());
     let red_material_handle = materials.add(StandardMaterial {
         albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
         albedo_texture: None,
@@ -533,16 +549,38 @@ fn main() {
         .add_asset::<StandardMaterial>()
         .add_asset::<StateFile>()
         .init_asset_loader::<Atari800StateLoader>()
-        .add_resource(State::default())
+        .add_resource(State::new(EmulatorState::Loading))
         .add_resource(ClearColor(gtia::atari_color(2)))
         .add_resource(AtariSystem::new())
         .add_resource(MOS6502::default())
-        .add_resource(AnticResources::default())
         .add_resource(FrameState::default())
         .add_startup_system(setup.system())
+        .add_stage_after(
+            stage::UPDATE,
+            "running",
+            StateStage::<EmulatorState>::default(),
+        )
+        .add_stage_after(
+            stage::UPDATE,
+            "debugging",
+            StateStage::<EmulatorState>::default(),
+        )
+        .add_stage_after(
+            stage::UPDATE,
+            "idle_update",
+            StateStage::<EmulatorState>::default(),
+        )
+        .add_stage_after(
+            stage::UPDATE,
+            "loading",
+            StateStage::<EmulatorState>::default(),
+        )
         .add_system_to_stage("pre_update", keyboard_system.system())
-        .add_system_to_stage("pre_update", reload_system.system())
+        // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
-        .add_system(atari_system.system())
+        .on_state_update("running", EmulatorState::Running, atari_system.system())
+        .on_state_update("debugging", EmulatorState::Debugging, atari_system.system())
+        .on_state_update("loading", EmulatorState::Loading, loading.system())
+        .add_system(events.system())
         .run();
 }

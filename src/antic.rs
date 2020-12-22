@@ -1,5 +1,3 @@
-use std::str::Chars;
-
 use crate::render_resources::{AnticLine, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
@@ -7,13 +5,15 @@ use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::render::pipeline::RenderPipeline;
 use bevy::{
-    prelude::{Handle, Mesh},
     render::pipeline::PipelineDescriptor,
     sprite::QUAD_HANDLE,
 };
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 13714196555738289155);
+    HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
+
+pub const ANTIC_PIPELINE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595296);
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -30,7 +30,6 @@ mod consts {
     pub const NMIST: usize = 0x0f;
     pub const NMIRES: usize = 0x0f;
 }
-use wasm_bindgen::prelude::*;
 
 const PAL_SCAN_LINES: usize = 312;
 #[allow(dead_code)]
@@ -73,6 +72,7 @@ bitflags! {
 }
 
 bitflags! {
+    #[allow(non_camel_case_types)]
     #[derive(Default)]
     pub struct MODE_OPTS: u8 {
         const DLI = 0x80;
@@ -205,12 +205,6 @@ impl ModeLineDescr {
     }
 }
 
-#[derive(Default)]
-pub struct AnticResources {
-    pub pipeline_handle: Handle<PipelineDescriptor>,
-    pub palette_handle: Handle<AtariPalette>,
-}
-
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
     (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
     (25, &[66, 66, 66, 66, 66, 66, 66, 66]),
@@ -261,6 +255,15 @@ const MODE_DF_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
 ];
 
 impl Antic {
+    #[inline]
+    pub fn mode(&self) -> u8 {
+        self.dlist_data[0] & 0xf
+    }
+    #[inline]
+    pub fn opts(&self) -> MODE_OPTS {
+        MODE_OPTS::from_bits_truncate(self.dlist_data[0])
+    }
+
     pub fn set_scan_line(&mut self, scan_line: usize, cycle: usize) {
         self.scan_line = scan_line;
         let scan_line = if cycle >= 110 {
@@ -401,16 +404,13 @@ impl Antic {
 
     fn create_mode_line(
         &self,
-        opts: MODE_OPTS,
-        mode: u8,
-        height: usize,
-        n_bytes: usize,
-        scan_line: usize,
     ) -> ModeLineDescr {
+        let opts = self.opts();
+        let mode = self.mode();
         let is_hscrol = opts.contains(MODE_OPTS::HSCROL);
         let hscrol = if is_hscrol { 32 - self.hscrol * 2 } else { 0 };
 
-        let hscrol_line_width = n_bytes * self.playfield_width(true, is_hscrol) / 320;
+        let hscrol_line_width = self.n_bytes * self.playfield_width(true, is_hscrol) / 320;
         let width = if mode > 1 {
             self.playfield_width(false, is_hscrol)
         } else {
@@ -422,7 +422,7 @@ impl Antic {
             height: self.line_height,
             line_voffset: self.line_voffset,
             n_bytes: hscrol_line_width,
-            scan_line: scan_line,
+            scan_line: self.scan_line,
             width,
             data_offset: self.video_memory,
             chbase: self.chbase,
@@ -502,38 +502,15 @@ impl Antic {
     }
 
     pub fn create_next_mode_line(&mut self) -> Option<ModeLineDescr> {
-        let scan_line = self.scan_line;
-        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
-        let mode = self.dlist_data[0] & 0xf;
-        let mode_line = match mode {
-            0x0 => self.create_mode_line(
-                opts,
-                mode,
-                ((self.dlist_data[0] >> 4) & 7) as usize + 1,
-                0,
-                scan_line,
-            ),
-            0x1 => {
-                if opts.contains(MODE_OPTS::LMS) {
-                    return None;
-                }
-                self.create_mode_line(opts, mode, 1, 0, scan_line)
-            }
-            0x2 => self.create_mode_line(opts, mode, 8, 40, scan_line),
-            0x4 => self.create_mode_line(opts, mode, self.line_height, 40, scan_line),
-            0xa => self.create_mode_line(opts, mode, 4, 20, scan_line),
-            0xc => self.create_mode_line(opts, mode, 1, 20, scan_line),
-            0xd => self.create_mode_line(opts, mode, 2, 40, scan_line),
-            0xe => self.create_mode_line(opts, mode, 1, 40, scan_line),
-            0xf => self.create_mode_line(opts, mode, 1, 40, scan_line),
-            _ => {
-                warn!("unsupported antic vide mode {:?}", mode);
-                self.create_mode_line(opts, mode, 1, 0, scan_line)
-            }
-        };
-        self.video_memory += mode_line.n_bytes;
-        Some(mode_line)
+        if self.mode() == 1 && self.opts().contains(MODE_OPTS::LMS) {
+            None
+        } else {
+            let mode_line = self.create_mode_line();
+            self.video_memory += mode_line.n_bytes;
+            Some(mode_line)
+        }
     }
+
     pub fn wsync(&mut self) -> bool {
         if self.wsync {
             self.wsync = false;
@@ -617,7 +594,6 @@ pub fn create_line_data(
 
 pub fn create_mode_line(
     commands: &mut Commands,
-    resources: &AnticResources,
     mode_line: &ModeLineDescr,
     y_extra_offset: f32,
 ) {
@@ -626,7 +602,8 @@ pub fn create_mode_line(
         .spawn(MeshBundle {
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                resources.pipeline_handle.clone_weak(),
+                ANTIC_PIPELINE_HANDLE.typed()
+                //resources.pipeline_handle.clone_weak(),
             )]),
             // visible: Visible {
             //     is_transparent: true,
@@ -661,5 +638,5 @@ pub fn create_mode_line(
             start_scan_line: mode_line.scan_line,
             end_scan_line: mode_line.next_mode_line(),
         })
-        .with(resources.palette_handle.clone_weak());
+        .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
 }

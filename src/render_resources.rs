@@ -3,12 +3,12 @@ use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
 use bevy::reflect::TypeUuid;
+use bevy::render::renderer::RenderResources;
 use bevy::render::{
     impl_render_resource_bytes,
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
-use bevy::{prelude::*, render::renderer::RenderResources};
 use std::convert::TryInto;
 
 #[repr(C)]
@@ -19,9 +19,7 @@ pub struct Charset {
 
 impl Default for Charset {
     fn default() -> Self {
-        Self {
-            data: [0; 1024],
-        }
+        Self { data: [0; 1024] }
     }
 }
 
@@ -168,7 +166,7 @@ impl_render_resource_bytes!(GTIARegsArray);
 
 #[derive(RenderResources, TypeUuid, Debug)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
-pub struct  AnticLine {
+pub struct AnticLine {
     pub line_width: f32,
     pub mode: u32,
     pub hscrol: f32,
@@ -182,7 +180,7 @@ pub struct  AnticLine {
     #[render_resources(ignore)]
     pub end_scan_line: usize,
 }
-#[derive(RenderResources, Default, TypeUuid)]
+#[derive(RenderResources, Default, TypeUuid, Debug)]
 #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
 pub struct AtariPalette {
     pub palette: Palette,
