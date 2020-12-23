@@ -19,7 +19,7 @@ use bevy::winit::WinitConfig;
 use bevy::{
     prelude::*,
     render::{
-        camera::{OrthographicProjection, WindowOrigin},
+        camera::{Camera, OrthographicProjection, WindowOrigin},
         entity::Camera2dBundle,
         pass::ClearColor,
         pipeline::{CullMode, PipelineDescriptor},
@@ -35,6 +35,13 @@ use wasm_bindgen::prelude::*;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
+pub const RED_MATERIAL_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
+
+pub struct DebugComponent;
+pub struct ScanLine;
+pub struct CPUDebug;
+pub struct AnticDebug;
 
 #[derive(Clone, Debug)]
 enum EmulatorState {
@@ -58,6 +65,7 @@ enum BreakPoint {
 
 #[derive(Default, Debug)]
 struct FrameState {
+    is_debug: bool,
     scan_line: usize,
     cycle: usize,
     vblank: bool,
@@ -94,16 +102,21 @@ struct AutoRepeatTimer {
 }
 
 fn keyboard_system(
+    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
     mut autorepeat_disabled: Local<AutoRepeatTimer>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
     mut cpu: ResMut<MOS6502>,
+    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
 ) {
     let handled = if autorepeat_disabled.timer.finished() {
         let mut handled = true;
-        if keyboard.pressed(KeyCode::F9) {
+        if keyboard.just_pressed(KeyCode::F8) {
+            frame.is_debug = !frame.is_debug;
+            set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
+        } else if keyboard.pressed(KeyCode::F9) {
             if !frame.paused {
                 frame.set_breakpoint(BreakPoint::ScanLine(248))
             } else {
@@ -165,35 +178,39 @@ fn debug_overlay_system(
     frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
 ) {
-    let mut data = vec![];
-    let f = cpu.status_register;
-    data.extend(atascii_to_screen(
-        &format!(
-            " A: {:02x}   X: {:02x}     Y: {:02x}   S: {:02x}     F: {}{}-{}{}{}{}{}       {:3} / {:<3}        ",
-            cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer,
-            if f & 0x80 > 0 {'N'} else {'-'},
-            if f & 0x40 > 0 {'V'} else {'-'},
-            if f & 0x10 > 0 {'B'} else {'-'},
-            if f & 0x08 > 0 {'D'} else {'-'},
-            if f & 0x04 > 0 {'I'} else {'-'},
-            if f & 0x02 > 0 {'Z'} else {'-'},
-            if f & 0x01 > 0 {'C'} else {'-'},
-            frame.scan_line, frame.cycle,
-        ),
-        false,
-    ));
-    data.extend(&[0; 18]);
-    let pc = cpu.program_counter;
-    let bytes = &atari_system.ram[(pc as usize)..(pc + 48) as usize];
-    if let Ok(instructions) = disasm6502::from_addr_array(bytes, pc) {
-        for i in instructions.iter().take(16) {
-            let line = format!(" {:04x} {:11} ", i.address, i.as_str());
-            data.extend(atascii_to_screen(&line, i.address == pc));
-        }
+    if !frame.is_debug {
+        return;
     }
     for mut text in cpu_debug.iter_mut() {
+        let mut data = vec![];
+        let f = cpu.status_register;
+        data.extend(atascii_to_screen(
+            &format!(
+                " A: {:02x}   X: {:02x}     Y: {:02x}   S: {:02x}     F: {}{}-{}{}{}{}{}       {:3} / {:<3}        ",
+                cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer,
+                if f & 0x80 > 0 {'N'} else {'-'},
+                if f & 0x40 > 0 {'V'} else {'-'},
+                if f & 0x10 > 0 {'B'} else {'-'},
+                if f & 0x08 > 0 {'D'} else {'-'},
+                if f & 0x04 > 0 {'I'} else {'-'},
+                if f & 0x02 > 0 {'Z'} else {'-'},
+                if f & 0x01 > 0 {'C'} else {'-'},
+                frame.scan_line, frame.cycle,
+            ),
+            false,
+        ));
+        data.extend(&[0; 18]);
+        let pc = cpu.program_counter;
+        let bytes = &atari_system.ram[(pc as usize)..(pc + 48) as usize];
+        if let Ok(instructions) = disasm6502::from_addr_array(bytes, pc) {
+            for i in instructions.iter().take(16) {
+                let line = format!(" {:04x} {:11} ", i.address, i.as_str());
+                data.extend(atascii_to_screen(&line, i.address == pc));
+            }
+        }
         &text.data.data[..data.len()].copy_from_slice(&data);
     }
+
     for mut text in antic_debug.iter_mut() {
         let status_text = format!(
             " DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x} ",
@@ -284,7 +301,6 @@ fn atari_system(
                         }
                     }
                     create_mode_line(commands, &prev_mode_line, 0.0);
-
                 }
                 if mode_line.is_some() {
                     // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
@@ -360,10 +376,6 @@ fn atari_system(
     }
 }
 
-pub struct ScanLine;
-pub struct CPUDebug;
-pub struct AnticDebug;
-
 pub const SCANLINE_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
@@ -429,10 +441,29 @@ fn events(
                     fire,
                 } => atari_system.set_joystick(port, up, down, left, right, fire),
                 js_api::Message::DraggedFileData { data } => {
-                    assets.add(StateFile { data});
+                    assets.add(StateFile { data });
                     state.set_next(EmulatorState::Loading).unwrap();
                 }
             }
+        }
+    }
+}
+
+fn set_debug(
+    is_visible: bool,
+    debug_components: &mut Query<&mut Visible, With<DebugComponent>>,
+    camera_query: &mut Query<&mut GlobalTransform, With<Camera>>,
+) {
+    for mut visible in debug_components.iter_mut() {
+        visible.is_visible = is_visible;
+    }
+    for mut transform in camera_query.iter_mut() {
+        if is_visible {
+            *transform =
+                GlobalTransform::from_translation(Vec3::new(384.0 / 2.0, -240.0 / 2.0, 0.0))
+                    .mul_transform(Transform::from_scale(Vec3::new(1.0 / 1.0, 1.0 / 1.0, 1.0)))
+        } else {
+            *transform = GlobalTransform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0))
         }
     }
 }
@@ -477,32 +508,14 @@ fn setup(
         .unwrap();
 
     palettes.set_untracked(antic::ATARI_PALETTE_HANDLE, AtariPalette::default());
-    let red_material_handle = materials.add(StandardMaterial {
-        albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
-        albedo_texture: None,
-        shaded: false,
-    });
-
-    commands
-        .spawn(PbrBundle {
-            mesh: QUAD_HANDLE.typed(),
-            material: red_material_handle,
-            ..Default::default()
-        })
-        .with(ScanLine);
-
-    // Setup our world
-    // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_translation(Vec3::new(-10.0 * 8.0, 0.0 * 8.0, 40.0 * 8.0))
-    //         .looking_at(Vec3::new(-2.0 * 8.0, -0.0 * 8.0, 0.0), Vec3::unit_y()),
-    //     ..Default::default()
-    // });
-    commands
-        .spawn(atari_text::TextAreaBundle::new(18.0, 20.0, 192.0, 128.0))
-        .with(CPUDebug);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(12.0, 20.0, -192.0, 128.0))
-        .with(AnticDebug);
+    materials.set(
+        RED_MATERIAL_HANDLE,
+        StandardMaterial {
+            albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
+            albedo_texture: None,
+            shaded: false,
+        },
+    );
 
     commands.spawn(Camera2dBundle {
         orthographic_projection: OrthographicProjection {
@@ -513,10 +526,47 @@ fn setup(
             window_origin: WindowOrigin::Center,
             ..Default::default()
         },
-        transform: Transform::from_translation(Vec3::default())
-            .mul_transform(Transform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0))),
+        transform: Transform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0)),
         ..Default::default()
     });
+
+    commands
+        .spawn(PbrBundle {
+            mesh: QUAD_HANDLE.typed(),
+            material: RED_MATERIAL_HANDLE.typed(),
+            visible: Visible {
+                is_visible: false,
+                is_transparent: false,
+            },
+            ..Default::default()
+        })
+        .with(DebugComponent)
+        .with(ScanLine);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            18.0,
+            20.0,
+            (384.0 + 18.0 * 8.0) / 2.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(CPUDebug);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            12.0,
+            20.0,
+            (384.0 + 12.0 * 8.0) / 2.0 + 20.0 * 8.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(AnticDebug);
+
+    // Setup our world
+    // commands.spawn(Camera3dBundle {
+    //     transform: Transform::from_translation(Vec3::new(-10.0 * 8.0, 0.0 * 8.0, 40.0 * 8.0))
+    //         .looking_at(Vec3::new(-2.0 * 8.0, -0.0 * 8.0, 0.0), Vec3::unit_y()),
+    //     ..Default::default()
+    // });
 }
 
 /// This example illustrates how to create a custom material asset and a shader that uses that material

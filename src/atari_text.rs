@@ -26,31 +26,6 @@ pub const CHARSET_DATA: &[u8] = include_bytes!("../assets/charset.dat");
 pub const ATARI_TEXT_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 2785347777738765446);
 
-pub fn create_atari_text_pipeline(
-    render_graph: &mut RenderGraph,
-    shaders: &mut Assets<Shader>,
-    pipelines: &mut Assets<PipelineDescriptor>,
-) {
-    // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticLine resources to our shader
-    render_graph.add_system_node("atari_text", RenderResourcesNode::<TextArea>::new(true));
-
-    // Add a Render Graph edge connecting our new "antic_line" node to the main pass node. This ensures "antic_line" runs before the main pass
-    render_graph
-        .add_node_edge("atari_text", base::node::MAIN_PASS)
-        .unwrap();
-
-    let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
-        vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
-        fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
-    });
-
-    if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
-        descr.cull_mode = CullMode::None;
-    }
-    info!("text_pipeline_descr: {:#?}", pipeline_descr);
-    pipelines.set(ATARI_TEXT_PIPELINE_HANDLE, pipeline_descr);
-}
-
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct TextAreaData {
@@ -99,20 +74,24 @@ impl TextAreaBundle {
                 ATARI_TEXT_PIPELINE_HANDLE.typed(),
             )]),
             transform: Transform::from_translation(Vec3::new(
-                x_offset - x_offset.signum() * width * 2.0,
-                y_offset - y_offset.signum() * height * 2.0,
+                x_offset,
+                y_offset,
                 0.2,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
-                1.0 * width * 4.0,
-                1.0 * height * 4.0,
+                1.0 * width * 8.0,
+                1.0 * height * 8.0,
                 1.0,
             ))),
+            visible: Visible {
+                is_visible: false,
+                is_transparent: true,
+            },
             text_area: TextArea {
                 width,
                 height,
                 fg_color: Color::rgba_u8(0x00, 0xff, 0, 0xff),
-                bg_color: Color::rgba_u8(0x00, 0xff, 0, 0x40),
+                bg_color: Color::rgba_u8(0x00, 0x40, 0, 0xe0),
                 data: TextAreaData { data: [0; 1024] },
                 charset: Charset::new(CHARSET_DATA),
             },
@@ -138,6 +117,22 @@ impl Plugin for AtartTextPlugin {
         let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        create_atari_text_pipeline(&mut render_graph, &mut shaders, &mut pipelines);
+
+        render_graph.add_system_node("atari_text", RenderResourcesNode::<TextArea>::new(true));
+
+        // Add a Render Graph edge connecting our new "antic_line" node to the main pass node. This ensures "antic_line" runs before the main pass
+        render_graph
+            .add_node_edge("atari_text", base::node::MAIN_PASS)
+            .unwrap();
+
+        let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
+            vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
+            fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
+        });
+
+        if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
+            descr.cull_mode = CullMode::None;
+        }
+        pipelines.set_untracked(ATARI_TEXT_PIPELINE_HANDLE, pipeline_descr);
     }
 }
