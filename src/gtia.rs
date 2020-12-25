@@ -1,7 +1,6 @@
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIARegs;
 use bevy::prelude::Color;
-use bevy::utils::tracing::*;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -79,7 +78,6 @@ pub struct Gtia {
     trig: [u8; 4],          // R
     pub prior: u8,
     pub gractl: GRACTL,
-    enable_log: bool,
 }
 
 impl Default for Gtia {
@@ -92,7 +90,6 @@ impl Default for Gtia {
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
             prior: 0,
-            enable_log: false,
         }
     }
 }
@@ -127,25 +124,8 @@ impl Gtia {
             GRAFM => self.missile_graphics = value,
             PRIOR => self.prior = value,
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
-            // HITCLR => {
-            //     for i in 0..=0xf {
-            //         self.reg[i] = 0;
-            //     }
-            // }
             _ => (),
         }
-        // if addr == HPOSP0 || addr == HPOSP1 || addr == HPOSP2 || addr == HPOSP1 {
-        //     warn!(
-        //         "player positions: {:02x} {:02x} {:02x} {:02x}",
-        //         self.reg[HPOSP0], self.reg[HPOSP1], self.reg[HPOSP2], self.reg[HPOSP3],
-        //     );
-        // }
-        if self.enable_log {
-            warn!("GTIA write: {:02x}: {:02x}", addr, value);
-        }
-        // if addr >= COLPF0 && addr <= COLBK {
-        //     warn!("GTIA color write: {:02x}: {:02x}", addr, value);
-        // }
     }
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
@@ -166,10 +146,6 @@ impl Gtia {
         self.reg[COLPF3]
     }
     pub fn get_colors(&self) -> GTIARegs {
-        // HPOSP0-HPOSP3 [D000-D003]
-        // HPOSM0-HPOSM3 [D004-D007]
-        // SIZEP0-SIZEP3 [D008-D00B]
-
         GTIARegs::new(
             self.reg[COLBK],
             self.reg[COLPF0],
@@ -195,9 +171,6 @@ impl Gtia {
             self.prior,
             self.reg[SIZEM],
         )
-    }
-    pub fn enable_log(&mut self, enable: bool) {
-        self.enable_log = enable;
     }
 }
 

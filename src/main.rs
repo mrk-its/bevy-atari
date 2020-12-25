@@ -357,7 +357,6 @@ fn atari_system(
             if let Some(current_line) = &mut frame.current_mode {
                 let k = (current_scan_line - current_line.scan_line).min(7);
                 current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
-                // info!("gtia colors copied, k: {}", k);
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     // TODO suport 512 byte charsets?

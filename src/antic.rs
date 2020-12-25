@@ -104,7 +104,6 @@ pub struct Antic {
     pub vcount: u8,
     pub video_memory: usize,
     pub wsync: bool,
-    enable_log: bool,
     pub is_vscroll: bool,
 }
 
@@ -530,12 +529,6 @@ impl Antic {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0xf;
-        if self.enable_log {
-            warn!(
-                "ANTIC write: {:02x}: {:02x}, scanline: {}",
-                addr, value, self.scan_line
-            );
-        }
         match addr {
             consts::DMACTL => self.dmactl = DMACTL::from_bits_truncate(value),
             consts::CHACTL => self.chactl = value,
@@ -550,9 +543,6 @@ impl Antic {
             consts::WSYNC => self.wsync = true, // TODO
             _ => bevy::log::warn!("unsupported antic write reg: {:x?}", addr),
         }
-    }
-    pub fn enable_log(&mut self, enable: bool) {
-        self.enable_log = enable;
     }
 }
 
