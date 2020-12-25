@@ -253,7 +253,6 @@ fn atari_system(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
-    mut clear_color: ResMut<ClearColor>,
 ) {
     if frame.paused {
         return;
@@ -520,7 +519,6 @@ fn set_debug(
 
 fn setup(
     commands: &mut Commands,
-    asset_server: Res<AssetServer>,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
