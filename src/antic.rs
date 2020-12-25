@@ -41,15 +41,15 @@ pub const SCAN_LINE_CYCLES: usize = 114;
 bitflags! {
     #[derive(Default)]
     pub struct DMACTL: u8 {
-        const EMPTY = 0;
-        const NARROW_PLAYFIELD = 1;
-        const NORMAL_PLAYFIELD = 2;
-        const WIDE_PLAYFIELD = 3;
-        const PLAYFIELD_WIDTH_MASK = 3;
-        const MISSILE_DMA = 4;
-        const PLAYER_DMA = 8;
-        const PM_HIRES = 16;
-        const DLIST_DMA = 32;
+        const EMPTY = 0x00;
+        const NARROW_PLAYFIELD = 0x01;
+        const NORMAL_PLAYFIELD = 0x02;
+        const WIDE_PLAYFIELD = 0x03;
+        const PLAYFIELD_WIDTH_MASK = 0x03;
+        const MISSILE_DMA = 0x04;
+        const PLAYER_DMA = 0x08;
+        const PM_HIRES = 0x10;
+        const DLIST_DMA = 0x20;
     }
 }
 
@@ -263,7 +263,9 @@ impl Antic {
     pub fn opts(&self) -> MODE_OPTS {
         MODE_OPTS::from_bits_truncate(self.dlist_data[0])
     }
-
+    pub fn ir(&self) -> u8 {
+        self.dlist_data[0]
+    }
     pub fn set_scan_line(&mut self, scan_line: usize, cycle: usize) {
         self.scan_line = scan_line;
         let scan_line = if cycle >= 110 {
@@ -351,7 +353,7 @@ impl Antic {
         let (line_start_cycle, dma_cycles) = if (self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK).bits() > 0 {
             let opts: MODE_OPTS = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
 
-            let is_hscrol = opts.contains(MODE_OPTS::HSCROL);
+            let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
             let hscrol = if is_hscrol {
                 self.hscrol as usize / 2
             } else {
@@ -377,7 +379,7 @@ impl Antic {
                 0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
                 0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
 
-                _ => (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+                _ => (29, &[0, 0, 0, 0, 0, 0, 0, 0]),
             };
             (line_start_cycle, dma_cycles_arr[hscrol])
         } else {
@@ -407,15 +409,11 @@ impl Antic {
     ) -> ModeLineDescr {
         let opts = self.opts();
         let mode = self.mode();
-        let is_hscrol = opts.contains(MODE_OPTS::HSCROL);
+        let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
         let hscrol = if is_hscrol { 32 - self.hscrol * 2 } else { 0 };
 
         let hscrol_line_width = self.n_bytes * self.playfield_width(true, is_hscrol) / 320;
-        let width = if mode > 1 {
-            self.playfield_width(false, is_hscrol)
-        } else {
-            320
-        };
+        let width = self.playfield_width(false, is_hscrol);
         ModeLineDescr {
             mode,
             opts,
@@ -481,7 +479,7 @@ impl Antic {
         if mode == 0 {
             self.line_height = ((self.dlist_data[0] >> 4) & 7) as usize + 1;
         }
-        let is_vscroll = mode > 0 && opts.contains(MODE_OPTS::VSCROL);
+        let is_vscroll = mode > 1 && opts.contains(MODE_OPTS::VSCROL);
         self.line_voffset = 0;
         if is_vscroll && !self.is_vscroll {
             self.line_voffset = self.vscrol as usize;
@@ -558,37 +556,22 @@ impl Antic {
     }
 }
 
+pub fn get_pm_data(system: &AtariSystem, scan_line: usize, n: usize) -> u8 {
+    let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
+    let offs = if pm_hires {
+        0x300 + n * 0x100 + scan_line + (system.antic.pmbase & 0b11111000) as usize * 256
+    } else {
+        0x180 + n * 0x80 + scan_line / 2 + (system.antic.pmbase & 0b11111100) as usize * 256
+    };
+    system.ram[offs & 0xffff]
+}
+
 pub fn create_line_data(
     system: &AtariSystem,
-    scan_line: usize,
-    pmbase: u8,
     data_offset: usize,
 ) -> LineData {
-    let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
-    // TODO - check if PM DMA is working, page 114 of AHRM
-    // if DMA is disabled display data from Graphics Data registers, p. 114
-    // TODO - add suppor for low-res sprites
-
-    let pl_mem = |n: usize| {
-        if system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
-            let beg = if pm_hires {
-                0x400 + n * 0x100 + scan_line + (pmbase & 0b11111000) as usize * 256
-            } else {
-                0x200 + n * 0x80 + scan_line / 2 + (pmbase & 0b11111100) as usize * 256
-            };
-            system.ram[beg..beg + 16].to_owned()
-        } else {
-            let v = system.gtia.player_graphics[n];
-            vec![v, v, v, v, v, v, v, v, v, v, v, v, v, v, v, v]
-        }
-    };
-
     LineData::new(
         &system.ram[data_offset..data_offset + 48],
-        &pl_mem(0),
-        &pl_mem(1),
-        &pl_mem(2),
-        &pl_mem(3),
     )
 }
 
@@ -611,15 +594,14 @@ pub fn create_mode_line(
             // },
             transform: Transform::from_translation(Vec3::new(
                 0.0,
-                120.0
+                128.0
                     - (mode_line.scan_line as f32)
                     - y_extra_offset
-                    - mode_line.height as f32 / 2.0
-                    + 8.0,
+                    - mode_line.height as f32 / 2.0,
                 0.0,
             ))
             .mul_transform(Transform::from_scale(Vec3::new(
-                mode_line.width as f32,
+                384.0, // mode_line.width as f32,
                 mode_line.height as f32,
                 1.0,
             ))),

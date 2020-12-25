@@ -38,30 +38,16 @@ impl_render_resource_bytes!(Charset);
 #[derive(Clone, Copy, Debug)]
 pub struct LineData {
     pub data: [u8; 48],
-    pub player0: [u8; 16],
-    pub player1: [u8; 16],
-    pub player2: [u8; 16],
-    pub player3: [u8; 16],
 }
 impl Default for LineData {
     fn default() -> Self {
-        Self {
-            data: [0; 48],
-            player0: [0; 16],
-            player1: [0; 16],
-            player2: [0; 16],
-            player3: [0; 16],
-        }
+        Self { data: [0; 48] }
     }
 }
 impl LineData {
-    pub fn new(src: &[u8], player0: &[u8], player1: &[u8], player2: &[u8], player3: &[u8]) -> Self {
+    pub fn new(src: &[u8]) -> Self {
         Self {
             data: src.try_into().expect("byte slice of length 48"),
-            player0: player0.try_into().expect("slice of 16 bytes"),
-            player1: player1.try_into().expect("slice of 16 bytes"),
-            player2: player2.try_into().expect("slice of 16 bytes"),
-            player3: player3.try_into().expect("slice of 16 bytes"),
         }
     }
 }
@@ -101,10 +87,14 @@ pub struct GTIARegsArray {
 pub struct GTIARegs {
     pub colors: [u32; 8],
     pub colors_pm: [u32; 4],
-    pub player_pos: [f32; 4],
+    pub hposp: [f32; 4],
+    pub hposm: [f32; 4],
     pub player_size: [f32; 4],
+    pub grafp: [u32; 4],
     pub prior: u32,
-    pub _fill: [u32; 3],
+    pub sizem: u32,
+    pub grafm: u32,
+    pub _fill: u32,
 }
 
 impl GTIARegs {
@@ -122,11 +112,16 @@ impl GTIARegs {
         hposp1: u8,
         hposp2: u8,
         hposp3: u8,
+        hposm0: u8,
+        hposm1: u8,
+        hposm2: u8,
+        hposm3: u8,
         sizep0: u8,
         sizep1: u8,
         sizep2: u8,
         sizep3: u8,
         prior: u8,
+        sizem: u8,
     ) -> Self {
         Self {
             colors: [
@@ -140,7 +135,8 @@ impl GTIARegs {
                 0,
             ],
             colors_pm: [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
-            player_pos: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
+            hposp: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
+            hposm: [hposm0 as f32, hposm1 as f32, hposm2 as f32, hposm3 as f32],
             player_size: [
                 player_size(sizep0),
                 player_size(sizep1),
@@ -148,7 +144,10 @@ impl GTIARegs {
                 player_size(sizep3),
             ],
             prior: prior as u32,
-            _fill: [0, 0, 0],
+            sizem: (player_size(sizem) / 4.0) as u32,
+            grafp: [0; 4],
+            grafm: 0,
+            _fill: 0,
         }
     }
 }

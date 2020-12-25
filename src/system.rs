@@ -70,6 +70,8 @@ impl AtariSystem {
         self.gtia.write(gtia::P1PF, 0);
         self.gtia.write(gtia::P2PF, 0);
         self.gtia.write(gtia::P3PF, 0);
+        self.gtia.write(gtia::PRIOR, gtia.prior);
+        self.gtia.gractl = gtia::GRACTL::from_bits_truncate(gtia.gractl);
 
         self.antic.dmactl = antic::DMACTL::from_bits_truncate(antic.dmactl);
         self.antic.chactl = antic.chactl;

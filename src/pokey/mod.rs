@@ -83,7 +83,7 @@ impl Pokey {
         value
     }
 
-    const IDLE_DELAY: usize = 20;
+    const IDLE_DELAY: usize = 100;
 
     pub fn tick(&mut self) {
         for channel in 0..4 {
@@ -284,17 +284,19 @@ impl Pokey {
             KeyCode::Semicolon => 0x02,
             KeyCode::Slash => 0x26,
             KeyCode::Tab => 0x2c,
-            _ => return false,
+            _ => 0x00,
         };
-        if is_pressed {
-            self.kbcode = kbcode | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);
-            // info!("kbcode: {:02x}", kbcode);
+        self.kbcode = self.kbcode & 0x3f | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);
+        let ret = if is_pressed {
+            self.kbcode = self.kbcode & !0x3f | kbcode & 0x3f;
             self.skstat = 0xff - 4;
             self.irqst = 0xff - 0x40;
             true
         } else {
             self.skstat = 0xff;
             false
-        }
+        };
+        info!("kbcode: {:?} skstat: {:?}", self.kbcode, self.skstat);
+        ret
     }
 }

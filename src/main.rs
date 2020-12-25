@@ -42,6 +42,7 @@ pub struct DebugComponent;
 pub struct ScanLine;
 pub struct CPUDebug;
 pub struct AnticDebug;
+pub struct GtiaDebug;
 
 #[derive(Clone, Debug)]
 enum EmulatorState {
@@ -174,6 +175,7 @@ fn debug_overlay_system(
     atari_system: Res<AtariSystem>,
     mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
     mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
+    mut gtia_debug: Query<&mut atari_text::TextArea, With<GtiaDebug>>,
     mut scan_line: Query<(&ScanLine, &mut GlobalTransform)>,
     frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
@@ -213,13 +215,27 @@ fn debug_overlay_system(
 
     for mut text in antic_debug.iter_mut() {
         let status_text = format!(
-            " DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x} ",
+            " IR: {:02x}      DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x} ",
+            atari_system.antic.ir(),
             atari_system.antic.dmactl.bits(),
             atari_system.antic.chbase,
             atari_system.antic.hscrol,
             atari_system.antic.vscrol,
             atari_system.antic.pmbase,
             atari_system.antic.vcount,
+        );
+        let data = atascii_to_screen(&status_text, false);
+        &text.data.data[..data.len()].copy_from_slice(&data);
+    }
+    for mut text in gtia_debug.iter_mut() {
+        let status_text = format!(
+            " COLBK:  {:02x}  COLPF0: {:02x}  COLPF1: {:02x}  COLPF2: {:02x}  COLPF3: {:02x}  PRIOR:  {:02x} ",
+            atari_system.gtia.colbk(),
+            atari_system.gtia.colpf0(),
+            atari_system.gtia.colpf1(),
+            atari_system.gtia.colpf2(),
+            atari_system.gtia.colpf3(),
+            atari_system.gtia.prior,
         );
         let data = atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
@@ -237,6 +253,7 @@ fn atari_system(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
+    mut clear_color: ResMut<ClearColor>,
 ) {
     if frame.paused {
         return;
@@ -262,6 +279,28 @@ fn atari_system(
             //     let offs = atari_system.antic.dlist_offset(0) as usize;
             //     info!("dlist: offs: {:04x} {:x?}", offs, &atari_system.ram[offs..offs+128]);
             // }
+
+            if atari_system
+                .antic
+                .dmactl
+                .contains(antic::DMACTL::PLAYER_DMA)
+            {
+                if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
+                    atari_system.gtia.reg[gtia::GRAFM] =
+                        antic::get_pm_data(&*atari_system, frame.scan_line, 0);
+                }
+                if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
+                    atari_system.gtia.reg[gtia::GRAFP0] =
+                        antic::get_pm_data(&*atari_system, frame.scan_line, 1);
+                    atari_system.gtia.reg[gtia::GRAFP1] =
+                        antic::get_pm_data(&*atari_system, frame.scan_line, 2);
+                    atari_system.gtia.reg[gtia::GRAFP2] =
+                        antic::get_pm_data(&*atari_system, frame.scan_line, 3);
+                    atari_system.gtia.reg[gtia::GRAFP3] =
+                        antic::get_pm_data(&*atari_system, frame.scan_line, 4);
+                }
+            }
+
             frame.is_visible = false;
             if let Some(dlist_data) = atari_system.antic.prefetch_dlist(&atari_system.ram) {
                 atari_system.antic.set_dlist_data(dlist_data);
@@ -271,6 +310,10 @@ fn atari_system(
             frame.cycle = cycles.0;
             frame.visible_cycle = cycles.1;
             frame.dma_cycles = cycles.2;
+
+            // if frame.scan_line == 0 {
+            //     *clear_color = ClearColor(gtia::atari_color(atari_system.gtia.colbk()));
+            // }
 
             if atari_system.antic.is_vbi() {
                 frame.vblank = true;
@@ -287,6 +330,7 @@ fn atari_system(
         if frame.cycle >= frame.visible_cycle && !frame.is_visible {
             // info!("here: {} {}", frame.cycle, frame.visible_cycle);
             if frame.scan_line >= 8 && frame.scan_line == atari_system.antic.start_scan_line {
+                // info!("creating mode line, cycle: {:?}", frame.cycle);
                 let mode_line = atari_system.antic.create_next_mode_line();
                 let prev_mode_line = frame.current_mode.take();
                 if let Some(prev_mode_line) = prev_mode_line {
@@ -314,19 +358,25 @@ fn atari_system(
             if let Some(current_line) = &mut frame.current_mode {
                 let k = (current_scan_line - current_line.scan_line).min(7);
                 current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
-                // info!("current_mode: {:?}, k: line: {}", current_line, k);
+                // info!("gtia colors copied, k: {}", k);
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     // TODO suport 512 byte charsets?
-                    current_line.line_data = antic::create_line_data(
-                        &atari_system,
-                        current_scan_line,
-                        current_line.pmbase,
-                        current_line.data_offset,
-                    );
+                    current_line.line_data =
+                        antic::create_line_data(&atari_system, current_line.data_offset);
                     current_line.charset =
                         Charset::new(&atari_system.ram[charset_offset..charset_offset + 1024]);
                 }
+                current_line.gtia_regs_array.regs[k].grafm =
+                    atari_system.gtia.reg[gtia::GRAFM] as u32;
+                current_line.gtia_regs_array.regs[k].grafp[0] =
+                    atari_system.gtia.reg[gtia::GRAFP0] as u32;
+                current_line.gtia_regs_array.regs[k].grafp[1] =
+                    atari_system.gtia.reg[gtia::GRAFP1] as u32;
+                current_line.gtia_regs_array.regs[k].grafp[2] =
+                    atari_system.gtia.reg[gtia::GRAFP2] as u32;
+                current_line.gtia_regs_array.regs[k].grafp[3] =
+                    atari_system.gtia.reg[gtia::GRAFP3] as u32;
             }
             frame.is_visible = true;
         }
@@ -392,7 +442,7 @@ fn loading(
         a800_state.reload(&mut *atari_system, &mut *cpu);
         *frame = FrameState::default();
         frame.scan_line = 248;
-        state.set_next(EmulatorState::Running).unwrap();
+        state.set_next(EmulatorState::Running).ok();
         info!("LOADED! {:?}", *state);
     }
     assets.clear()
@@ -424,7 +474,7 @@ fn events(
     let f = get_fragment().ok();
     if f.is_some() && f != current_fragment.fragment {
         current_fragment.fragment = f;
-        state.set_next(EmulatorState::Loading).unwrap();
+        state.set_next(EmulatorState::Loading).ok();
         let _: Handle<StateFile> = asset_server
             .load(format!("{}.state", current_fragment.fragment.as_ref().unwrap()).as_str());
     }
@@ -478,7 +528,7 @@ fn setup(
     mut render_graph: ResMut<RenderGraph>,
 ) {
     //emulator_state.set_next(EmulatorState::Loading("laserdemo".to_string())).unwrap();
-    let _: Handle<StateFile> = asset_server.load("laserdemo.state");
+    // let _: Handle<StateFile> = asset_server.load("laserdemo.state");
 
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
@@ -555,11 +605,20 @@ fn setup(
         .spawn(atari_text::TextAreaBundle::new(
             12.0,
             20.0,
-            (384.0 + 12.0 * 8.0) / 2.0 + 20.0 * 8.0,
+            (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
             (256.0 - 20.0 * 8.0) / 2.0,
         ))
         .with(DebugComponent)
         .with(AnticDebug);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            12.0,
+            20.0,
+            (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(GtiaDebug);
 
     // Setup our world
     // commands.spawn(Camera3dBundle {
@@ -600,7 +659,7 @@ fn main() {
         .add_asset::<StateFile>()
         .init_asset_loader::<Atari800StateLoader>()
         .add_resource(State::new(EmulatorState::Loading))
-        .add_resource(ClearColor(gtia::atari_color(2)))
+        .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(AtariSystem::new())
         .add_resource(MOS6502::default())
         .add_resource(FrameState::default())

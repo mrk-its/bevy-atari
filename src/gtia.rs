@@ -33,7 +33,7 @@ pub const COLPF3: usize = 0x19;
 pub const COLBK: usize = 0x1a;
 pub const PRIOR: usize = 0x1b;
 pub const VDELAY: usize = 0x1c;
-pub const GRACTL: usize = 0x1d;
+pub const _GRACTL: usize = 0x1d; // TODO - move consts to submodule
 pub const HITCLR: usize = 0x1e;
 
 pub const CONSOL: usize = 0x1f; // RW  bits 0-2:  Start/Select/Option
@@ -61,14 +61,24 @@ pub const TRIG2: usize = 0x12;
 pub const TRIG3: usize = 0x13;
 pub const PAL: usize = 0x14;
 
+
+bitflags! {
+    #[derive(Default)]
+    pub struct GRACTL: u8 {
+        const MISSILE_DMA = 0x01;
+        const PLAYER_DMA = 0x02;
+        const TRIGGER_LATCH = 0x04;
+    }
+}
+
 pub struct Gtia {
-    reg: [u8; 0x20],
+    pub reg: [u8; 0x20],
     pub player_graphics: [u8; 4],
     pub missile_graphics: u8,
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
-    prior: u8,
-    p0pos: u8,
+    pub prior: u8,
+    pub gractl: GRACTL,
     enable_log: bool,
 }
 
@@ -80,8 +90,8 @@ impl Default for Gtia {
             missile_graphics: 0x00,
             player_graphics: [0x00; 4],
             trig: [0xff, 0xff, 0xff, 0],
+            gractl: GRACTL::from_bits_truncate(0),
             prior: 0,
-            p0pos: 0,
             enable_log: false,
         }
     }
@@ -98,12 +108,6 @@ impl Gtia {
                     0xff
                 } else {
                     self.collisions[addr]
-                    // if self.p0pos == 0x60 {
-                    //     self.p0pos = 0;
-                    //     0xff
-                    // } else {
-                    //     0
-                    // }
                 }
             }
             CONSOL => 0x0f,
@@ -122,11 +126,7 @@ impl Gtia {
             GRAFP0..=GRAFP3 => self.player_graphics[addr - GRAFP0] = value,
             GRAFM => self.missile_graphics = value,
             PRIOR => self.prior = value,
-            HPOSP0 => {
-                if value >= 0x40 && value < 0xc0 {
-                    self.p0pos = value;
-                }
-            }
+            _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
             // HITCLR => {
             //     for i in 0..=0xf {
             //         self.reg[i] = 0;
@@ -150,6 +150,21 @@ impl Gtia {
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
+    pub fn colbk(&self) -> u8 {
+        self.reg[COLBK]
+    }
+    pub fn colpf0(&self) -> u8 {
+        self.reg[COLPF0]
+    }
+    pub fn colpf1(&self) -> u8 {
+        self.reg[COLPF1]
+    }
+    pub fn colpf2(&self) -> u8 {
+        self.reg[COLPF2]
+    }
+    pub fn colpf3(&self) -> u8 {
+        self.reg[COLPF3]
+    }
     pub fn get_colors(&self) -> GTIARegs {
         // HPOSP0-HPOSP3 [D000-D003]
         // HPOSM0-HPOSM3 [D004-D007]
@@ -169,11 +184,16 @@ impl Gtia {
             self.reg[HPOSP1],
             self.reg[HPOSP2],
             self.reg[HPOSP3],
+            self.reg[HPOSM0],
+            self.reg[HPOSM1],
+            self.reg[HPOSM2],
+            self.reg[HPOSM3],
             self.reg[SIZEP0],
             self.reg[SIZEP1],
             self.reg[SIZEP2],
             self.reg[SIZEP3],
             self.prior,
+            self.reg[SIZEM],
         )
     }
     pub fn enable_log(&mut self, enable: bool) {

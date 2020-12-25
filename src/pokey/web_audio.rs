@@ -2,6 +2,7 @@ use super::{AUDC, AUDCTL, CLOCK_177};
 use lru::LruCache;
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioBuffer, AudioContext, OscillatorType};
+use bevy::utils::tracing::*;
 
 const MIN_SAMPLE_RATE: f32 = 8000.0;
 const MAX_SAMPLE_RATE: f32 = 96000.0;
@@ -153,14 +154,13 @@ impl AudioBackend {
                 // 1 second is `sample_rate` of samples playing with `sample_rate`, so:
                 let n_samples = (sample_rate as f32 * SAMPLE_DUR) as u32;
 
-                // info!(
-                //     "create new audio buffer for {:x?} {} total: {}, n_samples: {} mult: {}",
-                //     noise_descr,
-                //     poly_name,
-                //     self.noise_buffer_cache.len(),
-                //     n_samples,
-                //     multiplier,
-                // );
+                info!(
+                    "create new audio buffer for {:x?} total: {}, n_samples: {} mult: {}",
+                    noise_descr,
+                    self.noise_buffer_cache.len(),
+                    n_samples,
+                    multiplier,
+                );
 
                 sample_rate *= multiplier as f32;
                 let mut data = Vec::with_capacity((n_samples * multiplier) as usize);
@@ -298,6 +298,11 @@ impl AudioBackend {
             if let Some(source) = self.buffer_source[channel].take() {
                 source.stop().unwrap();
             }
+            let freq = if freq <= 22050.0 {
+                freq
+            } else {
+                0.0
+            };
             self.oscillator[channel].frequency().set_value(freq);
         } else {
             self.set_noise_source(channel, audctl, ctl, divider, clock_divider, freq);

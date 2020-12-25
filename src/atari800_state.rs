@@ -300,6 +300,7 @@ impl<'a> Atari800State<'a> {
         let data = &data[6..];
         let (memory, data) = read_memory(data);
         cpu.pc = data[0] as u16 + (data[1] as u16) * 256;
+        let data = &data[2..];
         let (gtia, data) = read::<GTIA>(data);
 
         let (pia, data) = read::<PIA>(data);
