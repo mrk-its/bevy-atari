@@ -87,9 +87,9 @@ pub struct GTIARegsArray {
 pub struct GTIARegs {
     pub colors: [u32; 8],
     pub colors_pm: [u32; 4],
-    pub hposp: [f32; 4],
-    pub hposm: [f32; 4],
-    pub player_size: [f32; 4],
+    pub hposp: [u32; 4],
+    pub hposm: [u32; 4],
+    pub player_size: [u32; 4],
     pub grafp: [u32; 4],
     pub prior: u32,
     pub sizem: u32,
@@ -135,8 +135,8 @@ impl GTIARegs {
                 0,
             ],
             colors_pm: [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
-            hposp: [hposp0 as f32, hposp1 as f32, hposp2 as f32, hposp3 as f32],
-            hposm: [hposm0 as f32, hposm1 as f32, hposm2 as f32, hposm3 as f32],
+            hposp: [hposp0 as u32, hposp1 as u32, hposp2 as u32, hposp3 as u32],
+            hposm: [hposm0 as u32, hposm1 as u32, hposm2 as u32, hposm3 as u32],
             player_size: [
                 player_size(sizep0),
                 player_size(sizep1),
@@ -144,7 +144,7 @@ impl GTIARegs {
                 player_size(sizep3),
             ],
             prior: prior as u32,
-            sizem: (player_size(sizem) / 4.0) as u32,
+            sizem: player_size(sizem) / 4,
             grafp: [0; 4],
             grafm: 0,
             _fill: 0,
@@ -152,11 +152,11 @@ impl GTIARegs {
     }
 }
 
-fn player_size(sizep: u8) -> f32 {
+fn player_size(sizep: u8) -> u32 {
     match sizep & 3 {
-        1 => 32.0,
-        3 => 64.0,
-        _ => 16.0,
+        1 => 32,
+        3 => 64,
+        _ => 16,
     }
 }
 

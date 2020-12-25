@@ -19,9 +19,9 @@ layout(std140) uniform AnticLine_data { // set = 1 binding = 3
 struct GTIA {
     ivec4 color_regs[2];
     ivec4 colpm;
-    vec4 hposp;
-    vec4 hposm;
-    vec4 player_size;
+    ivec4 hposp;
+    ivec4 hposm;
+    ivec4 player_size;
     ivec4 grafp;
     ivec4 prior;  // [prior, sizem, grafm, unused]
 };
@@ -67,8 +67,8 @@ vec4 encodeSRGB(vec4 linearRGB_in) {
 // #define encodeColor(x) (x)
 
 bool get_player_pixel(int n, float px, int y, vec4 hpos) {
-    if (px >= hpos[n] && px < hpos[n] + gtia[y].player_size[n]) {
-        int pl_bit = 7 - int((px - hpos[n]) / gtia[y].player_size[n] * 8.0);
+    if (px >= hpos[n] && px < hpos[n] + float(gtia[y].player_size[n])) {
+        int pl_bit = 7 - int((px - hpos[n]) / float(gtia[y].player_size[n]) * 8.0);
         int byte = gtia[y].grafp[n];
         // int byte = get_player_byte(player[n], y);
         return ((byte >> pl_bit) & 1) > 0;
@@ -96,8 +96,8 @@ void main() {
     int y = cy + int(line_voffset);
     bool hires = false;
 
-    vec4 hposp = gtia[cy].hposp * 2.0 + vec4(line_width / 2.0 - 256.0);
-    vec4 hposm = gtia[cy].hposm * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hposp = vec4(gtia[cy].hposp) * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hposm = vec4(gtia[cy].hposm) * 2.0 + vec4(line_width / 2.0 - 256.0);
 
     int color_reg_index = 0; // bg_color
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
