@@ -97,69 +97,6 @@ pub struct GTIARegs {
     pub _fill: u32,
 }
 
-impl GTIARegs {
-    pub fn new(
-        colbk: u8,
-        colpf0: u8,
-        colpf1: u8,
-        colpf2: u8,
-        colpf3: u8,
-        colpm0: u8,
-        colpm1: u8,
-        colpm2: u8,
-        colpm3: u8,
-        hposp0: u8,
-        hposp1: u8,
-        hposp2: u8,
-        hposp3: u8,
-        hposm0: u8,
-        hposm1: u8,
-        hposm2: u8,
-        hposm3: u8,
-        sizep0: u8,
-        sizep1: u8,
-        sizep2: u8,
-        sizep3: u8,
-        prior: u8,
-        sizem: u8,
-    ) -> Self {
-        Self {
-            colors: [
-                colbk as u32,
-                colpf0 as u32,
-                colpf1 as u32,
-                colpf2 as u32,
-                colpf3 as u32,
-                0,
-                0,
-                0,
-            ],
-            colors_pm: [colpm0 as u32, colpm1 as u32, colpm2 as u32, colpm3 as u32],
-            hposp: [hposp0 as u32, hposp1 as u32, hposp2 as u32, hposp3 as u32],
-            hposm: [hposm0 as u32, hposm1 as u32, hposm2 as u32, hposm3 as u32],
-            player_size: [
-                player_size(sizep0),
-                player_size(sizep1),
-                player_size(sizep2),
-                player_size(sizep3),
-            ],
-            prior: prior as u32,
-            sizem: player_size(sizem) / 4,
-            grafp: [0; 4],
-            grafm: 0,
-            _fill: 0,
-        }
-    }
-}
-
-fn player_size(sizep: u8) -> u32 {
-    match sizep & 3 {
-        1 => 32,
-        3 => 64,
-        _ => 16,
-    }
-}
-
 unsafe impl Byteable for GTIARegsArray {}
 impl_render_resource_bytes!(GTIARegsArray);
 

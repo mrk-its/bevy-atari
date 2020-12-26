@@ -71,25 +71,21 @@ bitflags! {
 }
 
 pub struct Gtia {
+    pub regs: GTIARegs,
     pub reg: [u8; 0x20],
-    pub player_graphics: [u8; 4],
-    pub missile_graphics: u8,
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
-    pub prior: u8,
     pub gractl: GRACTL,
 }
 
 impl Default for Gtia {
     fn default() -> Self {
         Self {
+            regs: GTIARegs::default(),
             reg: [0x00; 0x20],
             collisions: [0x00; 0x16],
-            missile_graphics: 0x00,
-            player_graphics: [0x00; 4],
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
-            prior: 0,
         }
     }
 }
@@ -119,58 +115,29 @@ impl Gtia {
         let addr = addr & 0x1f;
         self.reg[addr] = value;
 
+        let _size_pm = |x| match x & 3 {
+            1 => 32,
+            3 => 64,
+            _ => 16,
+        };
+
         match addr {
-            GRAFP0..=GRAFP3 => self.player_graphics[addr - GRAFP0] = value,
-            GRAFM => self.missile_graphics = value,
-            PRIOR => self.prior = value,
+            COLBK => self.regs.colors[0] = value as u32,
+            COLPF0..=COLPF3 => self.regs.colors[1 + addr - COLPF0] = value as u32,
+            COLPM0..=COLPM3 => self.regs.colors_pm[addr - COLPM0] = value as u32,
+            GRAFP0..=GRAFP3 => self.regs.grafp[addr - GRAFP0] = value as u32,
+            GRAFM => self.regs.grafm = value as u32,
+            PRIOR => self.regs.prior = value as u32,
+            HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value as u32,
+            HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value as u32,
+            SIZEP0..=SIZEP3 => self.regs.player_size[addr - SIZEP0] = _size_pm(value),
+            SIZEM => self.regs.sizem = _size_pm(value) / 4,
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
             _ => (),
         }
     }
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
-    }
-    pub fn colbk(&self) -> u8 {
-        self.reg[COLBK]
-    }
-    pub fn colpf0(&self) -> u8 {
-        self.reg[COLPF0]
-    }
-    pub fn colpf1(&self) -> u8 {
-        self.reg[COLPF1]
-    }
-    pub fn colpf2(&self) -> u8 {
-        self.reg[COLPF2]
-    }
-    pub fn colpf3(&self) -> u8 {
-        self.reg[COLPF3]
-    }
-    pub fn get_colors(&self) -> GTIARegs {
-        GTIARegs::new(
-            self.reg[COLBK],
-            self.reg[COLPF0],
-            self.reg[COLPF1],
-            self.reg[COLPF2],
-            self.reg[COLPF3],
-            self.reg[COLPM0],
-            self.reg[COLPM1],
-            self.reg[COLPM2],
-            self.reg[COLPM3],
-            self.reg[HPOSP0],
-            self.reg[HPOSP1],
-            self.reg[HPOSP2],
-            self.reg[HPOSP3],
-            self.reg[HPOSM0],
-            self.reg[HPOSM1],
-            self.reg[HPOSM2],
-            self.reg[HPOSM3],
-            self.reg[SIZEP0],
-            self.reg[SIZEP1],
-            self.reg[SIZEP2],
-            self.reg[SIZEP3],
-            self.prior,
-            self.reg[SIZEM],
-        )
     }
 }
 

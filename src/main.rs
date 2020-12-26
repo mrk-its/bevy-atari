@@ -230,12 +230,12 @@ fn debug_overlay_system(
     for mut text in gtia_debug.iter_mut() {
         let status_text = format!(
             " COLBK:  {:02x}  COLPF0: {:02x}  COLPF1: {:02x}  COLPF2: {:02x}  COLPF3: {:02x}  PRIOR:  {:02x} ",
-            atari_system.gtia.colbk(),
-            atari_system.gtia.colpf0(),
-            atari_system.gtia.colpf1(),
-            atari_system.gtia.colpf2(),
-            atari_system.gtia.colpf3(),
-            atari_system.gtia.prior,
+            atari_system.gtia.regs.colors[0] as u8,
+            atari_system.gtia.regs.colors[1] as u8,
+            atari_system.gtia.regs.colors[2] as u8,
+            atari_system.gtia.regs.colors[3] as u8,
+            atari_system.gtia.regs.colors[4] as u8,
+            atari_system.gtia.regs.prior as u8,
         );
         let data = atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
@@ -356,7 +356,7 @@ fn atari_system(
             let current_scan_line = frame.scan_line;
             if let Some(current_line) = &mut frame.current_mode {
                 let k = (current_scan_line - current_line.scan_line).min(7);
-                current_line.gtia_regs_array.regs[k] = atari_system.gtia.get_colors();
+                current_line.gtia_regs_array.regs[k] = atari_system.gtia.regs;
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     // TODO suport 512 byte charsets?
