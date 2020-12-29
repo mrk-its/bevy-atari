@@ -4,10 +4,18 @@ pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::Interface6502;
 pub use std::{cell::RefCell, rc::Rc};
+
+bitflags! {
+    #[derive(Default)]
+    pub struct PORTB: u8 {
+        const ROM_ENABLED = 0x01;
+    }
+}
+
 pub struct AtariSystem {
-    pub portb: u8,
+    portb: PORTB,
     ram: [u8; 65536],
-    ram2: [u8; 0x4000],
+    osrom: [u8; 0x4000],
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -17,17 +25,17 @@ pub struct AtariSystem {
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
-        let ram = [0xFF; 65536];
-        let ram2 = [0x00; 0x4000];
+        let ram = [0xFF; 0x10000];
+        let osrom = [0x00; 0x4000];
         let antic = Antic::default();
         let pokey = Pokey::default();
         let gtia = Gtia::default();
         let pia = PIA::default();
 
         AtariSystem {
-            portb: 0xff,
+            portb: PORTB::from_bits_truncate(0xff),
             ram,
-            ram2,
+            osrom,
             antic,
             gtia,
             pokey,
@@ -46,9 +54,13 @@ impl AtariSystem {
     }
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
+        self.portb = PORTB::from_bits_truncate(atari800_state.memory.portb);
         self.ram.copy_from_slice(atari800_state.memory.data);
-        self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
-        self.portb = atari800_state.memory.portb;
+        // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
+        self.osrom.copy_from_slice(atari800_state.memory.os);
+        if self.portb.contains(PORTB::ROM_ENABLED) {
+            self.ram[0xc000..].copy_from_slice(atari800_state.memory.under_atarixl_os);
+        }
 
         let gtia = atari800_state.gtia;
         let antic = atari800_state.antic;
@@ -192,12 +204,13 @@ impl Interface6502 for AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0xD0 => self.gtia.read(addr),
+            0xD1 => 0xff,
             0xD2 => self.pokey.read(addr),
             0xD3 => self.pia.read(addr),
             0xD4 => self.antic.read(addr),
             0xC0..=0xFF => {
-                if self.portb & 1 == 0 {
-                    self.ram2[addr - 0xc000]
+                if self.portb.contains(PORTB::ROM_ENABLED) {
+                    self.osrom[addr & 0x3fff]
                 } else {
                     self.ram[addr]
                 }
@@ -213,13 +226,13 @@ impl Interface6502 for AtariSystem {
             0xD3 => {
                 self.pia.write(addr, value);
                 if addr & 0x03 == 1 {
-                    self.portb = value;
+                    self.portb = PORTB::from_bits_truncate(value);
                 }
             },
             0xD4 => self.antic.write(addr, value),
             0xC0..=0xFF => {
-                if self.portb & 1 == 0 {
-                    self.ram2[addr - 0xc000] = value
+                if !self.portb.contains(PORTB::ROM_ENABLED) {
+                    self.ram[addr] = value
                 }
             }
             _ => self.ram[addr] = value,

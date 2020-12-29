@@ -72,7 +72,6 @@ bitflags! {
 
 pub struct Gtia {
     pub regs: GTIARegs,
-    pub reg: [u8; 0x20],
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
     pub gractl: GRACTL,
@@ -82,7 +81,6 @@ impl Default for Gtia {
     fn default() -> Self {
         Self {
             regs: GTIARegs::default(),
-            reg: [0x00; 0x20],
             collisions: [0x00; 0x16],
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
@@ -106,14 +104,13 @@ impl Gtia {
             CONSOL => 0x0f,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
-            _ => self.reg[addr],
+            _ => 0xff,
         };
         // warn!("GTIA read: {:02x}: {:02x}", addr, value);
         value
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0x1f;
-        self.reg[addr] = value;
 
         let _size_pm = |x| match x & 3 {
             1 => 32,

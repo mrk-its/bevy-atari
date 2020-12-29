@@ -203,52 +203,52 @@ impl ModeLineDescr {
 }
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (25, &[66, 66, 66, 66, 66, 66, 66, 66]),
     (18, &[81, 81, 81, 81, 81, 81, 82, 81]),
     (10, &[96, 95, 94, 93, 92, 91, 90, 89]),
 ];
 
 const MODE_25_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (29, &[41, 41, 41, 41, 41, 41, 41, 41]),
     (21, &[49, 49, 49, 49, 49, 49, 49, 48]),
     (13, &[56, 55, 55, 54, 54, 53, 53, 53]),
 ];
 
 const MODE_67_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (25, &[41, 41, 41, 41, 41, 41, 41, 41]),
     (18, &[49, 49, 49, 49, 49, 49, 49, 48]),
     (10, &[57, 56, 56, 56, 55, 54, 54, 54]),
 ];
 
 const MODE_67_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (29, &[25, 25, 25, 25, 25, 25, 25, 25]),
     (21, &[29, 29, 29, 29, 29, 29, 29, 29]),
     (13, &[33, 32, 32, 32, 32, 31, 31, 31]),
 ];
 
 const MODE_89_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
-    (0, &[17, 17, 17, 17, 17, 17, 17, 17]),
-    (0, &[19, 19, 19, 19, 19, 19, 19, 19]),
-    (0, &[21, 21, 21, 21, 21, 21, 20, 20]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
+    (29, &[17, 17, 17, 17, 17, 17, 17, 17]),
+    (21, &[19, 19, 19, 19, 19, 19, 19, 19]),
+    (13, &[21, 21, 21, 21, 21, 21, 20, 20]),
 ];
 
 const MODE_AC_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
-    (0, &[25, 25, 25, 25, 25, 25, 25, 25]),
-    (0, &[29, 29, 29, 29, 29, 29, 29, 29]),
-    (0, &[33, 33, 32, 32, 32, 32, 31, 31]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
+    (29, &[25, 25, 25, 25, 25, 25, 25, 25]),
+    (21, &[29, 29, 29, 29, 29, 29, 29, 29]),
+    (13, &[33, 33, 32, 32, 32, 32, 31, 31]),
 ];
 
 const MODE_DF_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
-    (0, &[0, 0, 0, 0, 0, 0, 0, 0]),
-    (0, &[41, 41, 41, 41, 41, 41, 41, 41]),
-    (0, &[49, 49, 49, 49, 49, 49, 49, 49]),
-    (0, &[56, 56, 55, 55, 54, 54, 53, 53]),
+    (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
+    (29, &[41, 41, 41, 41, 41, 41, 41, 41]),
+    (21, &[49, 49, 49, 49, 49, 49, 49, 49]),
+    (13, &[56, 56, 55, 55, 54, 54, 53, 53]),
 ];
 
 impl Antic {
@@ -321,19 +321,16 @@ impl Antic {
     }
 
     pub fn is_vbi(&mut self) -> bool {
-        let vbi = self.scan_line == 248 && self.nmien.contains(NMIEN::VBI);
-        if vbi {
-            self.set_vbi();
-        }
-        vbi
+        self.scan_line == 248
     }
 
     pub fn is_dli(&mut self) -> bool {
         let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
-        if opts.contains(MODE_OPTS::DLI) && self.nmien.contains(NMIEN::DLI) && self.scan_line >= 8 && self.scan_line < 248 {
+        if opts.contains(MODE_OPTS::DLI) && self.scan_line >= 8 && self.scan_line < 248 {
             if self.scan_line == self.start_scan_line + self.line_height - 1 {
-                self.set_dli();
                 return true;
+                // self.set_dli();
+                // return self.nmien.contains(NMIEN::DLI);
             }
         }
         false
@@ -347,41 +344,42 @@ impl Antic {
         let is_first_mode_line = self.scan_line == self.start_scan_line;
         let mode = self.dlist_data[0] & 0x0f;
 
-        let (line_start_cycle, dma_cycles) = if (self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK).bits() > 0 {
-            let opts: MODE_OPTS = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+        let (line_start_cycle, dma_cycles) =
+            if (self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK).bits() > 0 {
+                let opts: MODE_OPTS = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
 
-            let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
-            let hscrol = if is_hscrol {
-                self.hscrol as usize / 2
+                let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
+                let hscrol = if is_hscrol {
+                    self.hscrol as usize / 2
+                } else {
+                    0
+                };
+                let playfield_width_index = self.playfield_width_index(is_hscrol);
+                let (line_start_cycle, dma_cycles_arr) = match mode {
+                    0x2..=0x5 => {
+                        if is_first_mode_line {
+                            MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
+                        } else {
+                            MODE_25_STEALED_CYCLES[playfield_width_index]
+                        }
+                    }
+                    0x6..=0x7 => {
+                        if is_first_mode_line {
+                            MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
+                        } else {
+                            MODE_67_STEALED_CYCLES[playfield_width_index]
+                        }
+                    }
+                    0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index],
+                    0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
+                    0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
+
+                    _ => (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
+                };
+                (line_start_cycle, dma_cycles_arr[hscrol])
             } else {
-                0
+                (25, 9)
             };
-            let playfield_width_index = self.playfield_width_index(is_hscrol);
-            let (line_start_cycle, dma_cycles_arr) = match mode {
-                0x2..=0x5 => {
-                    if is_first_mode_line {
-                        MODE_25_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
-                    } else {
-                        MODE_25_STEALED_CYCLES[playfield_width_index]
-                    }
-                }
-                0x6..=0x7 => {
-                    if is_first_mode_line {
-                        MODE_67_STEALED_CYCLES_FIRST_LINE[playfield_width_index]
-                    } else {
-                        MODE_67_STEALED_CYCLES[playfield_width_index]
-                    }
-                }
-                0x8..=0x9 => MODE_89_STEALED_CYCLES[playfield_width_index],
-                0xa..=0xc => MODE_AC_STEALED_CYCLES[playfield_width_index],
-                0xd..=0xf => MODE_DF_STEALED_CYCLES[playfield_width_index],
-
-                _ => (29, &[0, 0, 0, 0, 0, 0, 0, 0]),
-            };
-            (line_start_cycle, dma_cycles_arr[hscrol])
-        } else {
-            (0, 0)
-        };
 
         let mut start_dma_cycles = 0;
         if self.dmactl.contains(DMACTL::PLAYER_DMA) {
@@ -401,9 +399,7 @@ impl Antic {
         )
     }
 
-    fn create_mode_line(
-        &self,
-    ) -> ModeLineDescr {
+    fn create_mode_line(&self) -> ModeLineDescr {
         let opts = self.opts();
         let mode = self.mode();
         let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
@@ -472,7 +468,7 @@ impl Antic {
         if is_vscroll && !self.is_vscroll {
             self.line_voffset = self.vscrol as usize;
             self.line_height -= self.line_voffset;
-            // entering vscroll region
+        // entering vscroll region
         } else if !is_vscroll && self.is_vscroll {
             self.line_height = self.vscrol as usize + 1;
             // leaving scroll region
@@ -511,7 +507,7 @@ impl Antic {
         let value = match addr {
             consts::NMIST => self.nmist.bits | 0x1f,
             consts::VCOUNT => self.vcount,
-            _ => 0x00,
+            _ => 0xff,
         };
         // bevy::log::warn!("ANTIC read: {:02x}: {:02x}", addr, value);
         value

@@ -28,7 +28,7 @@ use bevy::{
     },
     sprite::QUAD_HANDLE,
 };
-use emulator_6502::{MOS6502, Interface6502};
+use emulator_6502::{Interface6502, MOS6502};
 use render_resources::{AnticLine, AtariPalette, Charset, LineData};
 use system::AtariSystem;
 use wasm_bindgen::prelude::*;
@@ -72,6 +72,7 @@ struct FrameState {
     vblank: bool,
     is_visible: bool,
     wsync: bool,
+    nmireq: bool,
     visible_cycle: usize,
     dma_cycles: usize,
     current_mode: Option<ModeLineDescr>,
@@ -252,6 +253,7 @@ fn debug_overlay_system(
 
 fn atari_system(
     commands: &mut Commands,
+    mut state: ResMut<State<EmulatorState>>,
     antic_lines: Query<(Entity, &AnticLine)>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
@@ -273,6 +275,12 @@ fn atari_system(
     }
 
     loop {
+        if cpu.program_counter == 0 {
+            info!("returning to emulator");
+            state.set_next(EmulatorState::Loading).ok();
+            // return to emulator
+            return;
+        }
         atari_system
             .antic
             .set_scan_line(frame.scan_line, frame.cycle);
@@ -288,18 +296,21 @@ fn atari_system(
                 .contains(antic::DMACTL::PLAYER_DMA)
             {
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
-                    atari_system.gtia.reg[gtia::GRAFM] =
-                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 0);
+                    let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 0);
+                    atari_system.gtia.write(
+                        gtia::GRAFM,
+                        b,
+                    );
                 }
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
-                    atari_system.gtia.reg[gtia::GRAFP0] =
-                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 1);
-                    atari_system.gtia.reg[gtia::GRAFP1] =
-                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 2);
-                    atari_system.gtia.reg[gtia::GRAFP2] =
-                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 3);
-                    atari_system.gtia.reg[gtia::GRAFP3] =
-                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 4);
+                    let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 1);
+                    atari_system.gtia.write(gtia::GRAFP0, b);
+                    let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 2);
+                    atari_system.gtia.write(gtia::GRAFP1, b);
+                    let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 3);
+                    atari_system.gtia.write(gtia::GRAFP2, b);
+                    let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 4);
+                    atari_system.gtia.write(gtia::GRAFP3, b);
                 }
             }
 
@@ -322,16 +333,34 @@ fn atari_system(
 
             if atari_system.antic.is_vbi() {
                 frame.vblank = true;
-                cpu.non_maskable_interrupt_request();
-            } else if atari_system.antic.is_dli() {
-                cpu.non_maskable_interrupt_request();
+                frame.nmireq = true;
+            } else {
+                if atari_system.antic.is_dli() {
+                    frame.nmireq = true;
+                }
             }
             if frame.wsync {
                 frame.wsync = false;
-                frame.cycle = 104;
+                frame.cycle = 105;
+                if frame.paused {
+                    return;
+                }
             }
         }
-
+        if frame.nmireq && frame.cycle >= 0 {
+            frame.nmireq = false;
+            if atari_system.antic.is_vbi() {
+                atari_system.antic.set_vbi();
+                if atari_system.antic.nmien.contains(antic::NMIEN::VBI) {
+                    cpu.non_maskable_interrupt_request();
+                }
+            } else {
+                atari_system.antic.set_dli();
+                if atari_system.antic.nmien.contains(antic::NMIEN::DLI) {
+                    cpu.non_maskable_interrupt_request();
+                }
+            }
+        }
         if frame.cycle >= frame.visible_cycle && !frame.is_visible {
             // info!("here: {} {}", frame.cycle, frame.visible_cycle);
             if frame.scan_line >= 8 && frame.scan_line == atari_system.antic.start_scan_line {
@@ -366,19 +395,20 @@ fn atari_system(
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     // TODO suport 512 byte charsets?
-                    current_line.line_data = LineData::new(&mut atari_system, current_line.data_offset);
+                    current_line.line_data =
+                        LineData::new(&mut atari_system, current_line.data_offset);
                     current_line.charset = Charset::new(&mut atari_system, charset_offset);
                 }
-                current_line.gtia_regs_array.regs[k].grafm =
-                    atari_system.gtia.reg[gtia::GRAFM] as u32;
-                current_line.gtia_regs_array.regs[k].grafp[0] =
-                    atari_system.gtia.reg[gtia::GRAFP0] as u32;
-                current_line.gtia_regs_array.regs[k].grafp[1] =
-                    atari_system.gtia.reg[gtia::GRAFP1] as u32;
-                current_line.gtia_regs_array.regs[k].grafp[2] =
-                    atari_system.gtia.reg[gtia::GRAFP2] as u32;
-                current_line.gtia_regs_array.regs[k].grafp[3] =
-                    atari_system.gtia.reg[gtia::GRAFP3] as u32;
+                // current_line.gtia_regs_array.regs[k].grafm =
+                //     atari_system.gtia.reg[gtia::GRAFM] as u32;
+                // current_line.gtia_regs_array.regs[k].grafp[0] =
+                //     atari_system.gtia.reg[gtia::GRAFP0] as u32;
+                // current_line.gtia_regs_array.regs[k].grafp[1] =
+                //     atari_system.gtia.reg[gtia::GRAFP1] as u32;
+                // current_line.gtia_regs_array.regs[k].grafp[2] =
+                //     atari_system.gtia.reg[gtia::GRAFP2] as u32;
+                // current_line.gtia_regs_array.regs[k].grafp[3] =
+                //     atari_system.gtia.reg[gtia::GRAFP3] as u32;
             }
             frame.is_visible = true;
         }
@@ -389,22 +419,24 @@ fn atari_system(
 
         cpu.cycle(&mut *atari_system);
         atari_system.tick();
-        if atari_system.antic.wsync() {
-            if frame.cycle < 104 {
-                frame.cycle = 104;
-            } else {
-                frame.wsync = true;
-                frame.cycle = SCAN_LINE_CYCLES - 1;
+        if cpu.remaining_cycles == 0 {
+            if atari_system.antic.wsync() {
+                if frame.cycle < 104 {
+                    frame.cycle = 104;
+                } else {
+                    frame.wsync = true;
+                    frame.cycle = SCAN_LINE_CYCLES - 1;
+                }
             }
-        }
-        if let Some(BreakPoint::PC(pc)) = frame.break_point {
-            if cpu.program_counter == pc {
-                frame.clear_break_point();
+            if let Some(BreakPoint::PC(pc)) = frame.break_point {
+                if cpu.program_counter == pc {
+                    frame.clear_break_point();
+                }
             }
-        }
-        if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
-            if cpu.program_counter != pc {
-                frame.clear_break_point();
+            if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
+                if cpu.program_counter != pc {
+                    frame.clear_break_point();
+                }
             }
         }
 
@@ -422,7 +454,7 @@ fn atari_system(
                 break;
             }
         }
-        if frame.paused {
+        if frame.paused && !frame.wsync {
             break;
         }
     }
@@ -431,23 +463,145 @@ fn atari_system(
 pub const SCANLINE_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
+#[derive(Default)]
+struct Xex {
+    data: Vec<u8>,
+    offs: usize,
+}
+
+const INIT_ADDR: usize = 0x2e2;
+const RUN_ADDR: usize = 0x2e0;
+
+impl Xex {
+    pub fn new(data: &[u8]) -> Self {
+        Xex {
+            data: data.to_owned(),
+            offs: 0,
+        }
+    }
+    pub fn in_progress(&self) -> bool {
+        self.offs < self.data.len()
+    }
+
+    pub fn load(
+        &mut self,
+        atari_system: &mut AtariSystem,
+        cpu: &mut MOS6502,
+        frame: &mut FrameState,
+    ) -> bool {
+        info!("loading xex!");
+        fn get_word(intf: &mut dyn Interface6502, addr: usize) -> u16 {
+            intf.read(addr as u16) as u16 + 256 * intf.read(addr as u16 + 1) as u16
+        }
+        fn set_word(intf: &mut dyn Interface6502, addr: usize, value: u16) {
+            intf.write(addr as u16, (value & 0xff) as u8);
+            intf.write(addr as u16 + 1, (value >> 8) as u8);
+        }
+
+        set_word(&mut *atari_system, RUN_ADDR, 0);
+
+        while self.offs < self.data.len() {
+            set_word(&mut *atari_system, INIT_ADDR, 0);
+            let mut begin = self.get_next_word() as usize;
+            if begin == 0xffff {
+                begin = self.get_next_word() as usize;
+            }
+            let end = self.get_next_word() as usize;
+            info!("block begin: {:04x}, end: {:04x}", begin, end);
+            let len = end - begin + 1;
+            let block_data = &self.data[self.offs..self.offs + len];
+            self.offs += len;
+            atari_system.copy_from_slice(begin, block_data);
+            let init_addr = get_word(&mut *atari_system, INIT_ADDR);
+            if init_addr != 0 {
+                info!("init addr: {:4x}", init_addr);
+                cpu.program_counter = init_addr;
+                cpu.accumulator = 0;
+                cpu.x_register = 0;
+                cpu.y_register = 0;
+                atari_system.write(0x1ff, 0xff);
+                atari_system.write(0x1fe, 0xff);
+                cpu.stack_pointer = 0xfd;
+                return false;
+            }
+        }
+        let pc = get_word(&mut *atari_system, RUN_ADDR);
+        if pc != 0 {
+            info!("run address: {:04x}", pc);
+            cpu.program_counter = pc;
+            cpu.accumulator = 0;
+            cpu.x_register = 0;
+            cpu.y_register = 0;
+            atari_system.write(0x1ff, 0xff);
+            atari_system.write(0x1fe, 0xff);
+            cpu.stack_pointer = 0xfd;
+            return true;
+        }
+        false
+    }
+
+    fn get_next_word(&mut self) -> u16 {
+        let w = self.data[self.offs] as u16 + 256 * self.data[self.offs + 1] as u16;
+        self.offs += 2;
+        w
+    }
+}
+
 fn loading(
+    mut xex: Local<Xex>,
+    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
+    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
     mut state: ResMut<State<EmulatorState>>,
     mut assets: ResMut<Assets<StateFile>>,
     mut atari_system: ResMut<AtariSystem>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
 ) {
-    for (_, state_file) in assets.iter() {
-        let data = gunzip(&state_file.data);
-        let a800_state = atari800_state::Atari800State::new(&data);
-        a800_state.reload(&mut *atari_system, &mut *cpu);
-        *frame = FrameState::default();
-        frame.scan_line = 248;
-        state.set_next(EmulatorState::Running).ok();
-        info!("LOADED! {:?}", *state);
+    if let Some((_, state_file)) = assets.iter().next() {
+        if &state_file.data[0..2] == &[255, 255] {
+            *xex = Xex::new(&state_file.data)
+        } else {
+            let data = gunzip(&state_file.data);
+            let a800_state = atari800_state::Atari800State::new(&data);
+            a800_state.reload(&mut *atari_system, &mut *cpu);
+            *frame = FrameState::default();
+            frame.scan_line = 248;
+            state.set_next(EmulatorState::Running).ok();
+            info!("LOADED! {:?}", *state);
+        }
     }
-    assets.clear()
+    assets.clear();
+
+    if xex.in_progress() {
+        if xex.load(&mut *atari_system, &mut *cpu, &mut *frame) {
+            state.set_next(EmulatorState::Running).ok();
+        // frame.paused = true;
+        // frame.is_debug = true;
+        // set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
+        // frame.break_point = Some(BreakPoint::PC(0x1d00));
+        } else {
+            state.set_next(EmulatorState::Running).ok();
+            // frame.paused = true;
+            // frame.is_debug = true;
+            // set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
+            // frame.break_point = Some(BreakPoint::PC(0x1e00));
+        }
+    }
+
+    // if let Some((_, state_file)) = assets.iter().next() {
+    //     if &state_file.data[0..2] == &[255, 255] {
+    //         load_xex(&mut *atari_system, &mut *cpu, &mut *frame, &state_file.data);
+    //     } else {
+    //         let data = gunzip(&state_file.data);
+    //         let a800_state = atari800_state::Atari800State::new(&data);
+    //         a800_state.reload(&mut *atari_system, &mut *cpu);
+    //         *frame = FrameState::default();
+    //         frame.scan_line = 248;
+    //         info!("LOADED! {:?}", *state);
+    //     }
+    // }
+    // assets.clear();
+    // state.set_next(EmulatorState::Running).ok();
 
     // state.set_next(EmulatorState::Running).ok();
 }
@@ -494,11 +648,11 @@ fn events(
                     right,
                     fire,
                 } => atari_system.set_joystick(port, up, down, left, right, fire),
-                js_api::Message::DraggedFileData { data, filename} => {
+                js_api::Message::DraggedFileData { data, filename } => {
                     assets.add(StateFile { data, filename });
                     state.set_next(EmulatorState::Loading).unwrap();
                 }
-                js_api::Message::Command {cmd} => {
+                js_api::Message::Command { cmd } => {
                     let parts = cmd.split(" ").collect::<Vec<_>>();
                     match parts[0] {
                         "mem" => {
@@ -507,7 +661,7 @@ fn events(
                                 atari_system.copy_to_slice(start, &mut data);
                                 info!("{:x?}", data);
                             }
-                        },
+                        }
                         "pc" => {
                             if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
                                 cpu.program_counter = pc;
@@ -553,10 +707,12 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
+    asset_server: ResMut<AssetServer>,
 ) {
     //emulator_state.set_next(EmulatorState::Loading("laserdemo".to_string())).unwrap();
-    // let _: Handle<StateFile> = asset_server.load("laserdemo.state");
-
+    if let Err(_) = get_fragment() {
+        let _: Handle<StateFile> = asset_server.load("init-orig.state");
+    }
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
