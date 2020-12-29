@@ -4,10 +4,8 @@ use crate::system::AtariSystem;
 use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::render::pipeline::RenderPipeline;
-use bevy::{
-    render::pipeline::PipelineDescriptor,
-    sprite::QUAD_HANDLE,
-};
+use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
+use emulator_6502::Interface6502;
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
@@ -439,18 +437,9 @@ impl Antic {
         self.dlist = self.dlist_offset(k);
     }
 
-    pub fn prefetch_dlist(&self, ram: &[u8]) -> Option<[u8; 3]> {
-        if self.dmactl.contains(DMACTL::DLIST_DMA)
+    pub fn dlist_dma(&self) -> bool {
+        self.dmactl.contains(DMACTL::DLIST_DMA)
             && (self.scan_line == 8 || self.scan_line == self.next_scan_line)
-        {
-            let mut data: [u8; 3] = [0; 3];
-            data[0] = ram[self.dlist_offset(0) as usize];
-            data[1] = ram[self.dlist_offset(1) as usize];
-            data[2] = ram[self.dlist_offset(2) as usize];
-            Some(data)
-        } else {
-            None
-        }
     }
 
     pub fn set_dlist_data(&mut self, dlist_data: [u8; 3]) {
@@ -546,37 +535,23 @@ impl Antic {
     }
 }
 
-pub fn get_pm_data(system: &AtariSystem, scan_line: usize, n: usize) -> u8 {
+pub fn get_pm_data(system: &mut AtariSystem, scan_line: usize, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
     let offs = if pm_hires {
         0x300 + n * 0x100 + scan_line + (system.antic.pmbase & 0b11111000) as usize * 256
     } else {
         0x180 + n * 0x80 + scan_line / 2 + (system.antic.pmbase & 0b11111100) as usize * 256
     };
-    system.ram[offs & 0xffff]
+    system.read(offs as u16)
 }
 
-pub fn create_line_data(
-    system: &AtariSystem,
-    data_offset: usize,
-) -> LineData {
-    LineData::new(
-        &system.ram[data_offset..data_offset + 48],
-    )
-}
-
-pub fn create_mode_line(
-    commands: &mut Commands,
-    mode_line: &ModeLineDescr,
-    y_extra_offset: f32,
-) {
+pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_extra_offset: f32) {
     // info!("drawing: {:?}", mode_line);
     commands
         .spawn(MeshBundle {
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                ANTIC_PIPELINE_HANDLE.typed()
-                //resources.pipeline_handle.clone_weak(),
+                ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
             )]),
             // visible: Visible {
             //     is_transparent: true,

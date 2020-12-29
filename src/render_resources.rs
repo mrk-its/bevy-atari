@@ -10,6 +10,7 @@ use bevy::render::{
     texture::Texture,
 };
 use std::convert::TryInto;
+use crate::system::AtariSystem;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -24,10 +25,10 @@ impl Default for Charset {
 }
 
 impl Charset {
-    pub fn new(src: &[u8]) -> Self {
-        Self {
-            data: src.try_into().expect("byte slice of length 1024"),
-        }
+    pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
+        let mut charset = Charset::default();
+        system.copy_to_slice(offs, &mut charset.data);
+        charset
     }
 }
 
@@ -39,16 +40,18 @@ impl_render_resource_bytes!(Charset);
 pub struct LineData {
     pub data: [u8; 48],
 }
+
+impl LineData {
+    pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
+        let mut data = LineData::default(); // TODO - perf
+        system.copy_to_slice(offs, &mut data.data);
+        data
+    }
+}
+
 impl Default for LineData {
     fn default() -> Self {
         Self { data: [0; 48] }
-    }
-}
-impl LineData {
-    pub fn new(src: &[u8]) -> Self {
-        Self {
-            data: src.try_into().expect("byte slice of length 48"),
-        }
     }
 }
 

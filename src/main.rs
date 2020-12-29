@@ -28,8 +28,8 @@ use bevy::{
     },
     sprite::QUAD_HANDLE,
 };
-use emulator_6502::MOS6502;
-use render_resources::{AnticLine, AtariPalette, Charset};
+use emulator_6502::{MOS6502, Interface6502};
+use render_resources::{AnticLine, AtariPalette, Charset, LineData};
 use system::AtariSystem;
 use wasm_bindgen::prelude::*;
 
@@ -104,13 +104,13 @@ struct AutoRepeatTimer {
 
 fn keyboard_system(
     mut debug_components: Query<&mut Visible, With<DebugComponent>>,
+    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
     mut autorepeat_disabled: Local<AutoRepeatTimer>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
     mut cpu: ResMut<MOS6502>,
-    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
 ) {
     let handled = if autorepeat_disabled.timer.finished() {
         let mut handled = true;
@@ -121,14 +121,14 @@ fn keyboard_system(
             if !frame.paused {
                 frame.set_breakpoint(BreakPoint::ScanLine(248))
             } else {
-                frame.break_point = None;
+                // frame.break_point = None;
                 frame.paused = false;
             }
         } else if keyboard.pressed(KeyCode::F10) {
             let next_scan_line = (frame.scan_line + 1) % MAX_SCAN_LINES;
             frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
         } else if keyboard.pressed(KeyCode::F11) {
-            if atari_system.ram[cpu.program_counter as usize] == 0x20 {
+            if atari_system.read(cpu.program_counter) == 0x20 {
                 // JSR
                 frame.set_breakpoint(BreakPoint::PC(cpu.program_counter + 3));
             } else {
@@ -172,7 +172,7 @@ fn atascii_to_screen(text: &str, inv: bool) -> Vec<u8> {
 }
 
 fn debug_overlay_system(
-    atari_system: Res<AtariSystem>,
+    mut atari_system: ResMut<AtariSystem>,
     mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
     mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
     mut gtia_debug: Query<&mut atari_text::TextArea, With<GtiaDebug>>,
@@ -203,8 +203,9 @@ fn debug_overlay_system(
         ));
         data.extend(&[0; 18]);
         let pc = cpu.program_counter;
-        let bytes = &atari_system.ram[(pc as usize)..(pc + 48) as usize];
-        if let Ok(instructions) = disasm6502::from_addr_array(bytes, pc) {
+        let mut bytes: [u8; 48] = [0; 48];
+        atari_system.copy_to_slice(pc as usize, &mut bytes);
+        if let Ok(instructions) = disasm6502::from_addr_array(&bytes, pc) {
             for i in instructions.iter().take(16) {
                 let line = format!(" {:04x} {:11} ", i.address, i.as_str());
                 data.extend(atascii_to_screen(&line, i.address == pc));
@@ -215,7 +216,7 @@ fn debug_overlay_system(
 
     for mut text in antic_debug.iter_mut() {
         let status_text = format!(
-            " IR: {:02x}      DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x} ",
+            " IR: {:02x}      DMACTL: {:02x}  CHBASE: {:02x}  HSCROL: {:02x}  VSCROL: {:02x}  PMBASE: {:02x}  VCOUNT: {:02x}  NMIST:  {:02x}  NMIEN:  {:02x} ",
             atari_system.antic.ir(),
             atari_system.antic.dmactl.bits(),
             atari_system.antic.chbase,
@@ -223,6 +224,8 @@ fn debug_overlay_system(
             atari_system.antic.vscrol,
             atari_system.antic.pmbase,
             atari_system.antic.vcount,
+            atari_system.antic.nmist,
+            atari_system.antic.nmien,
         );
         let data = atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
@@ -286,22 +289,25 @@ fn atari_system(
             {
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
                     atari_system.gtia.reg[gtia::GRAFM] =
-                        antic::get_pm_data(&*atari_system, frame.scan_line, 0);
+                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 0);
                 }
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
                     atari_system.gtia.reg[gtia::GRAFP0] =
-                        antic::get_pm_data(&*atari_system, frame.scan_line, 1);
+                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 1);
                     atari_system.gtia.reg[gtia::GRAFP1] =
-                        antic::get_pm_data(&*atari_system, frame.scan_line, 2);
+                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 2);
                     atari_system.gtia.reg[gtia::GRAFP2] =
-                        antic::get_pm_data(&*atari_system, frame.scan_line, 3);
+                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 3);
                     atari_system.gtia.reg[gtia::GRAFP3] =
-                        antic::get_pm_data(&*atari_system, frame.scan_line, 4);
+                        antic::get_pm_data(&mut *atari_system, frame.scan_line, 4);
                 }
             }
 
             frame.is_visible = false;
-            if let Some(dlist_data) = atari_system.antic.prefetch_dlist(&atari_system.ram) {
+            if atari_system.antic.dlist_dma() {
+                let mut dlist_data = [0 as u8; 3];
+                let offs = atari_system.antic.dlist_offset(0) as usize;
+                atari_system.copy_to_slice(offs, &mut dlist_data);
                 atari_system.antic.set_dlist_data(dlist_data);
             }
 
@@ -360,10 +366,8 @@ fn atari_system(
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     // TODO suport 512 byte charsets?
-                    current_line.line_data =
-                        antic::create_line_data(&atari_system, current_line.data_offset);
-                    current_line.charset =
-                        Charset::new(&atari_system.ram[charset_offset..charset_offset + 1024]);
+                    current_line.line_data = LineData::new(&mut atari_system, current_line.data_offset);
+                    current_line.charset = Charset::new(&mut atari_system, charset_offset);
                 }
                 current_line.gtia_regs_array.regs[k].grafm =
                     atari_system.gtia.reg[gtia::GRAFM] as u32;
@@ -468,6 +472,8 @@ fn events(
     asset_server: Res<AssetServer>,
     mut atari_system: ResMut<AtariSystem>,
     mut assets: ResMut<Assets<StateFile>>,
+    mut frame: ResMut<FrameState>,
+    mut cpu: ResMut<MOS6502>,
 ) {
     let f = get_fragment().ok();
     if f.is_some() && f != current_fragment.fragment {
@@ -488,9 +494,33 @@ fn events(
                     right,
                     fire,
                 } => atari_system.set_joystick(port, up, down, left, right, fire),
-                js_api::Message::DraggedFileData { data } => {
-                    assets.add(StateFile { data });
+                js_api::Message::DraggedFileData { data, filename} => {
+                    assets.add(StateFile { data, filename });
                     state.set_next(EmulatorState::Loading).unwrap();
+                }
+                js_api::Message::Command {cmd} => {
+                    let parts = cmd.split(" ").collect::<Vec<_>>();
+                    match parts[0] {
+                        "mem" => {
+                            if let Ok(start) = usize::from_str_radix(parts[1], 16) {
+                                let mut data = [0 as u8; 256];
+                                atari_system.copy_to_slice(start, &mut data);
+                                info!("{:x?}", data);
+                            }
+                        },
+                        "pc" => {
+                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                                cpu.program_counter = pc;
+                            }
+                        }
+                        "brk" => {
+                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                                frame.break_point = Some(BreakPoint::PC(pc));
+                                info!("breakpoint set on pc={:04x}", pc);
+                            }
+                        }
+                        _ => (),
+                    }
                 }
             }
         }

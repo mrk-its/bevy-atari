@@ -328,6 +328,7 @@ impl<'a> Atari800State<'a> {
 #[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
 pub struct StateFile {
     pub data: Vec<u8>,
+    pub filename: String,
 }
 
 #[derive(Default)]
@@ -342,6 +343,7 @@ impl AssetLoader for Atari800StateLoader {
         Box::pin(async move {
             let state_file = StateFile {
                 data: bytes.to_owned(),
+                filename: "".to_string(),
             };
             load_context.set_default_asset(LoadedAsset::new(state_file));
             Ok(())

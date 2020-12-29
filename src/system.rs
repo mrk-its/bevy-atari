@@ -5,7 +5,9 @@ pub use bevy::prelude::*;
 pub use emulator_6502::Interface6502;
 pub use std::{cell::RefCell, rc::Rc};
 pub struct AtariSystem {
-    pub ram: [u8; 65536],
+    pub portb: u8,
+    ram: [u8; 65536],
+    ram2: [u8; 0x4000],
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -16,22 +18,38 @@ impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
         let ram = [0xFF; 65536];
+        let ram2 = [0x00; 0x4000];
         let antic = Antic::default();
         let pokey = Pokey::default();
         let gtia = Gtia::default();
         let pia = PIA::default();
 
         AtariSystem {
+            portb: 0xff,
             ram,
+            ram2,
             antic,
             gtia,
             pokey,
             pia,
         }
     }
+    pub fn copy_from_slice(&mut self, offs: usize, data: &[u8]) {
+        for (i, b) in data.iter().enumerate() {
+            self.write((i + offs) as u16, *b);
+        }
+    }
+    pub fn copy_to_slice(&mut self, offs: usize, data: &mut[u8]) {
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = self.read((i + offs) as u16);
+        }
+    }
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
         self.ram.copy_from_slice(atari800_state.memory.data);
+        self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
+        self.portb = atari800_state.memory.portb;
+
         let gtia = atari800_state.gtia;
         let antic = atari800_state.antic;
         let pokey = atari800_state.pokey;
@@ -107,9 +125,7 @@ impl AtariSystem {
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
-            if !is_shift && !is_ctl {
-                self.pokey.resume();
-            }
+            self.pokey.resume();
             irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift
@@ -130,7 +146,7 @@ impl AtariSystem {
                 || *ev == KeyCode::Left
                 || *ev == KeyCode::Right;
         }
-        if joy_changed {
+        if !is_ctl && joy_changed {
             let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
             let up = keyboard.pressed(KeyCode::Up);
             let down = keyboard.pressed(KeyCode::Down);
@@ -179,6 +195,13 @@ impl Interface6502 for AtariSystem {
             0xD2 => self.pokey.read(addr),
             0xD3 => self.pia.read(addr),
             0xD4 => self.antic.read(addr),
+            0xC0..=0xFF => {
+                if self.portb & 1 == 0 {
+                    self.ram2[addr - 0xc000]
+                } else {
+                    self.ram[addr]
+                }
+            }
             _ => self.ram[addr],
         }
     }
@@ -187,8 +210,18 @@ impl Interface6502 for AtariSystem {
         match addr >> 8 {
             0xD0 => self.gtia.write(addr, value),
             0xD2 => self.pokey.write(addr, value),
-            0xD3 => self.pia.write(addr, value),
+            0xD3 => {
+                self.pia.write(addr, value);
+                if addr & 0x03 == 1 {
+                    self.portb = value;
+                }
+            },
             0xD4 => self.antic.write(addr, value),
+            0xC0..=0xFF => {
+                if self.portb & 1 == 0 {
+                    self.ram2[addr - 0xc000] = value
+                }
+            }
             _ => self.ram[addr] = value,
         }
     }

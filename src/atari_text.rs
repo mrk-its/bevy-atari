@@ -68,6 +68,8 @@ pub struct TextAreaBundle {
 
 impl TextAreaBundle {
     pub fn new(width: f32, height: f32, x_offset: f32, y_offset: f32) -> TextAreaBundle {
+        let mut charset = Charset::default();
+        charset.data.copy_from_slice(CHARSET_DATA);
         TextAreaBundle {
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
@@ -93,7 +95,7 @@ impl TextAreaBundle {
                 fg_color: Color::rgba_u8(0x00, 0xff, 0, 0xff),
                 bg_color: Color::rgba_u8(0x00, 0x40, 0, 0xe0),
                 data: TextAreaData { data: [0; 1024] },
-                charset: Charset::new(CHARSET_DATA),
+                charset,
             },
             ..Default::default()
         }

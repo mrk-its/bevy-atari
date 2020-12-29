@@ -25,7 +25,7 @@
     </style>
   </head>
   <script type="module">
-    import init, {set_joystick, set_state} from './target/wasm.js'
+    import init, {set_joystick, load_file, cmd} from './target/wasm.js'
     async function run() {
       try {
         await init()
@@ -37,7 +37,8 @@
       //   setTimeout(random_moves, 100)
       // }
       // random_moves();
-      window.set_state = set_state;
+      window.load_file = load_file;
+      window.cmd = cmd;
     }
     run();
 
@@ -54,10 +55,10 @@
 
   <script>
     function on_drop_handler(event) {
-      console.log("dropped:", event);
+      let name = event.dataTransfer.files[0].name;
+      console.log("dropped:", event, name);
       event.dataTransfer.files[0].arrayBuffer().then(function(data) {
-        console.log(data);
-        set_state(new Uint8Array(data));
+        load_file(new Uint8Array(data), name);
       })
       event.preventDefault();
     }
