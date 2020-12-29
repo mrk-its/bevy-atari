@@ -8,7 +8,9 @@ pub use std::{cell::RefCell, rc::Rc};
 bitflags! {
     #[derive(Default)]
     pub struct PORTB: u8 {
-        const ROM_ENABLED = 0x01;
+        const OSROM_ENABLED = 0x01;
+        const BASIC_DISABLED = 0x02;
+        const SELFTEST_DISABLED = 0x80;
     }
 }
 
@@ -16,6 +18,7 @@ pub struct AtariSystem {
     portb: PORTB,
     ram: [u8; 65536],
     osrom: [u8; 0x4000],
+    basic: [u8; 0x2000],
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -27,6 +30,7 @@ impl AtariSystem {
         // initialize RAM with all 0xFFs
         let ram = [0xFF; 0x10000];
         let osrom = [0x00; 0x4000];
+        let basic = [0x00; 0x2000];
         let antic = Antic::default();
         let pokey = Pokey::default();
         let gtia = Gtia::default();
@@ -36,6 +40,7 @@ impl AtariSystem {
             portb: PORTB::from_bits_truncate(0xff),
             ram,
             osrom,
+            basic,
             antic,
             gtia,
             pokey,
@@ -58,7 +63,8 @@ impl AtariSystem {
         self.ram.copy_from_slice(atari800_state.memory.data);
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
-        if self.portb.contains(PORTB::ROM_ENABLED) {
+        self.basic.copy_from_slice(atari800_state.memory.basic);
+        if self.portb.contains(PORTB::OSROM_ENABLED) {
             self.ram[0xc000..].copy_from_slice(atari800_state.memory.under_atarixl_os);
         }
 
@@ -203,13 +209,27 @@ impl Interface6502 for AtariSystem {
         // all reads return RAM values directly
         let addr = addr as usize;
         match addr >> 8 {
+            0x50..=0x57 => {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                    self.ram[addr]
+                } else {
+                    self.osrom[0x1000 + (addr & 0x7ff)]
+                }
+            }
+            0xA0..=0xBF => {
+                if !self.portb.contains(PORTB::BASIC_DISABLED) {
+                    self.basic[addr & 0x1fff]
+                } else {
+                    self.ram[addr]
+                }
+            }
             0xD0 => self.gtia.read(addr),
             0xD1 => 0xff,
             0xD2 => self.pokey.read(addr),
             0xD3 => self.pia.read(addr),
             0xD4 => self.antic.read(addr),
             0xC0..=0xFF => {
-                if self.portb.contains(PORTB::ROM_ENABLED) {
+                if self.portb.contains(PORTB::OSROM_ENABLED) {
                     self.osrom[addr & 0x3fff]
                 } else {
                     self.ram[addr]
@@ -221,6 +241,16 @@ impl Interface6502 for AtariSystem {
     fn write(&mut self, addr: u16, value: u8) {
         let addr = addr as usize;
         match addr >> 8 {
+            0x50..=0x5F => {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                    self.ram[addr] = value
+                }
+            }
+            0xA0..=0xBF => {
+                if self.portb.contains(PORTB::BASIC_DISABLED) {
+                    self.ram[addr] = value
+                }
+            }
             0xD0 => self.gtia.write(addr, value),
             0xD2 => self.pokey.write(addr, value),
             0xD3 => {
@@ -231,7 +261,7 @@ impl Interface6502 for AtariSystem {
             },
             0xD4 => self.antic.write(addr, value),
             0xC0..=0xFF => {
-                if !self.portb.contains(PORTB::ROM_ENABLED) {
+                if !self.portb.contains(PORTB::OSROM_ENABLED) {
                     self.ram[addr] = value
                 }
             }

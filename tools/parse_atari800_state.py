@@ -135,6 +135,7 @@ def memory_state_read(f, state):
     if state['atari800']['machine_size'] == Atari800_MACHINE_XLXE:
         if verbose:
             memory['basic'] = f.read(8192)
+            print(repr(memory['basic']))
         memory['carta0bf'] = f.read(8192)
         if verbose:
             memory['os'] = f.read(16384)
