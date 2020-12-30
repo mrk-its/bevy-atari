@@ -55,12 +55,23 @@
 
   <script>
     function on_drop_handler(event) {
+      event.preventDefault();
+      let url = event.dataTransfer.getData("text/plain");
+      if(url) {
+        fetch("https://cors-anywhere.herokuapp.com/" + url).then(
+          function(response) {
+            return response.arrayBuffer()
+          }
+        ).then(function(data) {
+          load_file(new Uint8Array(data), "");
+        })
+        console.log("dropped, url:", url);
+        return;
+      }
       let name = event.dataTransfer.files[0].name;
-      console.log("dropped:", event, name);
       event.dataTransfer.files[0].arrayBuffer().then(function(data) {
         load_file(new Uint8Array(data), name);
       })
-      event.preventDefault();
     }
   </script>
   <body ondrop="on_drop_handler(event);" ondragover="event.preventDefault();">
