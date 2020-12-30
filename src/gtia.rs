@@ -108,7 +108,7 @@ impl Gtia {
             CONSOL => self.consol & self.consol_mask,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
-            _ => 0xff,
+            _ => 0x0f,
         };
         // warn!("GTIA read: {:02x}: {:02x}", addr, value);
         value
