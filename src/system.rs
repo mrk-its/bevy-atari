@@ -139,6 +139,11 @@ impl AtariSystem {
 
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) -> bool {
         let mut irq = false;
+        let start = keyboard.pressed(KeyCode::F2);
+        let select = keyboard.pressed(KeyCode::F3);
+        let option = keyboard.pressed(KeyCode::F4);
+        self.gtia.consol = !((start as u8) | (select as u8) << 1 | (option as u8) << 2) & 0x07;
+
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;

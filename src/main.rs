@@ -297,10 +297,7 @@ fn atari_system(
             {
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
                     let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 0);
-                    atari_system.gtia.write(
-                        gtia::GRAFM,
-                        b,
-                    );
+                    atari_system.gtia.write(gtia::GRAFM, b);
                 }
                 if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
                     let b = antic::get_pm_data(&mut *atari_system, frame.scan_line, 1);

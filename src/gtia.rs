@@ -75,6 +75,8 @@ pub struct Gtia {
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
     pub gractl: GRACTL,
+    pub consol: u8,
+    pub consol_mask: u8,
 }
 
 impl Default for Gtia {
@@ -84,6 +86,8 @@ impl Default for Gtia {
             collisions: [0x00; 0x16],
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
+            consol: 0x7,
+            consol_mask: 0x7,
         }
     }
 }
@@ -101,7 +105,7 @@ impl Gtia {
                     self.collisions[addr]
                 }
             }
-            CONSOL => 0x0f,
+            CONSOL => self.consol & self.consol_mask,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
             _ => 0xff,
@@ -130,6 +134,7 @@ impl Gtia {
             SIZEP0..=SIZEP3 => self.regs.player_size[addr - SIZEP0] = _size_pm(value),
             SIZEM => self.regs.sizem = _size_pm(value) / 4,
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
+            CONSOL => self.consol_mask = 0x7 & !value,
             _ => (),
         }
     }
