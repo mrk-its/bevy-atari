@@ -12,6 +12,9 @@ bitflags! {
         const OSROM_ENABLED = 0x01;
         const BASIC_DISABLED = 0x02;
         const SELFTEST_DISABLED = 0x80;
+        const ANITC_SELECT_NEG = 0x20;
+        const CPU_SELECT_NEG = 0x10;
+        const BANK_MASK = 0b1100;
     }
 }
 
@@ -25,6 +28,7 @@ pub struct AtariSystem {
     pub pokey: Pokey,
     pub pia: PIA,
     pub disk_1: Option<ATR>,
+    ticks: usize,
 }
 
 const OSROM: &[u8] = include_bytes!("../assets/altirraos-xl.rom");
@@ -54,6 +58,7 @@ impl AtariSystem {
             pokey,
             pia,
             disk_1,
+            ticks: 0,
         }
     }
 
@@ -248,6 +253,16 @@ impl AtariSystem {
         );
     }
 
+    pub fn reset(&mut self, cpu: &mut MOS6502, cold: bool) {
+        self.write(0xd301, 0xff); // turn on osrom
+        if cold {
+            self.write(0x244, 255);
+        }
+        cpu.reset(self);
+        self.ticks = 0;
+        self.gtia.consol_force_mask = 0x03;  // force option on reset
+    }
+
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
         let mut irq = false;
         let start = keyboard.pressed(KeyCode::F2);
@@ -260,7 +275,7 @@ impl AtariSystem {
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
             if *ev == KeyCode::F5 {
-                cpu.reset(self)
+                self.reset(cpu, false);
             }
             self.pokey.resume();
             joy_changed = joy_changed
@@ -316,8 +331,12 @@ impl AtariSystem {
         self.pia
             .write_port_a(0xf0, (up | down | left | right) ^ 0xf);
     }
-    pub fn tick(&mut self) {
-        self.pokey.tick()
+    pub fn scanline_tick(&mut self) {
+        self.pokey.scanline_tick();
+        self.ticks += 1;
+        if self.ticks == 15600 {  // ~1sek
+            self.gtia.consol_force_mask = 0x07;
+        }
     }
 }
 

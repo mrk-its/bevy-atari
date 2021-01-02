@@ -89,7 +89,7 @@ impl Default for Gtia {
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
             consol_mask: 0x7,
-            consol_force_mask: 0x3,  // force option on start;
+            consol_force_mask: 0x7,  // force option on start;
         }
     }
 }

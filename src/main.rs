@@ -283,6 +283,7 @@ fn atari_system(
             .antic
             .set_scan_line(frame.scan_line, frame.cycle);
         if frame.cycle == 0 {
+            atari_system.scanline_tick();
             // if frame.scan_line == 8 {
             //     let offs = atari_system.antic.dlist_offset(0) as usize;
             //     info!("dlist: offs: {:04x} {:x?}", offs, &atari_system.ram[offs..offs+128]);
@@ -413,7 +414,6 @@ fn atari_system(
         }
 
         cpu.cycle(&mut *atari_system);
-        atari_system.tick();
         if cpu.remaining_cycles == 0 {
             if atari_system.antic.wsync() {
                 if frame.cycle < 104 {
@@ -474,11 +474,7 @@ fn events(
     for event in guard.drain(..) {
         match event {
             js_api::Message::Reset { cold } => {
-                cpu.reset(&mut *atari_system);
-                atari_system.write(0xd301, 0xff); // turn on osrom
-                if cold {
-                    atari_system.write(0x244, 255);
-                }
+                atari_system.reset(&mut *cpu, cold);
                 *frame = FrameState::default();
                 frame.scan_line = 0;
                 state.set_next(EmulatorState::Running).ok();
@@ -497,8 +493,8 @@ fn events(
                 ..
             } => {
                 match key.as_str() {
-                    "basic" => {atari_system.set_basic(data); cpu.reset(&mut *atari_system);}
-                    "osrom" => {atari_system.set_osrom(data);  cpu.reset(&mut *atari_system);}
+                    "basic" => {atari_system.set_basic(data); atari_system.reset(&mut *cpu, true)}
+                    "osrom" => {atari_system.set_osrom(data); atari_system.reset(&mut *cpu, true)}
                     "disk_1" => {
                         atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
                     }
@@ -704,7 +700,7 @@ fn main() {
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
-    cpu.reset(&mut system);
+    system.reset(&mut cpu, false);
 
     let frame = FrameState::default();
 

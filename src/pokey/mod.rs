@@ -83,9 +83,9 @@ impl Pokey {
         value
     }
 
-    const IDLE_DELAY: usize = 100;
+    const IDLE_DELAY: usize = 2;
 
-    pub fn tick(&mut self) {
+    pub fn scanline_tick(&mut self) {
         for channel in 0..4 {
             if self.delay[channel] == 0 {
                 continue;

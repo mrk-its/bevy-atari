@@ -30,12 +30,12 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
             0x53 => {
                 // status
                 // info!("dskint: read status");
-                // if let Some(_) = atari_system.disk_1 {
-                //     0x01
-                // } else {
-                //     0xff
-                // }
-                0x01
+                if let Some(_) = atari_system.disk_1 {
+                    0x01
+                } else {
+                    0xff
+                }
+                // 0x01
             }
             0x52 => {
                 // read
