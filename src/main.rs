@@ -313,7 +313,7 @@ fn atari_system(
             if atari_system.antic.dlist_dma() {
                 let mut dlist_data = [0 as u8; 3];
                 let offs = atari_system.antic.dlist_offset(0);
-                atari_system.copy_to_slice(offs, &mut dlist_data);
+                atari_system.antic_copy_to_slice(offs, &mut dlist_data);
                 atari_system.antic.set_dlist_data(dlist_data);
             }
 

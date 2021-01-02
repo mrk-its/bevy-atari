@@ -17,7 +17,7 @@ bitflags! {
 
 pub struct AtariSystem {
     portb: PORTB,
-    ram: [u8; 65536],
+    ram: [u8; 0x20000],
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
     pub antic: Antic,
@@ -33,7 +33,7 @@ const BASIC: &[u8] = include_bytes!("../assets/atbasic.bin");
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
-        let ram = [0xFF; 0x10000];
+        let ram = [0x0; 0x20000];
         let mut osrom = [0x00; 0x4000];
         osrom.copy_from_slice(OSROM);
         let mut basic = [0x00; 0x2000];
@@ -54,6 +54,81 @@ impl AtariSystem {
             pokey,
             pia,
             disk_1,
+        }
+    }
+
+    #[inline(always)]
+    fn bank_offset(&self, addr: usize, antic: bool) -> usize {
+        if !antic && !self.portb.contains(PORTB::CPU_SELECT_NEG) || antic && !self.portb.contains(PORTB::ANITC_SELECT_NEG) {
+            (addr & 0x3fff) + 0x10000 + (((self.portb & PORTB::BANK_MASK).bits as usize) << 12)
+        } else {
+            addr
+        }
+    }
+
+    fn _read(&mut self, addr: u16, antic: bool) -> u8 {
+        // all reads return RAM values directly
+        let addr = addr as usize;
+        match addr >> 8 {
+            0x50..=0x57 => {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                    self.ram[self.bank_offset(addr, antic)]
+                } else {
+                    self.osrom[0x1000 + (addr & 0x7ff)]
+                }
+            }
+            0xA0..=0xBF => {
+                if !self.portb.contains(PORTB::BASIC_DISABLED) {
+                    self.basic[addr & 0x1fff]
+                } else {
+                    self.ram[addr]
+                }
+            }
+            0xD0 => self.gtia.read(addr),
+            0xD1 => 0xff,
+            0xD2 => self.pokey.read(addr),
+            0xD3 => self.pia.read(addr),
+            0xD4 => self.antic.read(addr),
+            0xC0..=0xFF => {
+                if self.portb.contains(PORTB::OSROM_ENABLED) {
+                    self.osrom[addr & 0x3fff]
+                } else {
+                    self.ram[addr]
+                }
+            }
+            0x40..=0x7f => self.ram[self.bank_offset(addr, antic)],
+            _ => self.ram[addr],
+        }
+    }
+    fn _write(&mut self, addr: u16, value: u8, antic: bool) {
+        let addr = addr as usize;
+        match addr >> 8 {
+            0x50..=0x5F => {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                    self.ram[self.bank_offset(addr, antic)] = value
+                }
+            }
+            0xA0..=0xBF => {
+                if self.portb.contains(PORTB::BASIC_DISABLED) {
+                    self.ram[addr] = value
+                }
+            }
+            0xD0 => self.gtia.write(addr, value),
+            0xD2 => self.pokey.write(addr, value),
+            0xD3 => {
+                self.pia.write(addr, value);
+                if addr & 0xff == 1 {
+                    self.portb = PORTB::from_bits_truncate(value);
+                }
+            },
+            0xD4 => self.antic.write(addr, value),
+            0xC0..=0xFF => {
+                if !self.portb.contains(PORTB::OSROM_ENABLED) {
+                    self.ram[addr] = value
+                }
+            }
+            0x40..=0x7f => self.ram[self.bank_offset(addr, antic)] = value,
+            _ => self.ram[addr] = value,
         }
     }
 
@@ -83,6 +158,11 @@ impl AtariSystem {
     pub fn copy_to_slice(&mut self, offs: u16, data: &mut[u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self.read(i as u16 + offs);
+        }
+    }
+    pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut[u8]) {
+        for (i, b) in data.iter_mut().enumerate() {
+            *b = self._read(i as u16 + offs, true);
         }
     }
     pub fn readw(&mut self, addr: u16) -> u16 {
@@ -249,66 +329,9 @@ impl Default for AtariSystem {
 
 impl Interface6502 for AtariSystem {
     fn read(&mut self, addr: u16) -> u8 {
-        // all reads return RAM values directly
-        let addr = addr as usize;
-        match addr >> 8 {
-            0x50..=0x57 => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
-                    self.ram[addr]
-                } else {
-                    self.osrom[0x1000 + (addr & 0x7ff)]
-                }
-            }
-            0xA0..=0xBF => {
-                if !self.portb.contains(PORTB::BASIC_DISABLED) {
-                    self.basic[addr & 0x1fff]
-                } else {
-                    self.ram[addr]
-                }
-            }
-            0xD0 => self.gtia.read(addr),
-            0xD1 => 0xff,
-            0xD2 => self.pokey.read(addr),
-            0xD3 => self.pia.read(addr),
-            0xD4 => self.antic.read(addr),
-            0xC0..=0xFF => {
-                if self.portb.contains(PORTB::OSROM_ENABLED) {
-                    self.osrom[addr & 0x3fff]
-                } else {
-                    self.ram[addr]
-                }
-            }
-            _ => self.ram[addr],
-        }
+        self._read(addr, false)
     }
     fn write(&mut self, addr: u16, value: u8) {
-        let addr = addr as usize;
-        match addr >> 8 {
-            0x50..=0x5F => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
-                    self.ram[addr] = value
-                }
-            }
-            0xA0..=0xBF => {
-                if self.portb.contains(PORTB::BASIC_DISABLED) {
-                    self.ram[addr] = value
-                }
-            }
-            0xD0 => self.gtia.write(addr, value),
-            0xD2 => self.pokey.write(addr, value),
-            0xD3 => {
-                self.pia.write(addr, value);
-                if addr & 0xff == 1 {
-                    self.portb = PORTB::from_bits_truncate(value);
-                }
-            },
-            0xD4 => self.antic.write(addr, value),
-            0xC0..=0xFF => {
-                if !self.portb.contains(PORTB::OSROM_ENABLED) {
-                    self.ram[addr] = value
-                }
-            }
-            _ => self.ram[addr] = value,
-        }
+        self._write(addr, value, false)
     }
 }
