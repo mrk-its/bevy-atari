@@ -140,7 +140,7 @@ void main() {
 
         int c = get_byte(data, n);
         int cc = c >> 6;
-        int offs = (c & 0x3f) * 8 + y;
+        int offs = (c & 0x3f) * 8 + (mode == 6 ? y : y / 2);
         int byte = get_byte(charset, offs);
 
         if(((byte >> x) & 1) > 0) {
