@@ -526,7 +526,7 @@ impl Antic {
             consts::DLIST_L => self.dlist = self.dlist & 0xff00 | value as u16,
             consts::DLIST_H => self.dlist = self.dlist & 0xff | ((value as u16) << 8),
             consts::WSYNC => self.wsync = true, // TODO
-            _ => bevy::log::warn!("unsupported antic write reg: {:x?}", addr),
+            _ => (),
         }
     }
 }
