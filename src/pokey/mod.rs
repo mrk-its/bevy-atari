@@ -308,7 +308,6 @@ impl Pokey {
             self.skstat = 0xff;
             false
         };
-        info!("kbcode: {:?} skstat: {:?}", self.kbcode, self.skstat);
         ret
     }
 }

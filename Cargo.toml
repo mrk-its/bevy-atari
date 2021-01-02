@@ -55,6 +55,7 @@ features = [
 
 [patch.crates-io]
 bevy = {path = "../bevy", default-features=false}
+# bevy_webgl2 = {path = "../bevy_webgl2_mvlabat"}
 bevy_webgl2 = {path = "../bevy_webgl2"}
 
 [profile.dev.package."*"]

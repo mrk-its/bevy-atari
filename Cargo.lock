@@ -593,7 +593,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_webgl2"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "bevy",
  "cfg-if 1.0.0",

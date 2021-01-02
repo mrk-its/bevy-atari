@@ -27,7 +27,7 @@ impl Default for Charset {
 impl Charset {
     pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
         let mut charset = Charset::default();
-        system.copy_to_slice(offs, &mut charset.data);
+        system.copy_to_slice(offs as u16, &mut charset.data);
         charset
     }
 }
@@ -44,7 +44,7 @@ pub struct LineData {
 impl LineData {
     pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
         let mut data = LineData::default(); // TODO - perf
-        system.copy_to_slice(offs, &mut data.data);
+        system.copy_to_slice(offs as u16, &mut data.data);
         data
     }
 }

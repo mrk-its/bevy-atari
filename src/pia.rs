@@ -7,10 +7,19 @@ const PACTL: usize = 2;
 #[allow(dead_code)]
 const PBCTL: usize = 3;
 
+bitflags! {
+    #[derive(Default)]
+    pub struct PORTB: u8 {
+        const OSROM_ENABLED = 0x01;
+        const BASIC_DISABLED = 0x02;
+        const SELFTEST_DISABLED = 0x80;
+    }
+}
+
 impl Default for PIA {
     fn default() -> Self {
         Self {
-            regs: [0xff, 0xff, 0x3f, 0x3f],
+            regs: [0xff, 0xff, 0xff, 0xff],
         }
     }
 }
@@ -18,16 +27,15 @@ impl Default for PIA {
 impl PIA {
     pub fn read(&self, addr: usize) -> u8 {
         let addr = addr & 0x3;
-        let value = self.regs[addr];
-        //warn!("PIA read: {:02x}: {:02x}", addr, value);
-        value
+        self.regs[addr]
     }
-    pub fn write(&mut self, addr: usize, _value: u8) {
-        let _addr = addr & 0x3;
-        //warn!("PIA write: {:02x}: {:02x}", addr, value);
+    pub fn write(&mut self, addr: usize, value: u8) {
+        let addr = addr & 0x3;
+        if addr != PORTA {  // TODO
+            self.regs[addr] = value;
+        }
     }
-    pub fn write_port(&mut self, port: usize, mask: u8, value: u8) {
-        let index = PORTA + port & 1;
-        self.regs[index] = self.regs[index] & mask | value;
+    pub fn write_port_a(&mut self, mask: u8, value: u8) {
+        self.regs[PORTA] = self.regs[PORTA] & mask | value;
     }
 }

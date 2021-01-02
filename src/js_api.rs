@@ -14,12 +14,16 @@ pub enum Message {
         right: bool,
         fire: bool,
     },
-    DraggedFileData {
-        data: Vec<u8>,
+    BinaryData {
+        key: String,
         filename: String,
+        data: Option<Vec<u8>>,
     },
     Command {
         cmd: String,
+    },
+    Reset {
+        cold: bool,
     },
 }
 
@@ -39,14 +43,26 @@ pub fn set_joystick(port: usize, up: bool, down: bool, left: bool, right: bool, 
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn load_file(data: Vec<u8>, filename: String) {
+pub fn set_binary_data(key: String, filename: String, data: Vec<u8>) {
     let mut guard = ARRAY.write();
-    guard.push(Message::DraggedFileData { data, filename});
+    let data = if data.len() > 0 { Some(data) } else { None };
+    guard.push(Message::BinaryData {
+        key,
+        filename,
+        data,
+    });
 }
 
 #[allow(dead_code)]
 #[wasm_bindgen]
 pub fn cmd(cmd: String) {
     let mut guard = ARRAY.write();
-    guard.push(Message::Command { cmd});
+    guard.push(Message::Command { cmd });
+}
+
+#[allow(dead_code)]
+#[wasm_bindgen]
+pub fn reset(cold: bool) {
+    let mut guard = ARRAY.write();
+    guard.push(Message::Reset { cold });
 }

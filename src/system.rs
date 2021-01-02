@@ -2,8 +2,9 @@ use crate::atari800_state::Atari800State;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
-pub use emulator_6502::Interface6502;
+pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
+use crate::atr::ATR;
 
 bitflags! {
     #[derive(Default)]
@@ -23,18 +24,25 @@ pub struct AtariSystem {
     pub gtia: Gtia,
     pub pokey: Pokey,
     pub pia: PIA,
+    pub disk_1: Option<ATR>,
 }
+
+const OSROM: &[u8] = include_bytes!("../assets/altirraos-xl.rom");
+const BASIC: &[u8] = include_bytes!("../assets/atbasic.bin");
 
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
         let ram = [0xFF; 0x10000];
-        let osrom = [0x00; 0x4000];
-        let basic = [0x00; 0x2000];
+        let mut osrom = [0x00; 0x4000];
+        osrom.copy_from_slice(OSROM);
+        let mut basic = [0x00; 0x2000];
+        basic.copy_from_slice(BASIC);
         let antic = Antic::default();
         let pokey = Pokey::default();
         let gtia = Gtia::default();
         let pia = PIA::default();
+        let disk_1 = None;
 
         AtariSystem {
             portb: PORTB::from_bits_truncate(0xff),
@@ -45,17 +53,40 @@ impl AtariSystem {
             gtia,
             pokey,
             pia,
+            disk_1,
         }
     }
+
+    pub fn set_osrom(&mut self, data: Option<Vec<u8>>) {
+        let data = if let Some(data) = data.as_ref() {
+            data
+        } else {
+            OSROM
+        };
+        self.osrom.copy_from_slice(data);
+    }
+
+    pub fn set_basic(&mut self, data: Option<Vec<u8>>) {
+        let data = if let Some(data) = data.as_ref() {
+            data
+        } else {
+            BASIC
+        };
+        self.basic.copy_from_slice(data);
+    }
+
     pub fn copy_from_slice(&mut self, offs: usize, data: &[u8]) {
         for (i, b) in data.iter().enumerate() {
             self.write((i + offs) as u16, *b);
         }
     }
-    pub fn copy_to_slice(&mut self, offs: usize, data: &mut[u8]) {
+    pub fn copy_to_slice(&mut self, offs: u16, data: &mut[u8]) {
         for (i, b) in data.iter_mut().enumerate() {
-            *b = self.read((i + offs) as u16);
+            *b = self.read(i as u16 + offs);
         }
+    }
+    pub fn readw(&mut self, addr: u16) -> u16 {
+        self.read(addr) as u16 + 256 * self.read(addr+1) as u16
     }
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
@@ -137,7 +168,7 @@ impl AtariSystem {
         );
     }
 
-    pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>) -> bool {
+    pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
         let mut irq = false;
         let start = keyboard.pressed(KeyCode::F2);
         let select = keyboard.pressed(KeyCode::F3);
@@ -148,8 +179,10 @@ impl AtariSystem {
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
+            if *ev == KeyCode::F5 {
+                cpu.reset(self)
+            }
             self.pokey.resume();
-            irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift
                 || *ev == KeyCode::RShift
@@ -157,10 +190,12 @@ impl AtariSystem {
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left
                 || *ev == KeyCode::Right;
+            if !joy_changed || is_ctl {
+                irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
+            }
         }
 
         for ev in keyboard.get_just_released() {
-            self.pokey.key_press(ev, false, is_shift, is_ctl);
             joy_changed = joy_changed
                 || *ev == KeyCode::LShift
                 || *ev == KeyCode::RShift
@@ -168,6 +203,9 @@ impl AtariSystem {
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left
                 || *ev == KeyCode::Right;
+            if !joy_changed || is_ctl {
+                self.pokey.key_press(ev, false, is_shift, is_ctl);
+            }
         }
         if !is_ctl && joy_changed {
             let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
@@ -196,7 +234,7 @@ impl AtariSystem {
         let left = left as u8 * 4;
         let right = right as u8 * 8;
         self.pia
-            .write_port(0, 0xf0, (up | down | left | right) ^ 0xf);
+            .write_port_a(0xf0, (up | down | left | right) ^ 0xf);
     }
     pub fn tick(&mut self) {
         self.pokey.tick()
@@ -260,7 +298,7 @@ impl Interface6502 for AtariSystem {
             0xD2 => self.pokey.write(addr, value),
             0xD3 => {
                 self.pia.write(addr, value);
-                if addr & 0x03 == 1 {
+                if addr & 0xff == 1 {
                     self.portb = PORTB::from_bits_truncate(value);
                 }
             },

@@ -1,6 +1,8 @@
 #[macro_use]
 extern crate bitflags;
 use std::io::prelude::*;
+pub mod atr;
+pub mod sio;
 
 pub mod antic;
 mod atari800_state;
@@ -13,7 +15,6 @@ pub mod pokey;
 mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, MAX_SCAN_LINES, SCAN_LINE_CYCLES};
-use atari800_state::{Atari800StateLoader, StateFile};
 use bevy::reflect::TypeUuid;
 use bevy::winit::WinitConfig;
 use bevy::{
@@ -31,7 +32,6 @@ use bevy::{
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::{AnticLine, AtariPalette, Charset, LineData};
 use system::AtariSystem;
-use wasm_bindgen::prelude::*;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
@@ -46,9 +46,7 @@ pub struct GtiaDebug;
 
 #[derive(Clone, Debug)]
 enum EmulatorState {
-    Loading,
     Running,
-    Debugging,
 }
 
 #[derive(Debug, Default)]
@@ -156,7 +154,7 @@ fn keyboard_system(
         break;
     }
     autorepeat_disabled.timer.tick(time.delta_seconds());
-    if !handled && atari_system.handle_keyboard(&keyboard) {
+    if !handled && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
         cpu.interrupt_request();
     }
 }
@@ -205,7 +203,7 @@ fn debug_overlay_system(
         data.extend(&[0; 18]);
         let pc = cpu.program_counter;
         let mut bytes: [u8; 48] = [0; 48];
-        atari_system.copy_to_slice(pc as usize, &mut bytes);
+        atari_system.copy_to_slice(pc, &mut bytes);
         if let Ok(instructions) = disasm6502::from_addr_array(&bytes, pc) {
             for i in instructions.iter().take(16) {
                 let line = format!(" {:04x} {:11} ", i.address, i.as_str());
@@ -233,13 +231,14 @@ fn debug_overlay_system(
     }
     for mut text in gtia_debug.iter_mut() {
         let status_text = format!(
-            " COLBK:  {:02x}  COLPF0: {:02x}  COLPF1: {:02x}  COLPF2: {:02x}  COLPF3: {:02x}  PRIOR:  {:02x} ",
+            " COLBK:  {:02x}  COLPF0: {:02x}  COLPF1: {:02x}  COLPF2: {:02x}  COLPF3: {:02x}  PRIOR:  {:02x}  CONSOL: {:02x} ",
             atari_system.gtia.regs.colors[0] as u8,
             atari_system.gtia.regs.colors[1] as u8,
             atari_system.gtia.regs.colors[2] as u8,
             atari_system.gtia.regs.colors[3] as u8,
             atari_system.gtia.regs.colors[4] as u8,
             atari_system.gtia.regs.prior as u8,
+            atari_system.gtia.consol,
         );
         let data = atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
@@ -253,11 +252,12 @@ fn debug_overlay_system(
 
 fn atari_system(
     commands: &mut Commands,
-    mut state: ResMut<State<EmulatorState>>,
     antic_lines: Query<(Entity, &AnticLine)>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
+    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
+    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
 ) {
     if frame.paused {
         return;
@@ -275,11 +275,9 @@ fn atari_system(
     }
 
     loop {
-        if cpu.program_counter == 0 {
-            info!("returning to emulator");
-            state.set_next(EmulatorState::Loading).ok();
-            // return to emulator
-            return;
+        match cpu.program_counter {
+            0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
+            _ => (),
         }
         atari_system
             .antic
@@ -314,7 +312,7 @@ fn atari_system(
             frame.is_visible = false;
             if atari_system.antic.dlist_dma() {
                 let mut dlist_data = [0 as u8; 3];
-                let offs = atari_system.antic.dlist_offset(0) as usize;
+                let offs = atari_system.antic.dlist_offset(0);
                 atari_system.copy_to_slice(offs, &mut dlist_data);
                 atari_system.antic.set_dlist_data(dlist_data);
             }
@@ -344,7 +342,7 @@ fn atari_system(
                 }
             }
         }
-        if frame.nmireq && frame.cycle >= 0 {
+        if frame.nmireq && frame.cycle >= 5 {
             frame.nmireq = false;
             if atari_system.antic.is_vbi() {
                 atari_system.antic.set_vbi();
@@ -428,11 +426,15 @@ fn atari_system(
             if let Some(BreakPoint::PC(pc)) = frame.break_point {
                 if cpu.program_counter == pc {
                     frame.clear_break_point();
+                    frame.is_debug = true;
+                    set_debug(true, &mut debug_components, &mut camera_query);
                 }
             }
             if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
                 if cpu.program_counter != pc {
                     frame.clear_break_point();
+                    frame.is_debug = true;
+                    set_debug(true, &mut debug_components, &mut camera_query);
                 }
             }
         }
@@ -444,6 +446,8 @@ fn atari_system(
                 if *scan_line == frame.scan_line {
                     frame.paused = true;
                     frame.break_point = None;
+                    frame.is_debug = true;
+                    set_debug(true, &mut debug_components, &mut camera_query);
                     break;
                 }
             }
@@ -460,218 +464,90 @@ fn atari_system(
 pub const SCANLINE_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
-#[derive(Default)]
-struct Xex {
-    data: Vec<u8>,
-    offs: usize,
-}
-
-const INIT_ADDR: usize = 0x2e2;
-const RUN_ADDR: usize = 0x2e0;
-
-impl Xex {
-    pub fn new(data: &[u8]) -> Self {
-        Xex {
-            data: data.to_owned(),
-            offs: 0,
-        }
-    }
-    pub fn in_progress(&self) -> bool {
-        self.offs < self.data.len()
-    }
-
-    pub fn load(
-        &mut self,
-        atari_system: &mut AtariSystem,
-        cpu: &mut MOS6502,
-        frame: &mut FrameState,
-    ) -> bool {
-        info!("loading xex!");
-        fn get_word(intf: &mut dyn Interface6502, addr: usize) -> u16 {
-            intf.read(addr as u16) as u16 + 256 * intf.read(addr as u16 + 1) as u16
-        }
-        fn set_word(intf: &mut dyn Interface6502, addr: usize, value: u16) {
-            intf.write(addr as u16, (value & 0xff) as u8);
-            intf.write(addr as u16 + 1, (value >> 8) as u8);
-        }
-
-        set_word(&mut *atari_system, RUN_ADDR, 0);
-
-        while self.offs < self.data.len() {
-            set_word(&mut *atari_system, INIT_ADDR, 0);
-            let mut begin = self.get_next_word() as usize;
-            if begin == 0xffff {
-                begin = self.get_next_word() as usize;
-            }
-            let end = self.get_next_word() as usize;
-            info!("block begin: {:04x}, end: {:04x}", begin, end);
-            let len = end - begin + 1;
-            let block_data = &self.data[self.offs..self.offs + len];
-            self.offs += len;
-            atari_system.copy_from_slice(begin, block_data);
-            let init_addr = get_word(&mut *atari_system, INIT_ADDR);
-            if init_addr != 0 {
-                info!("init addr: {:4x}", init_addr);
-                cpu.program_counter = init_addr;
-                cpu.accumulator = 0;
-                cpu.x_register = 0;
-                cpu.y_register = 0;
-                atari_system.write(0x1ff, 0xff);
-                atari_system.write(0x1fe, 0xff);
-                cpu.stack_pointer = 0xfd;
-                return false;
-            }
-        }
-        let pc = get_word(&mut *atari_system, RUN_ADDR);
-        if pc != 0 {
-            info!("run address: {:04x}", pc);
-            cpu.program_counter = pc;
-            cpu.accumulator = 0;
-            cpu.x_register = 0;
-            cpu.y_register = 0;
-            atari_system.write(0x1ff, 0xff);
-            atari_system.write(0x1fe, 0xff);
-            cpu.stack_pointer = 0xfd;
-            return true;
-        }
-        false
-    }
-
-    fn get_next_word(&mut self) -> u16 {
-        let w = self.data[self.offs] as u16 + 256 * self.data[self.offs + 1] as u16;
-        self.offs += 2;
-        w
-    }
-}
-
-fn loading(
-    mut xex: Local<Xex>,
-    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
-    mut state: ResMut<State<EmulatorState>>,
-    mut assets: ResMut<Assets<StateFile>>,
-    mut atari_system: ResMut<AtariSystem>,
-    mut frame: ResMut<FrameState>,
-    mut cpu: ResMut<MOS6502>,
-) {
-    if let Some((_, state_file)) = assets.iter().next() {
-        if &state_file.data[0..2] == &[255, 255] {
-            *xex = Xex::new(&state_file.data)
-        } else {
-            let data = gunzip(&state_file.data);
-            let a800_state = atari800_state::Atari800State::new(&data);
-            a800_state.reload(&mut *atari_system, &mut *cpu);
-            *frame = FrameState::default();
-            frame.scan_line = 248;
-            state.set_next(EmulatorState::Running).ok();
-            info!("LOADED! {:?}", *state);
-        }
-    }
-    assets.clear();
-
-    if xex.in_progress() {
-        if xex.load(&mut *atari_system, &mut *cpu, &mut *frame) {
-            state.set_next(EmulatorState::Running).ok();
-        // frame.paused = true;
-        // frame.is_debug = true;
-        // set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
-        // frame.break_point = Some(BreakPoint::PC(0x1d00));
-        } else {
-            state.set_next(EmulatorState::Running).ok();
-            // frame.paused = true;
-            // frame.is_debug = true;
-            // set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
-            // frame.break_point = Some(BreakPoint::PC(0x1e00));
-        }
-    }
-
-    // if let Some((_, state_file)) = assets.iter().next() {
-    //     if &state_file.data[0..2] == &[255, 255] {
-    //         load_xex(&mut *atari_system, &mut *cpu, &mut *frame, &state_file.data);
-    //     } else {
-    //         let data = gunzip(&state_file.data);
-    //         let a800_state = atari800_state::Atari800State::new(&data);
-    //         a800_state.reload(&mut *atari_system, &mut *cpu);
-    //         *frame = FrameState::default();
-    //         frame.scan_line = 248;
-    //         info!("LOADED! {:?}", *state);
-    //     }
-    // }
-    // assets.clear();
-    // state.set_next(EmulatorState::Running).ok();
-
-    // state.set_next(EmulatorState::Running).ok();
-}
-
-#[derive(Default)]
-struct FragmentState {
-    fragment: Option<String>,
-}
-pub fn get_fragment() -> Result<String, JsValue> {
-    let win = web_sys::window().unwrap();
-    let loc = win.location();
-    let v = loc.hash()?;
-    if v == "" {
-        return Err(JsValue::NULL);
-    }
-    Ok(v[1..].to_string())
-}
-
 fn events(
     mut state: ResMut<State<EmulatorState>>,
-    mut current_fragment: Local<FragmentState>,
-    asset_server: Res<AssetServer>,
     mut atari_system: ResMut<AtariSystem>,
-    mut assets: ResMut<Assets<StateFile>>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
 ) {
-    let f = get_fragment().ok();
-    if f.is_some() && f != current_fragment.fragment {
-        current_fragment.fragment = f;
-        state.set_next(EmulatorState::Loading).ok();
-        let _: Handle<StateFile> = asset_server
-            .load(format!("{}.state", current_fragment.fragment.as_ref().unwrap()).as_str());
-    }
-    {
-        let mut guard = js_api::ARRAY.write();
-        for event in guard.drain(..) {
-            match event {
-                js_api::Message::JoyState {
-                    port,
-                    up,
-                    down,
-                    left,
-                    right,
-                    fire,
-                } => atari_system.set_joystick(port, up, down, left, right, fire),
-                js_api::Message::DraggedFileData { data, filename } => {
-                    assets.add(StateFile { data, filename });
-                    state.set_next(EmulatorState::Loading).unwrap();
+    let mut guard = js_api::ARRAY.write();
+    for event in guard.drain(..) {
+        match event {
+            js_api::Message::Reset { cold } => {
+                cpu.reset(&mut *atari_system);
+                atari_system.write(0xd301, 0xff); // turn on osrom
+                if cold {
+                    atari_system.write(0x244, 255);
                 }
-                js_api::Message::Command { cmd } => {
-                    let parts = cmd.split(" ").collect::<Vec<_>>();
-                    match parts[0] {
-                        "mem" => {
-                            if let Ok(start) = usize::from_str_radix(parts[1], 16) {
-                                let mut data = [0 as u8; 256];
-                                atari_system.copy_to_slice(start, &mut data);
-                                info!("{:x?}", data);
-                            }
-                        }
-                        "pc" => {
-                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                cpu.program_counter = pc;
-                            }
-                        }
-                        "brk" => {
-                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                frame.break_point = Some(BreakPoint::PC(pc));
-                                info!("breakpoint set on pc={:04x}", pc);
-                            }
-                        }
-                        _ => (),
+                *frame = FrameState::default();
+                frame.scan_line = 0;
+                state.set_next(EmulatorState::Running).ok();
+            }
+            js_api::Message::JoyState {
+                port,
+                up,
+                down,
+                left,
+                right,
+                fire,
+            } => atari_system.set_joystick(port, up, down, left, right, fire),
+            js_api::Message::BinaryData {
+                key,
+                data,
+                ..
+            } => {
+                match key.as_str() {
+                    "basic" => {atari_system.set_basic(data); cpu.reset(&mut *atari_system);}
+                    "osrom" => {atari_system.set_osrom(data);  cpu.reset(&mut *atari_system);}
+                    "disk_1" => {
+                        atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
                     }
+                    "state" => {
+                        if let Some(data) = data {
+                            let data = gunzip(&data);
+                            let a800_state = atari800_state::Atari800State::new(&data);
+                            a800_state.reload(&mut *atari_system, &mut *cpu);
+                            *frame = FrameState::default();
+                            frame.scan_line = 248;
+                            state.set_next(EmulatorState::Running).ok();
+                            info!("LOADED! {:?}", *state);
+                        }
+                    }
+                    _ => {
+                        warn!("unknown binary");
+                    }
+                }
+            }
+            js_api::Message::Command { cmd } => {
+                let parts = cmd.split(" ").collect::<Vec<_>>();
+                match parts[0] {
+                    "mem" => {
+                        if let Ok(start) = u16::from_str_radix(parts[1], 16) {
+                            let mut data = [0 as u8; 256];
+                            atari_system.copy_to_slice(start, &mut data);
+                            info!("{:x?}", data);
+                        }
+                    }
+                    "write" => {
+                        if let Ok(addr) = u16::from_str_radix(parts[1], 16) {
+                            if let Ok(value) = u8::from_str_radix(parts[2], 16) {
+                                atari_system.write(addr, value);
+                                info!("write {:04x} <- {:02x}", addr, value);
+                            }
+                        }
+                    }
+                    "pc" => {
+                        if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                            cpu.program_counter = pc;
+                        }
+                    }
+                    "brk" => {
+                        if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                            frame.break_point = Some(BreakPoint::PC(pc));
+                            info!("breakpoint set on pc={:04x}", pc);
+                        }
+                    }
+                    _ => (),
                 }
             }
         }
@@ -704,12 +580,7 @@ fn setup(
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut palettes: ResMut<Assets<AtariPalette>>,
     mut render_graph: ResMut<RenderGraph>,
-    asset_server: ResMut<AssetServer>,
 ) {
-    //emulator_state.set_next(EmulatorState::Loading("laserdemo".to_string())).unwrap();
-    if let Err(_) = get_fragment() {
-        let _: Handle<StateFile> = asset_server.load("init-orig.state");
-    }
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
@@ -831,27 +702,26 @@ fn main() {
 
     // app.add_stage_before("UPDATE", "pre_update", SystemStage::parallel());
 
+    let mut system = AtariSystem::new();
+    let mut cpu = MOS6502::default();
+    cpu.reset(&mut system);
+
+    let frame = FrameState::default();
+
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_asset::<AnticLine>()
         .add_asset::<AtariPalette>()
         .add_asset::<StandardMaterial>()
-        .add_asset::<StateFile>()
-        .init_asset_loader::<Atari800StateLoader>()
-        .add_resource(State::new(EmulatorState::Loading))
+        .add_resource(State::new(EmulatorState::Running))
         .add_resource(ClearColor(gtia::atari_color(0)))
-        .add_resource(AtariSystem::new())
-        .add_resource(MOS6502::default())
-        .add_resource(FrameState::default())
+        .add_resource(system)
+        .add_resource(cpu)
+        .add_resource(frame)
         .add_startup_system(setup.system())
         .add_stage_after(
             stage::UPDATE,
             "running",
-            StateStage::<EmulatorState>::default(),
-        )
-        .add_stage_after(
-            stage::UPDATE,
-            "debugging",
             StateStage::<EmulatorState>::default(),
         )
         .add_stage_after(
@@ -868,8 +738,6 @@ fn main() {
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
-        .on_state_update("debugging", EmulatorState::Debugging, atari_system.system())
-        .on_state_update("loading", EmulatorState::Loading, loading.system())
         .add_system(events.system())
         .run();
 }

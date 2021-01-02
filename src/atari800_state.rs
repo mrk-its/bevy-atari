@@ -1,8 +1,4 @@
-use bevy::reflect::TypeUuid;
-use bevy::{
-    asset::{AssetLoader, LoadedAsset},
-    prelude::*,
-};
+use bevy::prelude::*;
 use emulator_6502::MOS6502;
 
 #[derive(Debug, Clone, Copy)]
@@ -321,36 +317,5 @@ impl<'a> Atari800State<'a> {
             cpu,
             memory,
         }
-    }
-}
-
-#[derive(TypeUuid)]
-#[uuid = "bc6b887f-3a1e-49f2-b101-8e14ab5ceaff"]
-pub struct StateFile {
-    pub data: Vec<u8>,
-    pub filename: String,
-}
-
-#[derive(Default)]
-pub struct Atari800StateLoader;
-
-impl AssetLoader for Atari800StateLoader {
-    fn load<'a>(
-        &'a self,
-        bytes: &'a [u8],
-        load_context: &'a mut bevy::asset::LoadContext,
-    ) -> bevy::utils::BoxedFuture<'a, Result<(), anyhow::Error>> {
-        Box::pin(async move {
-            let state_file = StateFile {
-                data: bytes.to_owned(),
-                filename: "".to_string(),
-            };
-            load_context.set_default_asset(LoadedAsset::new(state_file));
-            Ok(())
-        })
-    }
-
-    fn extensions(&self) -> &[&str] {
-        &["state"]
     }
 }

@@ -77,6 +77,7 @@ pub struct Gtia {
     pub gractl: GRACTL,
     pub consol: u8,
     pub consol_mask: u8,
+    pub consol_force_mask: u8,
 }
 
 impl Default for Gtia {
@@ -88,6 +89,7 @@ impl Default for Gtia {
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
             consol_mask: 0x7,
+            consol_force_mask: 0x3,  // force option on start;
         }
     }
 }
@@ -98,14 +100,14 @@ impl Gtia {
         let value = match addr {
             0x0..=0xf => {
                 //info!("reading collisions at {:x}", addr);
-                if addr == 6 || addr == 7 {
+                if false && (addr == 6 || addr == 7) {
                     // Player2/3 collisions with playfield, for Fred
                     0xff
                 } else {
                     self.collisions[addr]
                 }
             }
-            CONSOL => self.consol & self.consol_mask,
+            CONSOL => self.consol & self.consol_mask & self.consol_force_mask,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
             _ => 0x0f,
