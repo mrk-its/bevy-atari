@@ -14,7 +14,7 @@ pub mod pia;
 pub mod pokey;
 mod render_resources;
 mod system;
-use antic::{create_mode_line, ModeLineDescr, MAX_SCAN_LINES, SCAN_LINE_CYCLES};
+use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 use bevy::reflect::TypeUuid;
 use bevy::winit::WinitConfig;
 use bevy::{
@@ -66,8 +66,6 @@ enum BreakPoint {
 #[derive(Default, Debug)]
 struct FrameState {
     is_debug: bool,
-    is_visible: bool,
-    nmireq: bool,
     current_mode: Option<ModeLineDescr>,
     paused: bool,
     break_point: Option<BreakPoint>,
@@ -119,7 +117,7 @@ fn keyboard_system(
                 frame.paused = false;
             }
         } else if keyboard.pressed(KeyCode::F10) {
-            let next_scan_line = (atari_system.antic.scan_line + 1) % MAX_SCAN_LINES;
+            let next_scan_line = atari_system.antic.get_next_scanline();
             frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
         } else if keyboard.pressed(KeyCode::F11) {
             if atari_system.read(cpu.program_counter) == 0x20 {
@@ -273,10 +271,6 @@ fn atari_system(
         }
         if atari_system.antic.cycle == 0 {
             atari_system.scanline_tick();
-            // if atari_system.antic.scan_line == 8 {
-            //     let offs = atari_system.antic.dlist_offset(0) as usize;
-            //     info!("dlist: offs: {:04x} {:x?}", offs, &atari_system.ram[offs..offs+128]);
-            // }
 
             if atari_system
                 .antic
@@ -299,7 +293,6 @@ fn atari_system(
                 }
             }
 
-            frame.is_visible = false;
             if atari_system.antic.dlist_dma() {
                 let mut dlist_data = [0 as u8; 3];
                 let offs = atari_system.antic.dlist_offset(0);
@@ -308,14 +301,7 @@ fn atari_system(
             }
 
             atari_system.antic.update_dma_cycles();
-
-            if atari_system.antic.is_vbi() {
-                frame.nmireq = true;
-            } else {
-                if atari_system.antic.is_dli() {
-                    frame.nmireq = true;
-                }
-            }
+            atari_system.antic.check_nmi();
             if atari_system.antic.wsync() {
                 atari_system.antic.clear_wsync();
                 atari_system.antic.cycle = 105;
@@ -324,21 +310,10 @@ fn atari_system(
                 }
             }
         }
-        if frame.nmireq && atari_system.antic.cycle >= 5 {
-            frame.nmireq = false;
-            if atari_system.antic.is_vbi() {
-                atari_system.antic.set_vbi();
-                if atari_system.antic.nmien.contains(antic::NMIEN::VBI) {
-                    cpu.non_maskable_interrupt_request();
-                }
-            } else {
-                atari_system.antic.set_dli();
-                if atari_system.antic.nmien.contains(antic::NMIEN::DLI) {
-                    cpu.non_maskable_interrupt_request();
-                }
-            }
+        if atari_system.antic.fire_nmi() {
+            cpu.non_maskable_interrupt_request();
         }
-        if atari_system.antic.cycle >= atari_system.antic.visible_cycle && !frame.is_visible {
+        if atari_system.antic.gets_visible() {
             // info!("here: {} {}", atari_system.antic.cycle, frame.visible_cycle);
             if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line == atari_system.antic.start_scan_line {
                 // info!("creating mode line, cycle: {:?}", atari_system.antic.cycle);
@@ -375,14 +350,12 @@ fn atari_system(
                     current_line.charset = Charset::new(&mut atari_system, charset_offset);
                 }
             }
-            frame.is_visible = true;
         }
 
-        if atari_system.antic.cycle == atari_system.antic.visible_cycle {
-            atari_system.antic.cycle += atari_system.antic.dma_cycles;
-        }
+        atari_system.antic.steal_cycles();
 
         cpu.cycle(&mut *atari_system);
+
         if cpu.remaining_cycles == 0 {
             if atari_system.antic.wsync() {
                 if atari_system.antic.cycle < 104 {
@@ -392,19 +365,22 @@ fn atari_system(
                     atari_system.antic.cycle = SCAN_LINE_CYCLES - 1;
                 }
             }
-            if let Some(BreakPoint::PC(pc)) = frame.break_point {
-                if cpu.program_counter == pc {
-                    frame.clear_break_point();
-                    frame.is_debug = true;
-                    set_debug(true, &mut debug_components, &mut camera_query);
+            match frame.break_point {
+                Some(BreakPoint::PC(pc)) => {
+                    if cpu.program_counter == pc {
+                        frame.clear_break_point();
+                        frame.is_debug = true;
+                        set_debug(true, &mut debug_components, &mut camera_query);
+                    }
                 }
-            }
-            if let Some(BreakPoint::NotPC(pc)) = frame.break_point {
-                if cpu.program_counter != pc {
-                    frame.clear_break_point();
-                    frame.is_debug = true;
-                    set_debug(true, &mut debug_components, &mut camera_query);
+                Some(BreakPoint::NotPC(pc)) => {
+                    if cpu.program_counter != pc {
+                        frame.clear_break_point();
+                        frame.is_debug = true;
+                        set_debug(true, &mut debug_components, &mut camera_query);
+                    }
                 }
+                _ => (),
             }
         }
         atari_system.antic.inc_cycle();

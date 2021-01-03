@@ -98,15 +98,16 @@ pub struct Antic {
     pub vscrol: u8,
     pub pmbase: u8,
     pub dlist: u16,
+    nmireq: bool,
     pub cycle: usize,
-    pub visible_cycle: usize,
-    pub dma_cycles: usize,
+    visible_cycle: usize,
+    dma_cycles: usize,
     pub scan_line: usize,
     pub vcount: u8,
     pub video_memory: usize,
     wsync: bool,
     is_visible: bool,
-    pub is_vscroll: bool,
+    is_vscroll: bool,
 }
 
 #[derive(Default, Debug, Copy, Clone)]
@@ -260,13 +261,18 @@ impl Antic {
     pub fn mode(&self) -> u8 {
         self.dlist_data[0] & 0xf
     }
+
     #[inline]
     pub fn opts(&self) -> MODE_OPTS {
         MODE_OPTS::from_bits_truncate(self.dlist_data[0])
     }
+
+    #[inline(always)]
     pub fn ir(&self) -> u8 {
         self.dlist_data[0]
     }
+
+    #[inline(always)]
     pub fn inc_cycle(&mut self) {
         self.cycle = (self.cycle + 1) % SCAN_LINE_CYCLES;
         if self.cycle == 0 {
@@ -279,6 +285,11 @@ impl Antic {
             self.line_voffset = 0;
         }
     }
+
+    pub fn get_next_scanline(&self) -> usize {
+        return (self.scan_line + 1) % MAX_SCAN_LINES
+    }
+
     fn playfield_width_index(&self, hscroll: bool) -> usize {
         match (hscroll, self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK) {
             (false, DMACTL::EMPTY) => 0,
@@ -313,19 +324,24 @@ impl Antic {
             _ => 0,
         }
     }
+    #[inline(always)]
     pub fn set_vbi(&mut self) {
         self.nmist.insert(NMIST::VBI);
         self.nmist.remove(NMIST::DLI);
     }
+
+    #[inline(always)]
     pub fn set_dli(&mut self) {
         self.nmist.insert(NMIST::DLI);
         self.nmist.remove(NMIST::VBI);
     }
 
+    #[inline(always)]
     pub fn is_vbi(&mut self) -> bool {
         self.scan_line == 248
     }
 
+    #[inline(always)]
     pub fn is_dli(&mut self) -> bool {
         let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
         if opts.contains(MODE_OPTS::DLI) && self.scan_line >= 8 && self.scan_line < 248 {
@@ -338,12 +354,42 @@ impl Antic {
         false
     }
 
-    pub fn is_visible(&mut self) -> bool {
+    #[inline(always)]
+    pub fn gets_visible(&mut self) -> bool {
         let ret = self.cycle >= self.visible_cycle && !self.is_visible;
-        self.is_visible = true;
+        self.is_visible |= ret;
         ret
     }
 
+    #[inline(always)]
+    pub fn check_nmi(&mut self) {
+        self.nmireq |= self.is_vbi() || self.is_dli()
+    }
+
+    #[inline(always)]
+    pub fn fire_nmi(&mut self) -> bool {
+        if self.nmireq && self.cycle >= 5 {
+            self.nmireq = false;
+            if self.is_vbi() {
+                self.set_vbi();
+                self.nmien.contains(NMIEN::VBI)
+            } else {
+                self.set_dli();
+                self.nmien.contains(NMIEN::DLI)
+            }
+        } else {
+            false
+        }
+    }
+
+    #[inline(always)]
+    pub fn steal_cycles(&mut self) {
+        if self.cycle == self.visible_cycle {
+            self.cycle += self.dma_cycles;
+        }
+    }
+
+    #[inline(always)]
     pub fn update_dma_cycles(&mut self) {
         self.is_visible = false;
         if self.scan_line < 8 || self.scan_line >= 248 {
@@ -435,14 +481,17 @@ impl Antic {
         }
     }
 
+    #[inline(always)]
     pub fn dlist_offset(&self, k: u8) -> u16 {
         return self.dlist & 0xfc00 | self.dlist.overflowing_add(k as u16).0 & 0x3ff;
     }
 
+    #[inline(always)]
     pub fn inc_dlist(&mut self, k: u8) {
         self.dlist = self.dlist_offset(k);
     }
 
+    #[inline(always)]
     pub fn dlist_dma(&self) -> bool {
         self.dmactl.contains(DMACTL::DLIST_DMA)
             && (self.scan_line == 8 || self.scan_line == self.next_scan_line)
@@ -503,9 +552,12 @@ impl Antic {
         }
     }
 
+    #[inline(always)]
     pub fn wsync(&mut self) -> bool {
         self.wsync
     }
+
+    #[inline(always)]
     pub fn clear_wsync(&mut self) {
         self.wsync = false
     }
