@@ -101,7 +101,7 @@ pub struct Antic {
     pub scan_line: usize,
     pub vcount: u8,
     pub video_memory: usize,
-    pub wsync: bool,
+    wsync: bool,
     pub is_vscroll: bool,
 }
 
@@ -494,12 +494,10 @@ impl Antic {
     }
 
     pub fn wsync(&mut self) -> bool {
-        if self.wsync {
-            self.wsync = false;
-            true
-        } else {
-            false
-        }
+        self.wsync
+    }
+    pub fn clear_wsync(&mut self) {
+        self.wsync = false
     }
 
     pub fn read(&self, addr: usize) -> u8 {

@@ -69,7 +69,6 @@ struct FrameState {
     scan_line: usize,
     cycle: usize,
     is_visible: bool,
-    wsync: bool,
     nmireq: bool,
     visible_cycle: usize,
     dma_cycles: usize,
@@ -331,8 +330,8 @@ fn atari_system(
                     frame.nmireq = true;
                 }
             }
-            if frame.wsync {
-                frame.wsync = false;
+            if atari_system.antic.wsync() {
+                atari_system.antic.clear_wsync();
                 frame.cycle = 105;
                 if frame.paused {
                     return;
@@ -402,8 +401,8 @@ fn atari_system(
             if atari_system.antic.wsync() {
                 if frame.cycle < 104 {
                     frame.cycle = 104;
+                    atari_system.antic.clear_wsync();
                 } else {
-                    frame.wsync = true;
                     frame.cycle = SCAN_LINE_CYCLES - 1;
                 }
             }
@@ -439,7 +438,7 @@ fn atari_system(
                 break;
             }
         }
-        if frame.paused && !frame.wsync {
+        if frame.paused && !atari_system.antic.wsync() {
             break;
         }
     }
