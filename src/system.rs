@@ -176,12 +176,12 @@ impl AtariSystem {
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
         self.portb = PORTB::from_bits_truncate(atari800_state.memory.portb);
-        self.ram.copy_from_slice(atari800_state.memory.data);
+        self.ram[0..0x10000].copy_from_slice(atari800_state.memory.data);
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
         self.basic.copy_from_slice(atari800_state.memory.basic);
         if self.portb.contains(PORTB::OSROM_ENABLED) {
-            self.ram[0xc000..].copy_from_slice(atari800_state.memory.under_atarixl_os);
+            self.ram[0xc000..0x10000].copy_from_slice(atari800_state.memory.under_atarixl_os);
         }
 
         let gtia = atari800_state.gtia;
@@ -331,6 +331,7 @@ impl AtariSystem {
         self.pia
             .write_port_a(0xf0, (up | down | left | right) ^ 0xf);
     }
+
     pub fn scanline_tick(&mut self) {
         self.pokey.scanline_tick();
         self.ticks += 1;

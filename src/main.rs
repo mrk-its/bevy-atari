@@ -46,6 +46,7 @@ pub struct GtiaDebug;
 
 #[derive(Clone, Debug)]
 enum EmulatorState {
+    Idle,
     Running,
 }
 
@@ -67,7 +68,6 @@ struct FrameState {
     is_debug: bool,
     scan_line: usize,
     cycle: usize,
-    vblank: bool,
     is_visible: bool,
     wsync: bool,
     nmireq: bool,
@@ -262,9 +262,6 @@ fn atari_system(
     if frame.paused {
         return;
     }
-    if frame.scan_line == 0 {
-        frame.vblank = false;
-    }
 
     let debug_mode = frame.paused || frame.break_point.is_some();
 
@@ -328,7 +325,6 @@ fn atari_system(
             // }
 
             if atari_system.antic.is_vbi() {
-                frame.vblank = true;
                 frame.nmireq = true;
             } else {
                 if atari_system.antic.is_dli() {
@@ -379,8 +375,6 @@ fn atari_system(
                 if mode_line.is_some() {
                     // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
                     frame.current_mode = mode_line;
-                } else {
-                    frame.vblank = true;
                 }
             }
 
@@ -395,16 +389,6 @@ fn atari_system(
                         LineData::new(&mut atari_system, current_line.data_offset);
                     current_line.charset = Charset::new(&mut atari_system, charset_offset);
                 }
-                // current_line.gtia_regs_array.regs[k].grafm =
-                //     atari_system.gtia.reg[gtia::GRAFM] as u32;
-                // current_line.gtia_regs_array.regs[k].grafp[0] =
-                //     atari_system.gtia.reg[gtia::GRAFP0] as u32;
-                // current_line.gtia_regs_array.regs[k].grafp[1] =
-                //     atari_system.gtia.reg[gtia::GRAFP1] as u32;
-                // current_line.gtia_regs_array.regs[k].grafp[2] =
-                //     atari_system.gtia.reg[gtia::GRAFP2] as u32;
-                // current_line.gtia_regs_array.regs[k].grafp[3] =
-                //     atari_system.gtia.reg[gtia::GRAFP3] as u32;
             }
             frame.is_visible = true;
         }
@@ -479,6 +463,13 @@ fn events(
                 frame.scan_line = 0;
                 state.set_next(EmulatorState::Running).ok();
             }
+            js_api::Message::SetState(new_state) => {
+                match new_state.as_ref() {
+                    "running" => info!("{:?}", state.set_next(EmulatorState::Running)),
+                    "idle" => {state.set_next(EmulatorState::Idle).ok();},
+                    _ => panic!("invalid state requested"),
+                };
+            }
             js_api::Message::JoyState {
                 port,
                 up,
@@ -487,33 +478,35 @@ fn events(
                 right,
                 fire,
             } => atari_system.set_joystick(port, up, down, left, right, fire),
-            js_api::Message::BinaryData {
-                key,
-                data,
-                ..
-            } => {
-                match key.as_str() {
-                    "basic" => {atari_system.set_basic(data); atari_system.reset(&mut *cpu, true)}
-                    "osrom" => {atari_system.set_osrom(data); atari_system.reset(&mut *cpu, true)}
-                    "disk_1" => {
-                        atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
-                    }
-                    "state" => {
-                        if let Some(data) = data {
-                            let data = gunzip(&data);
-                            let a800_state = atari800_state::Atari800State::new(&data);
-                            a800_state.reload(&mut *atari_system, &mut *cpu);
-                            *frame = FrameState::default();
-                            frame.scan_line = 248;
-                            state.set_next(EmulatorState::Running).ok();
-                            info!("LOADED! {:?}", *state);
-                        }
-                    }
-                    _ => {
-                        warn!("unknown binary");
+            js_api::Message::BinaryData { key, data, .. } => match key.as_str() {
+                "basic" => {
+                    atari_system.set_basic(data);
+                    atari_system.reset(&mut *cpu, true);
+                }
+                "osrom" => {
+                    atari_system.set_osrom(data);
+                    atari_system.reset(&mut *cpu, true);
+                    atari_system.antic = antic::Antic::default();
+                    *frame = FrameState::default();
+                    info!("RESET! {:04x}", cpu.program_counter);
+                }
+                "disk_1" => {
+                    atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
+                }
+                "state" => {
+                    if let Some(data) = data {
+                        let data = gunzip(&data);
+                        let a800_state = atari800_state::Atari800State::new(&data);
+                        a800_state.reload(&mut *atari_system, &mut *cpu);
+                        *frame = FrameState::default();
+                        state.set_next(EmulatorState::Running).ok();
+                        info!("LOADED! {:?}", *state);
                     }
                 }
-            }
+                _ => {
+                    warn!("unknown binary");
+                }
+            },
             js_api::Message::Command { cmd } => {
                 let parts = cmd.split(" ").collect::<Vec<_>>();
                 match parts[0] {
@@ -700,7 +693,7 @@ fn main() {
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
-    system.reset(&mut cpu, false);
+    system.reset(&mut cpu, true);
 
     let frame = FrameState::default();
 
@@ -709,7 +702,7 @@ fn main() {
     app.add_asset::<AnticLine>()
         .add_asset::<AtariPalette>()
         .add_asset::<StandardMaterial>()
-        .add_resource(State::new(EmulatorState::Running))
+        .add_resource(State::new(EmulatorState::Idle))
         .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(system)
         .add_resource(cpu)
@@ -723,11 +716,6 @@ fn main() {
         .add_stage_after(
             stage::UPDATE,
             "idle_update",
-            StateStage::<EmulatorState>::default(),
-        )
-        .add_stage_after(
-            stage::UPDATE,
-            "loading",
             StateStage::<EmulatorState>::default(),
         )
         .add_system_to_stage("pre_update", keyboard_system.system())

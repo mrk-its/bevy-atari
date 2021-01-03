@@ -25,6 +25,7 @@ pub enum Message {
     Reset {
         cold: bool,
     },
+    SetState(String),
 }
 
 #[allow(dead_code)]
@@ -58,6 +59,13 @@ pub fn set_binary_data(key: String, filename: String, data: Vec<u8>) {
 pub fn cmd(cmd: String) {
     let mut guard = ARRAY.write();
     guard.push(Message::Command { cmd });
+}
+
+#[allow(dead_code)]
+#[wasm_bindgen]
+pub fn set_state(state: String) {
+    let mut guard = ARRAY.write();
+    guard.push(Message::SetState(state));
 }
 
 #[allow(dead_code)]

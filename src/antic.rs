@@ -29,6 +29,7 @@ mod consts {
     pub const NMIRES: usize = 0x0f;
 }
 
+#[allow(dead_code)]
 const PAL_SCAN_LINES: usize = 312;
 #[allow(dead_code)]
 const NTSC_SCAN_LINES: usize = 262;
@@ -83,7 +84,6 @@ bitflags! {
 #[derive(Default)]
 pub struct Antic {
     pub dlist_data: [u8; 3],
-    pub vblank: bool,
     pub line_height: usize,
     pub n_bytes: usize,
     pub line_voffset: usize,
@@ -205,7 +205,7 @@ impl ModeLineDescr {
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
     (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (25, &[66, 66, 66, 66, 66, 66, 66, 66]),
-    (18, &[81, 81, 81, 81, 81, 81, 82, 81]),
+    (18 - 2, &[81, 81, 81, 81, 81, 81, 82, 81]),   // TODO investigate this -2 correction required for last squadron
     (10, &[96, 95, 94, 93, 92, 91, 90, 89]),
 ];
 
