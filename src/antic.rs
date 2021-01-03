@@ -98,10 +98,14 @@ pub struct Antic {
     pub vscrol: u8,
     pub pmbase: u8,
     pub dlist: u16,
+    pub cycle: usize,
+    pub visible_cycle: usize,
+    pub dma_cycles: usize,
     pub scan_line: usize,
     pub vcount: u8,
     pub video_memory: usize,
     wsync: bool,
+    is_visible: bool,
     pub is_vscroll: bool,
 }
 
@@ -263,14 +267,12 @@ impl Antic {
     pub fn ir(&self) -> u8 {
         self.dlist_data[0]
     }
-    pub fn set_scan_line(&mut self, scan_line: usize, cycle: usize) {
-        self.scan_line = scan_line;
-        let scan_line = if cycle >= 110 {
-            (scan_line + 1) % MAX_SCAN_LINES
-        } else {
-            scan_line
-        };
-        self.vcount = (scan_line / 2) as u8;
+    pub fn inc_cycle(&mut self) {
+        self.cycle = (self.cycle + 1) % SCAN_LINE_CYCLES;
+        if self.cycle == 0 {
+            self.scan_line = (self.scan_line + 1) % MAX_SCAN_LINES;
+        }
+        self.vcount = (((self.scan_line + (self.cycle >= 110) as usize) % MAX_SCAN_LINES) / 2) as u8;
         if self.scan_line < 8 || self.scan_line >= 248 {
             self.next_scan_line = 8;
             self.is_vscroll = false;
@@ -336,9 +338,19 @@ impl Antic {
         false
     }
 
-    pub fn get_dma_cycles(&self) -> (usize, usize, usize) {
+    pub fn is_visible(&mut self) -> bool {
+        let ret = self.cycle >= self.visible_cycle && !self.is_visible;
+        self.is_visible = true;
+        ret
+    }
+
+    pub fn update_dma_cycles(&mut self) {
+        self.is_visible = false;
         if self.scan_line < 8 || self.scan_line >= 248 {
-            return (0, 0, 0);
+            self.cycle = 0;
+            self.dma_cycles = 0;
+            self.visible_cycle = 0;
+            return;
         }
         // TODO - take hscroll into account for steal start value
         let is_first_mode_line = self.scan_line == self.start_scan_line;
@@ -392,11 +404,9 @@ impl Antic {
                 start_dma_cycles += 1;
             }
         }
-        (
-            start_dma_cycles,
-            line_start_cycle.max(start_dma_cycles),
-            dma_cycles,
-        )
+        self.cycle = start_dma_cycles;
+        self.visible_cycle = line_start_cycle.max(start_dma_cycles);
+        self.dma_cycles = dma_cycles;
     }
 
     fn create_mode_line(&self) -> ModeLineDescr {
@@ -529,12 +539,12 @@ impl Antic {
     }
 }
 
-pub fn get_pm_data(system: &mut AtariSystem, scan_line: usize, n: usize) -> u8 {
+pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
     let offs = if pm_hires {
-        0x300 + n * 0x100 + scan_line + (system.antic.pmbase & 0b11111000) as usize * 256
+        0x300 + n * 0x100 + system.antic.scan_line + (system.antic.pmbase & 0b11111000) as usize * 256
     } else {
-        0x180 + n * 0x80 + scan_line / 2 + (system.antic.pmbase & 0b11111100) as usize * 256
+        0x180 + n * 0x80 + system.antic.scan_line / 2 + (system.antic.pmbase & 0b11111100) as usize * 256
     };
     system.read(offs as u16)
 }
