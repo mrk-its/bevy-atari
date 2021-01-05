@@ -416,8 +416,8 @@ fn events(
     let mut guard = js_api::ARRAY.write();
     for event in guard.drain(..) {
         match event {
-            js_api::Message::Reset { cold } => {
-                atari_system.reset(&mut *cpu, cold);
+            js_api::Message::Reset { cold, disable_basic} => {
+                atari_system.reset(&mut *cpu, cold, disable_basic);
                 *frame = FrameState::default();
                 atari_system.antic.scan_line = 0;
                 state.set_next(EmulatorState::Running).ok();
@@ -440,11 +440,11 @@ fn events(
             js_api::Message::BinaryData { key, data, .. } => match key.as_str() {
                 "basic" => {
                     atari_system.set_basic(data);
-                    atari_system.reset(&mut *cpu, true);
+                    atari_system.reset(&mut *cpu, true, true);
                 }
                 "osrom" => {
                     atari_system.set_osrom(data);
-                    atari_system.reset(&mut *cpu, true);
+                    atari_system.reset(&mut *cpu, true, true);
                     atari_system.antic = antic::Antic::default();
                     *frame = FrameState::default();
                     info!("RESET! {:04x}", cpu.program_counter);
@@ -652,7 +652,7 @@ fn main() {
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
-    system.reset(&mut cpu, true);
+    system.reset(&mut cpu, true, true);
 
     let frame = FrameState::default();
 

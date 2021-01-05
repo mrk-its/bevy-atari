@@ -24,6 +24,7 @@ pub enum Message {
     },
     Reset {
         cold: bool,
+        disable_basic: bool,
     },
     SetState(String),
 }
@@ -70,7 +71,7 @@ pub fn set_state(state: String) {
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn reset(cold: bool) {
+pub fn reset(cold: bool, disable_basic: bool) {
     let mut guard = ARRAY.write();
-    guard.push(Message::Reset { cold });
+    guard.push(Message::Reset { cold, disable_basic });
 }

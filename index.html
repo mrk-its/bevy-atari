@@ -243,9 +243,9 @@
   <div id="canvas-container">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <div class="buttons">
-      <button onclick="reset(false); blur()">Restart (Warm)</button>
-      <button onclick="reset(true); blur()">Restart (Cold)</button>
-      <input type="checkbox">Disable Basic</input>
+      <button onclick="reset(false, false); blur()">Restart (Warm)</button>
+      <button onclick="reset(true, false); blur()">Restart (Cold)</button>
+      <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
     </div>
     <div class="files">
       <div id="osrom">

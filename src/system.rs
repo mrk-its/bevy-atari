@@ -253,14 +253,14 @@ impl AtariSystem {
         );
     }
 
-    pub fn reset(&mut self, cpu: &mut MOS6502, cold: bool) {
+    pub fn reset(&mut self, cpu: &mut MOS6502, cold: bool, disable_basic: bool) {
         self.write(0xd301, 0xff); // turn on osrom
         if cold {
             self.write(0x244, 255);
         }
         cpu.reset(self);
         self.ticks = 0;
-        self.gtia.consol_force_mask = 0x03;  // force option on reset
+        self.gtia.consol_force_mask = if disable_basic { 0x03 } else { 0x07 };
     }
 
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
@@ -275,7 +275,7 @@ impl AtariSystem {
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
             if *ev == KeyCode::F5 {
-                self.reset(cpu, false);
+                self.reset(cpu, false, false);
             }
             self.pokey.resume();
             joy_changed = joy_changed
