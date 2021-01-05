@@ -1,10 +1,10 @@
 use crate::atari800_state::Atari800State;
+use crate::atr::ATR;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
-use crate::atr::ATR;
 
 bitflags! {
     #[derive(Default)]
@@ -64,7 +64,9 @@ impl AtariSystem {
 
     #[inline(always)]
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
-        if !antic && !self.portb.contains(PORTB::CPU_SELECT_NEG) || antic && !self.portb.contains(PORTB::ANITC_SELECT_NEG) {
+        if !antic && !self.portb.contains(PORTB::CPU_SELECT_NEG)
+            || antic && !self.portb.contains(PORTB::ANITC_SELECT_NEG)
+        {
             (addr & 0x3fff) + 0x10000 + (((self.portb & PORTB::BANK_MASK).bits as usize) << 12)
         } else {
             addr
@@ -76,7 +78,9 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x57 => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED)
+                    && !self.portb.contains(PORTB::SELFTEST_DISABLED))
+                {
                     self.ram[self.bank_offset(addr, antic)]
                 } else {
                     self.osrom[0x1000 + (addr & 0x7ff)]
@@ -109,7 +113,9 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x5F => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED) && !self.portb.contains(PORTB::SELFTEST_DISABLED)) {
+                if !(self.portb.contains(PORTB::OSROM_ENABLED)
+                    && !self.portb.contains(PORTB::SELFTEST_DISABLED))
+                {
                     self.ram[self.bank_offset(addr, antic)] = value
                 }
             }
@@ -125,7 +131,7 @@ impl AtariSystem {
                 if addr & 0xff == 1 {
                     self.portb = PORTB::from_bits_truncate(value);
                 }
-            },
+            }
             0xD4 => self.antic.write(addr, value),
             0xC0..=0xFF => {
                 if !self.portb.contains(PORTB::OSROM_ENABLED) {
@@ -160,18 +166,18 @@ impl AtariSystem {
             self.write((i + offs) as u16, *b);
         }
     }
-    pub fn copy_to_slice(&mut self, offs: u16, data: &mut[u8]) {
+    pub fn copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self.read(i as u16 + offs);
         }
     }
-    pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut[u8]) {
+    pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self._read(i as u16 + offs, true);
         }
     }
     pub fn readw(&mut self, addr: u16) -> u16 {
-        self.read(addr) as u16 + 256 * self.read(addr+1) as u16
+        self.read(addr) as u16 + 256 * self.read(addr + 1) as u16
     }
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
@@ -335,7 +341,8 @@ impl AtariSystem {
     pub fn scanline_tick(&mut self) {
         self.pokey.scanline_tick();
         self.ticks += 1;
-        if self.ticks == 15600 {  // ~1sek
+        if self.ticks == 15600 {
+            // ~1sek
             self.gtia.consol_force_mask = 0x07;
         }
     }

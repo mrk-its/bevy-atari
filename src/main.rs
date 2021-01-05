@@ -270,6 +270,10 @@ fn atari_system(
             _ => (),
         }
         if atari_system.antic.cycle == 0 {
+            if atari_system.antic.scan_line == 0 {
+                // antic reset
+                atari_system.antic.next_scan_line = 8;
+            }
             atari_system.scanline_tick();
 
             if atari_system
@@ -293,13 +297,15 @@ fn atari_system(
                 }
             }
 
-            if atari_system.antic.dlist_dma() {
-                let mut dlist_data = [0 as u8; 3];
-                let offs = atari_system.antic.dlist_offset(0);
-                atari_system.antic_copy_to_slice(offs, &mut dlist_data);
-                atari_system.antic.set_dlist_data(dlist_data);
+            if atari_system.antic.is_new_mode_line() {
+                if atari_system.antic.dlist_dma() {
+                    let mut dlist_data = [0 as u8; 3];
+                    let offs = atari_system.antic.dlist_offset(0);
+                    atari_system.antic_copy_to_slice(offs, &mut dlist_data);
+                    atari_system.antic.set_dlist_data(dlist_data);
+                }
+                atari_system.antic.prepare_mode_line();
             }
-
             atari_system.antic.update_dma_cycles();
             atari_system.antic.check_nmi();
             if atari_system.antic.wsync() {
@@ -315,27 +321,30 @@ fn atari_system(
         }
         if atari_system.antic.gets_visible() {
             // info!("here: {} {}", atari_system.antic.cycle, frame.visible_cycle);
-            if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line == atari_system.antic.start_scan_line {
+            let prev_mode_line = if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line == atari_system.antic.start_scan_line {
                 // info!("creating mode line, cycle: {:?}", atari_system.antic.cycle);
                 let mode_line = atari_system.antic.create_next_mode_line();
                 let prev_mode_line = frame.current_mode.take();
-                if let Some(prev_mode_line) = prev_mode_line {
-                    if debug_mode {
-                        for (entity, antic_line) in antic_lines.iter() {
-                            let not_intersects = antic_line.start_scan_line
-                                >= prev_mode_line.next_mode_line()
-                                || prev_mode_line.scan_line >= antic_line.end_scan_line;
-                            if !not_intersects {
-                                commands.despawn(entity);
-                            }
+                // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
+                frame.current_mode = Some(mode_line);
+                prev_mode_line
+            } else if atari_system.antic.scan_line == 248 {
+                frame.current_mode.take()
+            } else {
+                None
+            };
+            if let Some(prev_mode_line) = prev_mode_line {
+                if debug_mode {
+                    for (entity, antic_line) in antic_lines.iter() {
+                        let not_intersects = antic_line.start_scan_line
+                            >= prev_mode_line.next_mode_line()
+                            || prev_mode_line.scan_line >= antic_line.end_scan_line;
+                        if !not_intersects {
+                            commands.despawn(entity);
                         }
                     }
-                    create_mode_line(commands, &prev_mode_line, 0.0);
                 }
-                if mode_line.is_some() {
-                    // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
-                    frame.current_mode = mode_line;
-                }
+                create_mode_line(commands, &prev_mode_line, 0.0);
             }
 
             let current_scan_line = atari_system.antic.scan_line;

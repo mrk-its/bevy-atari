@@ -83,7 +83,7 @@ bitflags! {
 
 #[derive(Default)]
 pub struct Antic {
-    pub dlist_data: [u8; 3],
+    ir: u8,
     pub line_height: usize,
     pub n_bytes: usize,
     pub line_voffset: usize,
@@ -210,7 +210,7 @@ impl ModeLineDescr {
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
     (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
     (25, &[66, 66, 66, 66, 66, 66, 66, 66]),
-    (18 - 2, &[81, 81, 81, 81, 81, 81, 82, 81]),   // TODO investigate this -2 correction required for last squadron
+    (18 - 2, &[81, 81, 81, 81, 81, 81, 82, 81]), // TODO investigate this -2 correction required for last squadron
     (10, &[96, 95, 94, 93, 92, 91, 90, 89]),
 ];
 
@@ -259,17 +259,17 @@ const MODE_DF_STEALED_CYCLES: [(usize, &[usize; 8]); 4] = [
 impl Antic {
     #[inline]
     pub fn mode(&self) -> u8 {
-        self.dlist_data[0] & 0xf
+        self.ir & 0xf
     }
 
     #[inline]
     pub fn opts(&self) -> MODE_OPTS {
-        MODE_OPTS::from_bits_truncate(self.dlist_data[0])
+        MODE_OPTS::from_bits_truncate(self.ir)
     }
 
     #[inline(always)]
     pub fn ir(&self) -> u8 {
-        self.dlist_data[0]
+        self.ir
     }
 
     #[inline(always)]
@@ -277,17 +277,14 @@ impl Antic {
         self.cycle = (self.cycle + 1) % SCAN_LINE_CYCLES;
         if self.cycle == 0 {
             self.scan_line = (self.scan_line + 1) % MAX_SCAN_LINES;
-        }
-        self.vcount = (((self.scan_line + (self.cycle >= 110) as usize) % MAX_SCAN_LINES) / 2) as u8;
-        if self.scan_line < 8 || self.scan_line >= 248 {
-            self.next_scan_line = 8;
-            self.is_vscroll = false;
-            self.line_voffset = 0;
+            self.vcount = (self.scan_line / 2) as u8;
+        } else if self.cycle >= 110 {
+            self.vcount = (((self.scan_line + 1) % MAX_SCAN_LINES) / 2) as u8;
         }
     }
 
     pub fn get_next_scanline(&self) -> usize {
-        return (self.scan_line + 1) % MAX_SCAN_LINES
+        return (self.scan_line + 1) % MAX_SCAN_LINES;
     }
 
     fn playfield_width_index(&self, hscroll: bool) -> usize {
@@ -343,7 +340,7 @@ impl Antic {
 
     #[inline(always)]
     pub fn is_dli(&mut self) -> bool {
-        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+        let opts = self.opts();
         if opts.contains(MODE_OPTS::DLI) && self.scan_line >= 8 && self.scan_line < 248 {
             if self.scan_line == self.start_scan_line + self.line_height - 1 {
                 return true;
@@ -400,11 +397,11 @@ impl Antic {
         }
         // TODO - take hscroll into account for steal start value
         let is_first_mode_line = self.scan_line == self.start_scan_line;
-        let mode = self.dlist_data[0] & 0x0f;
+        let mode = self.mode();
 
         let (line_start_cycle, dma_cycles) =
             if (self.dmactl & DMACTL::PLAYFIELD_WIDTH_MASK).bits() > 0 {
-                let opts: MODE_OPTS = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+                let opts: MODE_OPTS = self.opts();
 
                 let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
                 let hscrol = if is_hscrol {
@@ -455,18 +452,23 @@ impl Antic {
         self.dma_cycles = dma_cycles;
     }
 
-    fn create_mode_line(&self) -> ModeLineDescr {
-        let opts = self.opts();
-        let mode = self.mode();
+    fn create_mode_line(&self, mode: u8, opts: MODE_OPTS) -> ModeLineDescr {
+        assert!(self.scan_line >= 8 && self.scan_line < 248);
         let is_hscrol = mode > 1 && opts.contains(MODE_OPTS::HSCROL);
         let hscrol = if is_hscrol { 32 - self.hscrol * 2 } else { 0 };
 
         let hscrol_line_width = self.n_bytes * self.playfield_width(true, is_hscrol) / 320;
         let width = self.playfield_width(false, is_hscrol);
+
+        let height = if self.scan_line + self.line_height > 248 {  // clip height if necessary
+            248 - self.scan_line
+        } else {
+            self.line_height
+        };
         ModeLineDescr {
             mode,
             opts,
-            height: self.line_height,
+            height,
             line_voffset: self.line_voffset,
             n_bytes: hscrol_line_width,
             scan_line: self.scan_line,
@@ -492,38 +494,48 @@ impl Antic {
     }
 
     #[inline(always)]
+    pub fn is_new_mode_line(&self) -> bool {
+        assert!(self.next_scan_line < 248);
+        self.scan_line == 8 || self.scan_line == self.next_scan_line
+    }
+
+    #[inline(always)]
     pub fn dlist_dma(&self) -> bool {
-        self.dmactl.contains(DMACTL::DLIST_DMA)
-            && (self.scan_line == 8 || self.scan_line == self.next_scan_line)
+        self.dmactl.contains(DMACTL::DLIST_DMA) && (self.scan_line == 8 || !(self.mode() == 1 && self.opts().contains(MODE_OPTS::LMS)))
     }
 
     pub fn set_dlist_data(&mut self, dlist_data: [u8; 3]) {
-        self.dlist_data = dlist_data;
-        let mode = self.dlist_data[0] & 0xf;
-        let opts = MODE_OPTS::from_bits_truncate(self.dlist_data[0]);
+        self.ir = dlist_data[0];
+        let mode = self.mode();
+        let opts = self.opts();
         self.inc_dlist(1);
+
         if opts.contains(MODE_OPTS::LMS) && mode > 1 {
-            self.video_memory = self.dlist_data[1] as usize + (self.dlist_data[2] as usize * 256);
+            self.video_memory = dlist_data[1] as usize + (dlist_data[2] as usize * 256);
             // info!("LMS: {:04x}", self.video_memory);
             self.inc_dlist(2);
+        } else if mode == 1 {
+            self.dlist = dlist_data[1] as u16 | ((dlist_data[2] as u16) << 8);
         }
-        if mode == 1 {
-            self.dlist = self.dlist_data[1] as u16 | ((self.dlist_data[2] as u16) << 8);
-            if opts.contains(MODE_OPTS::LMS) {
-                // info!("dlist restart");
-                self.start_scan_line = self.scan_line;
-                self.next_scan_line = 8;
-                return;
-            }
-        }
+
+    }
+    pub fn prepare_mode_line(&mut self) {
+        let mode = self.mode();
+        let opts = self.opts();
+
+        self.line_voffset = 0;
+
         let current_mode = &ANTIC_MODES[mode as usize];
         self.line_height = current_mode.height;
         self.n_bytes = current_mode.n_bytes;
+
         if mode == 0 {
-            self.line_height = ((self.dlist_data[0] >> 4) & 7) as usize + 1;
+            self.line_height = ((self.ir >> 4) & 7) as usize + 1;
+        } else if mode == 1 && opts.contains(MODE_OPTS::LMS) {
+            self.line_height = 8;
         }
+
         let is_vscroll = mode > 1 && opts.contains(MODE_OPTS::VSCROL);
-        self.line_voffset = 0;
         if is_vscroll && !self.is_vscroll {
             self.line_voffset = self.vscrol as usize;
             self.line_height -= self.line_voffset;
@@ -532,23 +544,29 @@ impl Antic {
             self.line_height = self.vscrol as usize + 1;
             // leaving scroll region
         }
-
         self.is_vscroll = is_vscroll;
         self.start_scan_line = self.scan_line;
+
         self.next_scan_line = self.scan_line + self.line_height;
+        if self.next_scan_line >= 248 {
+            self.next_scan_line = 8;
+        }
         // info!(
         //     "mode: {:?} opts: {:?} {:?} scan_line: {} next: {}",
         //     mode, opts, current_mode, self.start_scan_line, self.next_scan_line
         // );
     }
 
-    pub fn create_next_mode_line(&mut self) -> Option<ModeLineDescr> {
-        if self.mode() == 1 && self.opts().contains(MODE_OPTS::LMS) {
-            None
+    pub fn create_next_mode_line(&mut self) -> ModeLineDescr {
+        assert!(self.scan_line >= 8 && self.scan_line < 248);
+        let mode = self.mode();
+        let opts = self.opts();
+        if mode == 1 && opts.contains(MODE_OPTS::LMS) {
+            self.create_mode_line(0, MODE_OPTS::empty())
         } else {
-            let mode_line = self.create_mode_line();
+            let mode_line = self.create_mode_line(mode, opts);
             self.video_memory += mode_line.n_bytes;
-            Some(mode_line)
+            mode_line
         }
     }
 
@@ -594,15 +612,23 @@ impl Antic {
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
     let offs = if pm_hires {
-        0x300 + n * 0x100 + system.antic.scan_line + (system.antic.pmbase & 0b11111000) as usize * 256
+        0x300
+            + n * 0x100
+            + system.antic.scan_line
+            + (system.antic.pmbase & 0b11111000) as usize * 256
     } else {
-        0x180 + n * 0x80 + system.antic.scan_line / 2 + (system.antic.pmbase & 0b11111100) as usize * 256
+        0x180
+            + n * 0x80
+            + system.antic.scan_line / 2
+            + (system.antic.pmbase & 0b11111100) as usize * 256
     };
     system.read(offs as u16)
 }
 
 pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_extra_offset: f32) {
-    // info!("drawing: {:?}", mode_line);
+    let scan_line = mode_line.scan_line;
+    let height = mode_line.height;
+    let mode = mode_line.mode;
     commands
         .spawn(MeshBundle {
             mesh: QUAD_HANDLE.typed(),
