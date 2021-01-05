@@ -31,17 +31,12 @@ pub struct AtariSystem {
     ticks: usize,
 }
 
-const OSROM: &[u8] = include_bytes!("../assets/altirraos-xl.rom");
-const BASIC: &[u8] = include_bytes!("../assets/atbasic.bin");
-
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
         let ram = [0x0; 0x20000];
-        let mut osrom = [0x00; 0x4000];
-        osrom.copy_from_slice(OSROM);
-        let mut basic = [0x00; 0x2000];
-        basic.copy_from_slice(BASIC);
+        let osrom = [0x00; 0x4000];
+        let basic = [0x00; 0x2000];
         let antic = Antic::default();
         let pokey = Pokey::default();
         let gtia = Gtia::default();
@@ -144,19 +139,19 @@ impl AtariSystem {
     }
 
     pub fn set_osrom(&mut self, data: Option<Vec<u8>>) {
-        let data = if let Some(data) = data.as_ref() {
+        let data: &[u8] = if let Some(data) = data.as_ref() {
             data
         } else {
-            OSROM
+            &[0; 0x4000]
         };
         self.osrom.copy_from_slice(data);
     }
 
     pub fn set_basic(&mut self, data: Option<Vec<u8>>) {
-        let data = if let Some(data) = data.as_ref() {
+        let data: &[u8] = if let Some(data) = data.as_ref() {
             data
         } else {
-            BASIC
+            &[0; 0x2000]
         };
         self.basic.copy_from_slice(data);
     }
