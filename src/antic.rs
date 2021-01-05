@@ -627,9 +627,6 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
 }
 
 pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_extra_offset: f32) {
-    let scan_line = mode_line.scan_line;
-    let height = mode_line.height;
-    let mode = mode_line.mode;
     commands
         .spawn(MeshBundle {
             mesh: QUAD_HANDLE.typed(),
