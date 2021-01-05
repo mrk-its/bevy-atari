@@ -9,7 +9,10 @@ impl ATR {
         assert!(data[1] == 0x02);
         let sector_size = data[4] as usize + 256 * data[5] as usize;
         assert!(sector_size == 128 || sector_size == 256);
-        Self { data: data[16..].to_owned(), sector_size }
+        Self {
+            data: data[16..].to_owned(),
+            sector_size,
+        }
     }
     pub fn sector_size(&self) -> usize {
         self.sector_size

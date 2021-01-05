@@ -1,4 +1,3 @@
-use bevy::{asset::Handle, render::{pipeline::RenderPipeline, render_graph::base::MainPass}};
 use bevy::core::Bytes;
 use bevy::prelude::Color;
 use bevy::render::{
@@ -6,16 +5,18 @@ use bevy::render::{
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
+use bevy::render::{
+    pipeline::{CullMode, PipelineDescriptor},
+    render_graph::{base, RenderGraph, RenderResourcesNode},
+    shader::{ShaderStage, ShaderStages},
+};
 use bevy::sprite::QUAD_HANDLE;
+use bevy::{
+    asset::Handle,
+    render::{pipeline::RenderPipeline, render_graph::base::MainPass},
+};
 use bevy::{core::Byteable, reflect::TypeUuid};
 use bevy::{prelude::*, render::renderer::RenderResources};
-use bevy::{
-    render::{
-        pipeline::{CullMode, PipelineDescriptor},
-        render_graph::{base, RenderGraph, RenderResourcesNode},
-        shader::{ShaderStage, ShaderStages},
-    },
-};
 
 use crate::render_resources::Charset;
 
@@ -34,9 +35,7 @@ pub struct TextAreaData {
 
 impl Default for TextAreaData {
     fn default() -> Self {
-        Self {
-            data: [0; 1024]
-        }
+        Self { data: [0; 1024] }
     }
 }
 
@@ -75,16 +74,12 @@ impl TextAreaBundle {
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 ATARI_TEXT_PIPELINE_HANDLE.typed(),
             )]),
-            transform: Transform::from_translation(Vec3::new(
-                x_offset,
-                y_offset,
-                0.2,
-            ))
-            .mul_transform(Transform::from_scale(Vec3::new(
-                1.0 * width * 8.0,
-                1.0 * height * 8.0,
-                1.0,
-            ))),
+            transform: Transform::from_translation(Vec3::new(x_offset, y_offset, 0.2))
+                .mul_transform(Transform::from_scale(Vec3::new(
+                    1.0 * width * 8.0,
+                    1.0 * height * 8.0,
+                    1.0,
+                ))),
             visible: Visible {
                 is_visible: false,
                 is_transparent: true,
@@ -101,7 +96,6 @@ impl TextAreaBundle {
         }
     }
 }
-
 
 #[derive(Default)]
 pub struct AtartTextPlugin;

@@ -31,7 +31,8 @@ impl PIA {
     }
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0x3;
-        if addr != PORTA {  // TODO
+        if addr != PORTA {
+            // TODO
             self.regs[addr] = value;
         }
     }

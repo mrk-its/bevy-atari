@@ -237,9 +237,12 @@ fn debug_overlay_system(
         &text.data.data[..data.len()].copy_from_slice(&data);
     }
     for (_, mut transform) in scan_line.iter_mut() {
-        *transform =
-            GlobalTransform::from_translation(Vec3::new(0.0, 128.0 - atari_system.antic.scan_line as f32, 0.1))
-                .mul_transform(Transform::from_scale(Vec3::new(384.0, 1.0, 1.0)));
+        *transform = GlobalTransform::from_translation(Vec3::new(
+            0.0,
+            128.0 - atari_system.antic.scan_line as f32,
+            0.1,
+        ))
+        .mul_transform(Transform::from_scale(Vec3::new(384.0, 1.0, 1.0)));
     }
 }
 
@@ -321,7 +324,9 @@ fn atari_system(
         }
         if atari_system.antic.gets_visible() {
             // info!("here: {} {}", atari_system.antic.cycle, frame.visible_cycle);
-            let prev_mode_line = if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line == atari_system.antic.start_scan_line {
+            let prev_mode_line = if atari_system.antic.scan_line >= 8
+                && atari_system.antic.scan_line == atari_system.antic.start_scan_line
+            {
                 // info!("creating mode line, cycle: {:?}", atari_system.antic.cycle);
                 let mode_line = atari_system.antic.create_next_mode_line();
                 let prev_mode_line = frame.current_mode.take();
@@ -425,7 +430,10 @@ fn events(
     let mut guard = js_api::ARRAY.write();
     for event in guard.drain(..) {
         match event {
-            js_api::Message::Reset { cold, disable_basic} => {
+            js_api::Message::Reset {
+                cold,
+                disable_basic,
+            } => {
                 atari_system.reset(&mut *cpu, cold, disable_basic);
                 *frame = FrameState::default();
                 atari_system.antic.scan_line = 0;
@@ -434,7 +442,9 @@ fn events(
             js_api::Message::SetState(new_state) => {
                 match new_state.as_ref() {
                     "running" => info!("{:?}", state.set_next(EmulatorState::Running)),
-                    "idle" => {state.set_next(EmulatorState::Idle).ok();},
+                    "idle" => {
+                        state.set_next(EmulatorState::Idle).ok();
+                    }
                     _ => panic!("invalid state requested"),
                 };
             }

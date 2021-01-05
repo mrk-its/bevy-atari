@@ -1,4 +1,5 @@
 use crate::gtia::atari_color;
+use crate::system::AtariSystem;
 use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
@@ -10,7 +11,6 @@ use bevy::render::{
     texture::Texture,
 };
 use std::convert::TryInto;
-use crate::system::AtariSystem;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

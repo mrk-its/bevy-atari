@@ -460,7 +460,8 @@ impl Antic {
         let hscrol_line_width = self.n_bytes * self.playfield_width(true, is_hscrol) / 320;
         let width = self.playfield_width(false, is_hscrol);
 
-        let height = if self.scan_line + self.line_height > 248 {  // clip height if necessary
+        let height = if self.scan_line + self.line_height > 248 {
+            // clip height if necessary
             248 - self.scan_line
         } else {
             self.line_height
@@ -501,7 +502,8 @@ impl Antic {
 
     #[inline(always)]
     pub fn dlist_dma(&self) -> bool {
-        self.dmactl.contains(DMACTL::DLIST_DMA) && (self.scan_line == 8 || !(self.mode() == 1 && self.opts().contains(MODE_OPTS::LMS)))
+        self.dmactl.contains(DMACTL::DLIST_DMA)
+            && (self.scan_line == 8 || !(self.mode() == 1 && self.opts().contains(MODE_OPTS::LMS)))
     }
 
     pub fn set_dlist_data(&mut self, dlist_data: [u8; 3]) {
@@ -517,7 +519,6 @@ impl Antic {
         } else if mode == 1 {
             self.dlist = dlist_data[1] as u16 | ((dlist_data[2] as u16) << 8);
         }
-
     }
     pub fn prepare_mode_line(&mut self) {
         let mode = self.mode();

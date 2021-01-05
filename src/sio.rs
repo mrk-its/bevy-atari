@@ -47,7 +47,11 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
                     addr, sector, len
                 );
                 // TODO: unnecessary copy
-                if let Some(data) = atari_system.disk_1.as_ref().and_then(|atr| atr.get_sector(sector as usize).map(|f| f.to_owned())) {
+                if let Some(data) = atari_system
+                    .disk_1
+                    .as_ref()
+                    .and_then(|atr| atr.get_sector(sector as usize).map(|f| f.to_owned()))
+                {
                     assert!(data.len() == len as usize);
                     atari_system.copy_from_slice(addr as usize, &data);
                     0x01
@@ -70,4 +74,3 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
     cpu.stack_pointer += 2;
     cpu.program_counter = pc;
 }
-

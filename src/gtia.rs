@@ -60,7 +60,6 @@ pub const TRIG2: usize = 0x12;
 pub const TRIG3: usize = 0x13;
 pub const PAL: usize = 0x14;
 
-
 bitflags! {
     #[derive(Default)]
     pub struct GRACTL: u8 {
@@ -89,7 +88,7 @@ impl Default for Gtia {
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
             consol_mask: 0x7,
-            consol_force_mask: 0x7,  // force option on start;
+            consol_force_mask: 0x7, // force option on start;
         }
     }
 }

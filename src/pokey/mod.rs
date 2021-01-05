@@ -233,13 +233,38 @@ impl Pokey {
     ) -> bool {
         let kbcode = match *event {
             KeyCode::Key1 => 0x1f,
-            KeyCode::Key2 => if is_shift {0x35} else {0x1e},
+            KeyCode::Key2 => {
+                if is_shift {
+                    0x35
+                } else {
+                    0x1e
+                }
+            }
             KeyCode::Key3 => 0x1a,
             KeyCode::Key4 => 0x18,
             KeyCode::Key5 => 0x1d,
-            KeyCode::Key6 => if is_shift {0x07} else {0x1b},
-            KeyCode::Key7 => if is_shift {0x1b} else {0x33},
-            KeyCode::Key8 => if is_shift {is_shift=false; 0x7} else {0x35},
+            KeyCode::Key6 => {
+                if is_shift {
+                    0x07
+                } else {
+                    0x1b
+                }
+            }
+            KeyCode::Key7 => {
+                if is_shift {
+                    0x1b
+                } else {
+                    0x33
+                }
+            }
+            KeyCode::Key8 => {
+                if is_shift {
+                    is_shift = false;
+                    0x7
+                } else {
+                    0x35
+                }
+            }
             KeyCode::Key9 => 0x30,
             KeyCode::Key0 => 0x32,
             KeyCode::A => 0x3f,
@@ -279,23 +304,76 @@ impl Pokey {
             KeyCode::Asterisk => 0x07,
             KeyCode::Plus => 0x06,
             KeyCode::Colon => 0x02,
-            KeyCode::Comma => if is_shift {is_shift = false; 0x36} else {0x20},
-            KeyCode::Period => if is_shift {is_shift = false; 0x37} else {0x22},
+            KeyCode::Comma => {
+                if is_shift {
+                    is_shift = false;
+                    0x36
+                } else {
+                    0x20
+                }
+            }
+            KeyCode::Period => {
+                if is_shift {
+                    is_shift = false;
+                    0x37
+                } else {
+                    0x22
+                }
+            }
             KeyCode::Semicolon => 0x02,
             KeyCode::Slash => 0x26,
             KeyCode::Tab => 0x2c,
             KeyCode::Minus => 0x0e,
-            KeyCode::LBracket => {is_shift=true; 0x20},
-            KeyCode::RBracket => {is_shift=true; 0x22},
-            KeyCode::Equals => if is_shift {is_shift=false; 0x06} else {0x0f},
-            KeyCode::Apostrophe => if is_shift {0x1e} else {is_shift=true; 0x33},
-            KeyCode::Backslash => if is_shift {0x0f} else {is_shift = true; 0x06},
+            KeyCode::LBracket => {
+                is_shift = true;
+                0x20
+            }
+            KeyCode::RBracket => {
+                is_shift = true;
+                0x22
+            }
+            KeyCode::Equals => {
+                if is_shift {
+                    is_shift = false;
+                    0x06
+                } else {
+                    0x0f
+                }
+            }
+            KeyCode::Apostrophe => {
+                if is_shift {
+                    0x1e
+                } else {
+                    is_shift = true;
+                    0x33
+                }
+            }
+            KeyCode::Backslash => {
+                if is_shift {
+                    0x0f
+                } else {
+                    is_shift = true;
+                    0x06
+                }
+            }
             KeyCode::F1 => 0x11,
             KeyCode::Capital => 0x3c,
-            KeyCode::Up => {is_ctl = true; 0x0e},
-            KeyCode::Down => {is_ctl = true; 0x0f},
-            KeyCode::Left => {is_ctl = true; 0x06},
-            KeyCode::Right => {is_ctl = true; 0x07},
+            KeyCode::Up => {
+                is_ctl = true;
+                0x0e
+            }
+            KeyCode::Down => {
+                is_ctl = true;
+                0x0f
+            }
+            KeyCode::Left => {
+                is_ctl = true;
+                0x06
+            }
+            KeyCode::Right => {
+                is_ctl = true;
+                0x07
+            }
             _ => return false,
         };
         self.kbcode = self.kbcode & 0x3f | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);

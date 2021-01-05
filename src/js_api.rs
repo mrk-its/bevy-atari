@@ -73,5 +73,8 @@ pub fn set_state(state: String) {
 #[wasm_bindgen]
 pub fn reset(cold: bool, disable_basic: bool) {
     let mut guard = ARRAY.write();
-    guard.push(Message::Reset { cold, disable_basic });
+    guard.push(Message::Reset {
+        cold,
+        disable_basic,
+    });
 }

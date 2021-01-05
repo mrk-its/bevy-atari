@@ -1,8 +1,8 @@
 use super::{AUDC, AUDCTL, CLOCK_177};
+use bevy::utils::tracing::*;
 use lru::LruCache;
 use wasm_bindgen::prelude::*;
 use web_sys::{AudioBuffer, AudioContext, OscillatorType};
-use bevy::utils::tracing::*;
 
 const MIN_SAMPLE_RATE: f32 = 8000.0;
 const MAX_SAMPLE_RATE: f32 = 96000.0;
@@ -298,11 +298,7 @@ impl AudioBackend {
             if let Some(source) = self.buffer_source[channel].take() {
                 source.stop().unwrap();
             }
-            let freq = if freq <= 22050.0 {
-                freq
-            } else {
-                0.0
-            };
+            let freq = if freq <= 22050.0 { freq } else { 0.0 };
             self.oscillator[channel].frequency().set_value(freq);
         } else {
             self.set_noise_source(channel, audctl, ctl, divider, clock_divider, freq);
