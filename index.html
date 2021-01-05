@@ -31,6 +31,7 @@
       border: 2px solid black;
       position: relative;
     }
+
     .files>div label {
       float: left;
     }
@@ -38,6 +39,7 @@
     .files .actions {
       float: right;
     }
+
     .buttons {
       margin: 1em 1em;
     }
@@ -109,12 +111,12 @@
     }
 
     function is_absolute_url(url) {
-      return url.startsWith("http://") || url.startsWith("https://");
+      return url && (url.startsWith("http://") || url.startsWith("https://"));
     }
 
     function url_to_filename(url) {
       var path;
-      if(is_absolute_url(url)) {
+      if (is_absolute_url(url)) {
         let url_obj = new URL(url);
         path = decodeURIComponent(url_obj.pathname);
       } else {
@@ -126,20 +128,20 @@
     }
 
     function fetch_url(url) {
-      if(is_absolute_url(url)) {
+      if (is_absolute_url(url)) {
         url = "https://cors-anywhere.herokuapp.com/" + url;
       }
-      return fetch(url).then(r => r.arrayBuffer()).then(function(data) {
+      return fetch(url).then(r => r.arrayBuffer()).then(function (data) {
         return new Uint8Array(data);
       })
     }
 
     function fetch_binary_data(key, url) {
-      if(store_exists(key, url)) {
+      if (store_exists(key, url)) {
         init_binary_data(key);
         return Promise.resolve(key);
       }
-      return fetch_url(url).then(function(data) {
+      return fetch_url(url).then(function (data) {
         set_binary(url, data);
         return key;
       })
@@ -163,12 +165,13 @@
     }
 
     function update_fragment() {
-      let url = localStorage.disk_1_url;
-      if(url && (url.startsWith("http://") || url.startsWith("https://"))) {
-        document.location = '#disk_1=' + encodeURIComponent(url);
-      } else {
-        document.location = '#'
-      }
+      let hash = ['disk_1', 'osrom', 'basic'].map(
+        key => [key, localStorage[key + "_url"]]
+      ).filter(
+        i => is_absolute_url(i[1])
+      ).map(i => `${i[0]}==${i[1]}`).join("||");
+
+      document.location.hash = '#' + encodeURIComponent(hash);
     }
 
     function update_status() {
@@ -190,7 +193,7 @@
     function reload_from_fragment() {
       let todo = [];
 
-      for(let [key, url] of document.location.hash.substring(1).split("|").filter(x => x).map(part => part.split("=").map(decodeURIComponent))) {
+      for (let [key, url] of decodeURIComponent(document.location.hash.substring(1)).split("||").filter(x => x).map(part => part.split("=="))) {
         todo.push(fetch_binary_data(key, url));
       };
       return Promise.all(todo)
@@ -223,7 +226,7 @@
       init_binary_data("disk_1");
       update_status();
 
-      reload_from_fragment().then(function() {
+      reload_from_fragment().then(function () {
         set_state("running");
         // reset(true);
         update_fragment();
