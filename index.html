@@ -84,13 +84,8 @@
       update_fragment();
     }
     function set_binary(url, data) {
-      var filename;
-      if(url.startsWith("http://") || url.startsWith("https://")) {
-        filename = url_to_filename(url);
-      } else {
-        filename = url;
-      }
-      if (filename.toLowerCase().endsWith(".rom")) {
+      var filename = url_to_filename(url);
+      if (filename.toLowerCase().endsWith(".rom") || filename.toLowerCase().endsWith(".bin")) {
         if (data.length == 0x4000) {
           store("osrom", url, filename, data);
         } else if (data.length == 0x2000) {
@@ -99,7 +94,6 @@
           console.warn("invalid length of rom file", data.length);
         }
       } else if (filename.toLowerCase().endsWith(".state")) {
-        console.log("HERE", filename, data);
         set_binary_data("state", filename, data);
       } else if (filename.toLowerCase().endsWith(".atr")) {
         let is_valid = (data[0] == 0x96 && data[1] == 0x02 && data[4] == 128 && data[5] == 0);
@@ -114,16 +108,28 @@
       }
     }
 
+    function is_absolute_url(url) {
+      return url.startsWith("http://") || url.startsWith("https://");
+    }
+
     function url_to_filename(url) {
-      let url_obj = new URL(url);
-      let path = decodeURIComponent(url_obj.pathname);
+      var path;
+      if(is_absolute_url(url)) {
+        let url_obj = new URL(url);
+        path = decodeURIComponent(url_obj.pathname);
+      } else {
+        path = url;
+      }
       let fn = path.split("/");
       fn = fn[fn.length - 1];
       return fn;
     }
 
     function fetch_url(url) {
-      return fetch("https://cors-anywhere.herokuapp.com/" + url).then(r => r.arrayBuffer()).then(function(data) {
+      if(is_absolute_url(url)) {
+        url = "https://cors-anywhere.herokuapp.com/" + url;
+      }
+      return fetch(url).then(r => r.arrayBuffer()).then(function(data) {
         return new Uint8Array(data);
       })
     }
@@ -166,9 +172,9 @@
     }
 
     function update_status() {
-      document.querySelector("#disk_1 span").innerText = localStorage.disk_1_filename || 'empty';
-      document.querySelector("#osrom span").innerText = localStorage.osrom_filename || 'default';
-      document.querySelector("#basic span").innerText = localStorage.basic_filename || 'default';
+      document.querySelector("#disk_1 span").innerText = localStorage.disk_1_filename || 'none';
+      document.querySelector("#osrom span").innerText = localStorage.osrom_filename || 'none';
+      document.querySelector("#basic span").innerText = localStorage.basic_filename || 'none';
     }
 
     function init_binary_data(key) {
@@ -260,10 +266,6 @@
         Disk 1: <span></span>
         <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
       </div>
-    </div>
-    <div>
-      <a href="http://127.0.0.1:4000/#disk_1=https%3A%2F%2Fatarionline.pl%2Farch%2FR%2FRobbo%2520(L.K.%2520Avalon)%2FRobbo%2520(demo)%2520(1989)(L.K.%2520Avalon)(PL).xex">Robbo</a>
-      <a href="http://127.0.0.1:4000/#disk_1=https%3A%2F%2Fatarionline.pl%2Fdemoscena%2FR%2FRevenge%2520of%2520Magnus.xex">Revenge of Magnus</a>
     </div>
   </div>
 </body>
