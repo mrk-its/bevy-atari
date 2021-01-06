@@ -129,7 +129,7 @@
 
     function fetch_url(url) {
       if (is_absolute_url(url)) {
-        url = "https://cors-anywhere.herokuapp.com/" + url;
+        url = "https://atari.ha.sed.pl/" + url;
       }
       return fetch(url).then(r => r.arrayBuffer()).then(function (data) {
         return new Uint8Array(data);
@@ -147,16 +147,22 @@
       })
     }
 
+    function handle_file(file) {
+      let name = file.name;
+      file.arrayBuffer().then(function (data) {
+        set_binary(name, new Uint8Array(data));
+      })
+    }
+
     function on_drop_handler(event) {
       event.preventDefault();
       let url = event.dataTransfer.getData("text/plain");
       if (url) {
         fetch_binary_data("", url).then(update_fragment);
       } else {
-        let name = event.dataTransfer.files[0].name;
-        event.dataTransfer.files[0].arrayBuffer().then(function (data) {
-          set_binary(name, new Uint8Array(data));
-        })
+        for(file of event.dataTransfer.files) {
+          handle_file(file);
+        }
       }
     }
 
@@ -200,6 +206,14 @@
     }
     function blur() {
       document.activeElement.blur();
+    }
+    async function open_local_file(event) {
+      event.preventDefault();
+      let handles = await window.showOpenFilePicker();
+      for(handle of handles) {
+        let file = await handle.getFile();
+        handle_file(file);
+      }
     }
   </script>
 
@@ -250,6 +264,7 @@
       <button onclick="reset(false, false); blur()">Restart (Warm)</button>
       <button onclick="reset(true, false); blur()">Restart (Cold)</button>
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
+      <button onclick="open_local_file(event); blur()" style="float: right">Open</button>
     </div>
     <div class="files">
       <div id="osrom">

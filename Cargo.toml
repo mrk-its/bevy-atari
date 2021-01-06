@@ -8,10 +8,8 @@ edition = "2018"
 
 [features]
 default = [
-  "bevy/bevy_gltf",
   "bevy/bevy_winit",
   "bevy/render",
-  "bevy/png",
 ]
 
 native = [
@@ -24,7 +22,7 @@ web = [
 
 [dependencies]
 bevy = {version="0.4.0", default-features=false}
-bevy_webgl2 = {version = "0.4.0", optional=true}
+bevy_webgl2 = {version = "0.4.2", default-features=false, optional=true}
 winit = {version = "0.24.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {path="../emulator_6502", features=["binary_coded_decimal"]}
 disasm6502 = "0.2"
@@ -56,7 +54,7 @@ features = [
 [patch.crates-io]
 bevy = {path = "../bevy", default-features=false}
 # bevy_webgl2 = {path = "../bevy_webgl2_mvlabat"}
-# bevy_webgl2 = {path = "../bevy_webgl2"}
+bevy_webgl2 = {path = "../bevy_webgl2", default-features=false}
 
 [profile.dev.package."*"]
 opt-level = 2
