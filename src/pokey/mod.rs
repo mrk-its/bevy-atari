@@ -379,7 +379,7 @@ impl Pokey {
         self.kbcode = self.kbcode & 0x3f | ((is_shift as u8) << 6) | ((is_ctl as u8) << 7);
         let ret = if is_pressed {
             self.kbcode = self.kbcode & !0x3f | kbcode & 0x3f;
-            self.skstat = 0xff - 4;
+            self.skstat = 0xff - 8;
             self.irqst = 0xff - 0x40;
             true
         } else {
