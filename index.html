@@ -209,13 +209,8 @@
       try {
         await init()
       } catch (e) {
+        console.warn(e);
       }
-      // function random_moves() {
-      //   // set_joystick param: port, up, down, left, right, fire
-      //   set_joystick(0, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.5, Math.random()<0.2);
-      //   setTimeout(random_moves, 100)
-      // }
-      // random_moves();
       window.set_binary_data = set_binary_data;
       window.cmd = cmd;
       window.reset = reset;
@@ -259,11 +254,11 @@
     <div class="files">
       <div id="osrom">
         OSROM: <span></span>
-        <div class="actions"><a onclick="eject(event)" href="#">Default</a></div>
+        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
       </div>
       <div id="basic">
         Basic: <span></span>
-        <div class="actions"><a onclick="eject(event)" href="#">Default</a></div>
+        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
       </div>
       <div id="disk_1">
         Disk 1: <span></span>

@@ -274,31 +274,36 @@ impl AtariSystem {
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
+        let map_joy = false;
         for ev in keyboard.get_just_pressed() {
             if *ev == KeyCode::F5 {
                 self.reset(cpu, false, false);
             }
             self.pokey.resume();
-            joy_changed = joy_changed
+            if map_joy {
+                joy_changed = joy_changed
                 || *ev == KeyCode::LShift
                 || *ev == KeyCode::RShift
                 || *ev == KeyCode::Up
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left
                 || *ev == KeyCode::Right;
+            }
             if !joy_changed || is_ctl {
                 irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
             }
         }
 
         for ev in keyboard.get_just_released() {
-            joy_changed = joy_changed
+            if map_joy {
+                joy_changed = joy_changed
                 || *ev == KeyCode::LShift
                 || *ev == KeyCode::RShift
                 || *ev == KeyCode::Up
                 || *ev == KeyCode::Down
                 || *ev == KeyCode::Left
                 || *ev == KeyCode::Right;
+            }
             if !joy_changed || is_ctl {
                 self.pokey.key_press(ev, false, is_shift, is_ctl);
             }
