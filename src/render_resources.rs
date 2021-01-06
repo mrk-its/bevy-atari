@@ -103,14 +103,23 @@ pub struct GTIARegs {
 unsafe impl Byteable for GTIARegsArray {}
 impl_render_resource_bytes!(GTIARegsArray);
 
-#[derive(RenderResources, TypeUuid, Debug)]
-#[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
-pub struct AnticLine {
+#[repr(C)]
+#[derive(Default, Clone, Copy, Debug)]
+pub struct AnticLineDescr {
     pub line_width: f32,
     pub mode: u32,
     pub hscrol: f32,
     pub line_height: f32,
     pub line_voffset: f32,
+}
+
+unsafe impl Byteable for AnticLineDescr {}
+impl_render_resource_bytes!(AnticLineDescr);
+
+#[derive(RenderResources, TypeUuid, Debug)]
+#[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
+pub struct AnticLine {
+    pub antic_line_descr: AnticLineDescr,
     pub data: LineData,
     pub gtia_regs_array: GTIARegsArray,
     pub charset: Charset,

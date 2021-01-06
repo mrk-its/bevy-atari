@@ -1,4 +1,4 @@
-use crate::render_resources::{AnticLine, AtariPalette};
+use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
 use bevy::prelude::*;
@@ -654,12 +654,14 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_ex
         })
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
-            mode: mode_line.mode as u32,
+            antic_line_descr: AnticLineDescr {
+                mode: mode_line.mode as u32,
+                line_width: mode_line.width as f32,
+                line_height: mode_line.height as f32,
+                line_voffset: mode_line.line_voffset as f32,
+                hscrol: mode_line.hscrol as f32,
+            },
             gtia_regs_array: mode_line.gtia_regs_array,
-            line_width: mode_line.width as f32,
-            line_height: mode_line.height as f32,
-            line_voffset: mode_line.line_voffset as f32,
-            hscrol: mode_line.hscrol as f32,
             data: mode_line.line_data,
             charset: mode_line.charset,
             start_scan_line: mode_line.scan_line,

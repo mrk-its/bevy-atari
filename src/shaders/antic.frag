@@ -5,17 +5,18 @@ precision highp float;
 in vec2 v_Uv;
 out vec4 o_Target;
 
-layout(std140) uniform AnticLine_line_width { // set = 1 binding = 1
+layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
     float line_width;
-};
-
-layout(std140) uniform AnticLine_mode { // set = 1 binding = 2
     int mode;
+    float hscrol;
+    float line_height;
+    float line_voffset;
 };
 
-layout(std140) uniform AnticLine_data { // set = 1 binding = 3
+layout(std140) uniform AnticLine_data { // set = 1 binding = 2
     uvec4 data[3];  // 48 bytes
 };
+
 struct GTIA {
     ivec4 color_regs[2];
     ivec4 colpm;
@@ -25,25 +26,14 @@ struct GTIA {
     ivec4 grafp;
     ivec4 prior;  // [prior, sizem, grafm, unused]
 };
-layout(std140) uniform AnticLine_gtia_regs_array { // set = 1 binding = 4
+
+layout(std140) uniform AnticLine_gtia_regs_array { // set = 1 binding = 3
     //ivec4 color_regs[2]; // [[bak, pf0, pf1, pf2], [bak, pf0, pf1, pf3]]
     GTIA gtia[8];
 };
 
-layout(std140) uniform AnticLine_charset { // set = 1 binding = 5
+layout(std140) uniform AnticLine_charset { // set = 1 binding = 4
     uvec4 charset[64];
-};
-
-layout(std140) uniform AnticLine_hscrol { // set = 1 binding = 6
-    float hscrol;
-};
-
-layout(std140) uniform AnticLine_line_height { // set = 1 binding = 7
-    float line_height;
-};
-
-layout(std140) uniform AnticLine_line_voffset { // set = 1 binding = 8
-    float line_voffset;
 };
 
 layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
