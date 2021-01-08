@@ -274,7 +274,7 @@ impl AtariSystem {
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
-        let map_joy = false;
+        let map_joy = true;
         for ev in keyboard.get_just_pressed() {
             if *ev == KeyCode::F5 {
                 self.reset(cpu, false, false);
