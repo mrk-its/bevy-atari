@@ -1,6 +1,6 @@
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIARegs;
-use bevy::prelude::Color;
+use bevy::prelude::*;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -70,6 +70,7 @@ bitflags! {
 }
 
 pub struct Gtia {
+    pub scan_line: usize,
     pub regs: GTIARegs,
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
@@ -89,6 +90,7 @@ impl Default for Gtia {
             consol: 0x7,
             consol_mask: 0x7,
             consol_force_mask: 0x7, // force option on start;
+            scan_line: 0,
         }
     }
 }

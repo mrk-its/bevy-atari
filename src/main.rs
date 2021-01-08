@@ -30,7 +30,7 @@ use bevy::{
     sprite::QUAD_HANDLE,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::{AnticLine, AtariPalette, Charset, LineData};
+use render_resources::{AnticLine, AtariPalette};
 use system::AtariSystem;
 
 const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
@@ -349,19 +349,27 @@ fn atari_system(
                         }
                     }
                 }
-                create_mode_line(commands, &prev_mode_line, 0.0);
+                create_mode_line(commands, prev_mode_line, 0.0);
             }
 
             let current_scan_line = atari_system.antic.scan_line;
             if let Some(current_line) = &mut frame.current_mode {
                 let k = (current_scan_line - current_line.scan_line).min(7);
-                current_line.gtia_regs_array.regs[k] = atari_system.gtia.regs;
+                if current_line.gtia_regs_array.regs.len() < 8 {
+                    current_line
+                        .gtia_regs_array
+                        .regs
+                        .push(atari_system.gtia.regs);
+                }
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
+                    current_line.line_data.set_data(
+                        &mut atari_system,
+                        current_line.data_offset,
+                        current_line.n_bytes,
+                    );
                     // TODO suport 512 byte charsets?
-                    current_line.line_data =
-                        LineData::new(&mut atari_system, current_line.data_offset);
-                    current_line.charset = Charset::new(&mut atari_system, charset_offset);
+                    current_line.charset.set_data(&mut atari_system, charset_offset, current_line.charset_size());
                 }
             }
         }
@@ -398,6 +406,7 @@ fn atari_system(
             }
         }
         atari_system.antic.inc_cycle();
+        atari_system.gtia.scan_line = atari_system.antic.scan_line;
         if atari_system.antic.cycle == 0 {
             if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
                 if *scan_line == atari_system.antic.scan_line {

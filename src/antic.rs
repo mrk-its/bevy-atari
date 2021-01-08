@@ -205,6 +205,13 @@ impl ModeLineDescr {
     pub fn next_mode_line(&self) -> usize {
         return self.scan_line + self.height;
     }
+    pub fn charset_size(&self) -> usize {
+        match self.mode {
+            2..=5 => 1024,
+            6..=7 => 512,
+            _ => 0,
+        }
+    }
 }
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
@@ -626,7 +633,7 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     system.read(offs as u16)
 }
 
-pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_extra_offset: f32) {
+pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
     commands
         .spawn(MeshBundle {
             mesh: QUAD_HANDLE.typed(),
@@ -654,6 +661,7 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_ex
         })
         .with(AnticLine {
             // chbase: mode_line.chbase as u32,
+            end_scan_line: mode_line.next_mode_line(),
             antic_line_descr: AnticLineDescr {
                 mode: mode_line.mode as u32,
                 line_width: mode_line.width as f32,
@@ -665,7 +673,6 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: &ModeLineDescr, y_ex
             data: mode_line.line_data,
             charset: mode_line.charset,
             start_scan_line: mode_line.scan_line,
-            end_scan_line: mode_line.next_mode_line(),
         })
         .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
 }

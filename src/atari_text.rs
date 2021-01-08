@@ -68,7 +68,7 @@ pub struct TextAreaBundle {
 impl TextAreaBundle {
     pub fn new(width: f32, height: f32, x_offset: f32, y_offset: f32) -> TextAreaBundle {
         let mut charset = Charset::default();
-        charset.data.copy_from_slice(CHARSET_DATA);
+        charset.data.extend_from_slice(CHARSET_DATA);
         TextAreaBundle {
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
