@@ -16,25 +16,18 @@ mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
-use bevy::{render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass}, window::WindowId, winit::WinitConfig};
+use bevy::reflect::TypeUuid;
 use bevy::{
     prelude::*,
-    render::{
-        camera::{Camera, OrthographicProjection, WindowOrigin},
-        entity::Camera2dBundle,
-        pass::ClearColor,
-        pipeline::PipelineDescriptor,
-        render_graph::RenderGraph,
-    },
-    sprite::QUAD_HANDLE,
+    render::{camera::Camera, entity::Camera2dBundle, pipeline::PipelineDescriptor},
 };
 use bevy::{
-    reflect::TypeUuid,
-    render::texture::{Extent3d, TextureDimension, TextureFormat},
+    render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass},
+    window::WindowId,
+    winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::{AnticLine, AtariPalette};
-use shape::{Box, Quad};
+use render_resources::AnticLine;
 use system::AtariSystem;
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
@@ -551,7 +544,7 @@ fn set_debug(
         if camera.window.is_primary() {
             if is_visible {
                 *transform = GlobalTransform::from_translation(Vec3::new(384.0, -240.0, 0.0))
-                        .mul_transform(Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)))
+                    .mul_transform(Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)))
             } else {
                 *transform = GlobalTransform::default()
             }
@@ -559,18 +552,19 @@ fn set_debug(
     }
 }
 
+#[allow(dead_code)]
 fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
     for mut transform in query.iter_mut() {
         transform.rotate(Quat::from_rotation_ypr(0.01, 0.002, 0.015));
     }
 }
 
+const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
+
 fn setup(
     commands: &mut Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut textures: ResMut<Assets<Texture>>,
     mut meshes: ResMut<Assets<Mesh>>,
-    asset_server: Res<AssetServer>,
 ) {
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
     materials.set(
@@ -584,35 +578,34 @@ fn setup(
     // load a texture and retrieve its aspect ratio
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
 
-    //let mesh_handle = meshes.add(Mesh::from(Quad::new(Vec2::new(384.0, 240.0))));
-    let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
-
     materials.set_untracked(
         ATARI_MATERIAL_HANDLE,
         StandardMaterial {
             // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
             albedo_texture: Some(antic::render::ANTIC_TEXTURE_HANDLE.typed()),
-            shaded: true,
+            shaded: false,
             ..Default::default()
         },
     );
 
-    // commands.spawn(Camera2dBundle::default());
     let mut antic_camera_bundle = Camera2dBundle {
         camera: Camera {
             name: Some(antic::render::ANTIC_CAMERA.to_string()),
             ..Default::default()
         },
-        transform: Transform::from_scale(Vec3::new(1.0 , 1.0, 1.0)),
+        transform: Transform::from_scale(Vec3::new(1.0, -1.0, 1.0)),
         ..Default::default()
     };
 
     antic_camera_bundle.camera.window = WindowId::new();
     let camera_projection = &mut antic_camera_bundle.orthographic_projection;
-    camera_projection.update(320.0, 320.0);
+    camera_projection.update(ANTIC_TEXTURE_SIZE.x, ANTIC_TEXTURE_SIZE.y);
     antic_camera_bundle.camera.projection_matrix = camera_projection.get_projection_matrix();
     antic_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
     commands.spawn(antic_camera_bundle);
+
+    let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
+    // let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
 
     commands.spawn(PbrBundle {
         mesh: mesh_handle,
@@ -623,20 +616,21 @@ fn setup(
         },
         transform: Transform {
             translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(1.0, 1.0, 1.0),
+            scale: Vec3::new(2.0, 2.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     });
-    commands.spawn(LightBundle {
-        transform: Transform::from_translation(Vec3::new(-20.0, 0.0, 30.0)),
-        ..Default::default()
-    });
-    commands.spawn(Camera3dBundle {
-        transform: Transform::from_translation(Vec3::new(0.0 , 0.0, 10.0))
-            .looking_at(Vec3::new(-0.0, -0.0, 0.0), Vec3::unit_y()),
-        ..Default::default()
-    });
+    commands.spawn(Camera2dBundle::default());
+    // commands.spawn(LightBundle {
+    //     transform: Transform::from_translation(Vec3::new(-20.0, 0.0, 30.0)),
+    //     ..Default::default()
+    // });
+    // commands.spawn(Camera3dBundle {
+    //     transform: Transform::from_translation(Vec3::new(0.0 , 0.0, 10.0))
+    //         .looking_at(Vec3::new(-0.0, -0.0, 0.0), Vec3::unit_y()),
+    //     ..Default::default()
+    // });
 
     // commands
     //     .spawn(PbrBundle {
@@ -681,7 +675,6 @@ fn setup(
     // Setup our world
 }
 
-
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
@@ -704,7 +697,9 @@ fn main() {
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_plugin(atari_text::AtartTextPlugin::default());
-    app.add_plugin(antic::AnticPlugin::default());
+    app.add_plugin(antic::AnticPlugin {
+        texture_size: ANTIC_TEXTURE_SIZE,
+    });
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
@@ -712,8 +707,7 @@ fn main() {
 
     let frame = FrameState::default();
 
-    app
-        .add_resource(State::new(EmulatorState::Idle))
+    app.add_resource(State::new(EmulatorState::Idle))
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(system)
         .add_resource(cpu)
@@ -733,7 +727,7 @@ fn main() {
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
-        .on_state_update("running", EmulatorState::Running, animation.system())
+        // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())
         .run();
 }

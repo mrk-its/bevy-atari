@@ -692,14 +692,23 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_ext
         .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
 }
 
-#[derive(Default)]
-pub struct AnticPlugin;
+pub struct AnticPlugin {
+    pub texture_size: Vec2,
+}
+
+impl Default for AnticPlugin {
+    fn default() -> Self {
+        Self {
+            texture_size: Vec2::new(384.0, 240.0)
+        }
+    }
+}
 
 impl Plugin for AnticPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_asset::<AnticLine>().add_asset::<AtariPalette>();
         let resources = app.resources_mut();
         let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
-        render_graph.add_antic_graph(resources);
+        render_graph.add_antic_graph(resources, &self.texture_size);
     }
 }

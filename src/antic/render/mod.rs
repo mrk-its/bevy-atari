@@ -1,10 +1,8 @@
 use std::borrow::Cow;
 
-use bevy::{reflect::TypeUuid, render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension}};
-use bevy::render::{pipeline::RenderPipeline, render_graph::Node};
+use bevy::render::render_graph::Node;
 use bevy::render::{
     render_graph::RenderGraph,
-    renderer::TextureId,
     texture::{Extent3d, TextureFormat},
 };
 use bevy::{
@@ -16,13 +14,16 @@ use bevy::{
         },
         pipeline::{CullMode, PipelineDescriptor},
         render_graph::{
-            base::{camera::CAMERA_2D, node::MAIN_PASS},
-            AssetRenderResourcesNode, PassNode, RenderResourcesNode, ResourceSlotInfo,
+            base::node::MAIN_PASS, AssetRenderResourcesNode, PassNode, RenderResourcesNode,
+            ResourceSlotInfo,
         },
         renderer::{RenderResourceId, RenderResourceType},
         shader::{ShaderStage, ShaderStages},
-        texture::TextureDescriptor,
     },
+};
+use bevy::{
+    reflect::TypeUuid,
+    render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension},
 };
 
 use crate::render_resources::{AnticLine, AtariPalette};
@@ -50,11 +51,11 @@ pub fn build_antic_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor 
 }
 
 pub trait AnticRendererGraphBuilder {
-    fn add_antic_graph(&mut self, resources: &Resources) -> &mut Self;
+    fn add_antic_graph(&mut self, resources: &Resources, texture_size: &Vec2) -> &mut Self;
 }
 
 impl AnticRendererGraphBuilder for RenderGraph {
-    fn add_antic_graph(&mut self, resources: &Resources) -> &mut Self {
+    fn add_antic_graph(&mut self, resources: &Resources, texture_size: &Vec2) -> &mut Self {
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
         let mut palettes = resources.get_mut::<Assets<AtariPalette>>().unwrap();
@@ -75,17 +76,19 @@ impl AnticRendererGraphBuilder for RenderGraph {
         });
 
         let texture = Texture::new(
-            Extent3d::new(320, 320, 1),
+            Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
             TextureDimension::D2,
             vec![],
-            TextureFormat::Rgba8Unorm,
+            TextureFormat::Rgba8Uint,
         );
         textures.set_untracked(ANTIC_TEXTURE_HANDLE, texture);
 
         self.add_system_node(ANTIC_CAMERA, CameraNode::new(ANTIC_CAMERA));
 
-        self.add_node(ANTIC_TEXTURE, AnticTextureNode);
-
+        self.add_node(
+            ANTIC_TEXTURE,
+            TextureNode::new(ANTIC_TEXTURE_HANDLE.typed()),
+        );
 
         pass_node.add_camera(ANTIC_CAMERA);
         self.add_node(ANTIC_PASS, pass_node);
@@ -94,14 +97,14 @@ impl AnticRendererGraphBuilder for RenderGraph {
 
         self.add_slot_edge(
             ANTIC_TEXTURE,
-            AnticTextureNode::OUT_TEXTURE,
+            TextureNode::TEXTURE,
             ANTIC_PASS,
             "color_attachment",
         )
         .unwrap();
         self.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
-        self.add_node_edge(ANTIC_PASS, MAIN_PASS, ).unwrap();
-
+        self.add_node_edge(ANTIC_PASS, MAIN_PASS).unwrap();
+        self.add_node_edge("transform", ANTIC_PASS).unwrap();
         // Create a new shader pipeline
         pipelines.set_untracked(
             super::ANTIC_PIPELINE_HANDLE,
@@ -125,16 +128,21 @@ impl AnticRendererGraphBuilder for RenderGraph {
     }
 }
 
-pub struct AnticTextureNode;
-
-impl AnticTextureNode {
-    pub const OUT_TEXTURE: &'static str = "texture";
+pub struct TextureNode {
+    texture_handle: Handle<Texture>,
 }
 
-impl Node for AnticTextureNode {
+impl TextureNode {
+    pub const TEXTURE: &'static str = "texture";
+    pub fn new(texture_handle: Handle<Texture>) -> Self {
+        Self { texture_handle }
+    }
+}
+
+impl Node for TextureNode {
     fn output(&self) -> &[ResourceSlotInfo] {
         static OUTPUT: &[ResourceSlotInfo] = &[ResourceSlotInfo {
-            name: Cow::Borrowed(AnticTextureNode::OUT_TEXTURE),
+            name: Cow::Borrowed(TextureNode::TEXTURE),
             resource_type: RenderResourceType::Texture,
         }];
         OUTPUT
@@ -150,7 +158,7 @@ impl Node for AnticTextureNode {
     ) {
         let render_resource_context = render_context.resources_mut();
         if let Some(texture_id) = render_resource_context
-            .get_asset_resource_untyped(ANTIC_TEXTURE_HANDLE, 0)
+            .get_asset_resource_untyped(self.texture_handle.clone_weak_untyped(), 0)
             .and_then(|x| x.get_texture())
         {
             output.set(0, RenderResourceId::Texture(texture_id));

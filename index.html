@@ -209,11 +209,16 @@
     }
     async function open_local_file(event) {
       event.preventDefault();
-      let handles = await window.showOpenFilePicker();
-      for(handle of handles) {
-        let file = await handle.getFile();
+      // let handles = await window.showOpenFilePicker();
+      // for(handle of handles) {
+      //   let file = await handle.getFile();
+      //   handle_file(file);
+      // }
+      for(file of event.target.files) {
+        console.log(file);
         handle_file(file);
       }
+      event.target.value = "";
     }
   </script>
 
@@ -264,7 +269,8 @@
       <button onclick="reset(false, false); blur()">Restart (Warm)</button>
       <button onclick="reset(true, false); blur()">Restart (Cold)</button>
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
-      <button onclick="open_local_file(event); blur()" style="float: right">Open</button>
+      <input type="file" onchange="open_local_file(event);blur()"></input>
+      <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
     </div>
     <div class="files">
       <div id="osrom">
