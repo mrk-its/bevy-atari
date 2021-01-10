@@ -181,9 +181,18 @@
     }
 
     function update_status() {
-      document.querySelector("#disk_1 span").innerText = localStorage.disk_1_filename || 'none';
-      document.querySelector("#osrom span").innerText = localStorage.osrom_filename || 'none';
-      document.querySelector("#basic span").innerText = localStorage.basic_filename || 'none';
+      for(key of ['disk_1', 'osrom', 'basic']) {
+        let fn = localStorage[`${key}_filename`];
+        let sel = document.querySelector(`#${key} span`);
+        if(fn) {
+          sel.innerText = fn;
+        } else {
+          sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
+        }
+      }
+      // document.querySelector("#disk_1 span").innerHTML = localStorage.disk_1_filename || none_text;
+      // document.querySelector("#osrom span").innerHTML= localStorage.osrom_filename || none_text;
+      // document.querySelector("#basic span").innerHTML = localStorage.basic_filename || none_text;
     }
 
     function init_binary_data(key) {
