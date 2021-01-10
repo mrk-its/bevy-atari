@@ -15,28 +15,33 @@ pub mod pokey;
 mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
-use bevy::reflect::TypeUuid;
-use bevy::winit::WinitConfig;
+
+use bevy::{render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass}, window::WindowId, winit::WinitConfig};
 use bevy::{
     prelude::*,
     render::{
         camera::{Camera, OrthographicProjection, WindowOrigin},
         entity::Camera2dBundle,
         pass::ClearColor,
-        pipeline::{CullMode, PipelineDescriptor},
-        render_graph::{base, AssetRenderResourcesNode, RenderGraph, RenderResourcesNode},
-        shader::{ShaderStage, ShaderStages},
+        pipeline::PipelineDescriptor,
+        render_graph::RenderGraph,
     },
     sprite::QUAD_HANDLE,
 };
+use bevy::{
+    reflect::TypeUuid,
+    render::texture::{Extent3d, TextureDimension, TextureFormat},
+};
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::{AnticLine, AtariPalette};
+use shape::{Box, Quad};
 use system::AtariSystem;
 
-const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
-const FRAGMENT_SHADER: &str = include_str!("shaders/antic.frag");
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
+
+pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723728);
 
 pub struct DebugComponent;
 pub struct ScanLine;
@@ -96,7 +101,7 @@ struct AutoRepeatTimer {
 
 fn keyboard_system(
     mut debug_components: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
+    mut camera_query: Query<(&mut GlobalTransform, &Camera)>,
     time: Res<Time>,
     keyboard: Res<Input<KeyCode>>,
     mut autorepeat_disabled: Local<AutoRepeatTimer>,
@@ -253,7 +258,7 @@ fn atari_system(
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
     mut debug_components: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<&mut GlobalTransform, With<Camera>>,
+    mut camera_query: Query<(&mut GlobalTransform, &Camera)>,
 ) {
     if frame.paused {
         return;
@@ -369,7 +374,11 @@ fn atari_system(
                         current_line.n_bytes,
                     );
                     // TODO suport 512 byte charsets?
-                    current_line.charset.set_data(&mut atari_system, charset_offset, current_line.charset_size());
+                    current_line.charset.set_data(
+                        &mut atari_system,
+                        charset_offset,
+                        current_line.charset_size(),
+                    );
                 }
             }
         }
@@ -533,58 +542,37 @@ fn events(
 fn set_debug(
     is_visible: bool,
     debug_components: &mut Query<&mut Visible, With<DebugComponent>>,
-    camera_query: &mut Query<&mut GlobalTransform, With<Camera>>,
+    camera_query: &mut Query<(&mut GlobalTransform, &Camera)>,
 ) {
     for mut visible in debug_components.iter_mut() {
         visible.is_visible = is_visible;
     }
-    for mut transform in camera_query.iter_mut() {
-        if is_visible {
-            *transform =
-                GlobalTransform::from_translation(Vec3::new(384.0 / 2.0, -240.0 / 2.0, 0.0))
-                    .mul_transform(Transform::from_scale(Vec3::new(1.0 / 1.0, 1.0 / 1.0, 1.0)))
-        } else {
-            *transform = GlobalTransform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0))
+    for (mut transform, camera) in camera_query.iter_mut() {
+        if camera.window.is_primary() {
+            if is_visible {
+                *transform = GlobalTransform::from_translation(Vec3::new(384.0, -240.0, 0.0))
+                        .mul_transform(Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)))
+            } else {
+                *transform = GlobalTransform::default()
+            }
         }
+    }
+}
+
+fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
+    for mut transform in query.iter_mut() {
+        transform.rotate(Quat::from_rotation_ypr(0.01, 0.002, 0.015));
     }
 }
 
 fn setup(
     commands: &mut Commands,
-    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
-    mut shaders: ResMut<Assets<Shader>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut palettes: ResMut<Assets<AtariPalette>>,
-    mut render_graph: ResMut<RenderGraph>,
+    mut textures: ResMut<Assets<Texture>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    asset_server: Res<AssetServer>,
 ) {
-    let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
-        vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
-        fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
-    });
-    if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
-        descr.cull_mode = CullMode::None;
-    }
-
-    // Create a new shader pipeline
-    pipelines.set_untracked(antic::ANTIC_PIPELINE_HANDLE, pipeline_descr);
-    // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticCharset resources to our shader
-    render_graph.add_system_node(
-        "atari_palette",
-        AssetRenderResourcesNode::<AtariPalette>::new(false),
-    );
-    render_graph
-        .add_node_edge("atari_palette", base::node::MAIN_PASS)
-        .unwrap();
-
-    // Add an AssetRenderResourcesNode to our Render Graph. This will bind AnticLine resources to our shader
-    render_graph.add_system_node("antic_line", RenderResourcesNode::<AnticLine>::new(true));
-
-    // Add a Render Graph edge connecting our new "antic_line" node to the main pass node. This ensures "antic_line" runs before the main pass
-    render_graph
-        .add_node_edge("antic_line", base::node::MAIN_PASS)
-        .unwrap();
-
-    palettes.set_untracked(antic::ATARI_PALETTE_HANDLE, AtariPalette::default());
+    // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
     materials.set(
         RED_MATERIAL_HANDLE,
         StandardMaterial {
@@ -593,67 +581,106 @@ fn setup(
             shaded: false,
         },
     );
+    // load a texture and retrieve its aspect ratio
+    // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
 
-    commands.spawn(Camera2dBundle {
-        orthographic_projection: OrthographicProjection {
-            bottom: 0.0,
-            top: 2.0 * 240.0,
-            left: 0.0,
-            right: 2.0 * 384.0,
-            window_origin: WindowOrigin::Center,
+    //let mesh_handle = meshes.add(Mesh::from(Quad::new(Vec2::new(384.0, 240.0))));
+    let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
+
+    materials.set_untracked(
+        ATARI_MATERIAL_HANDLE,
+        StandardMaterial {
+            // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
+            albedo_texture: Some(antic::render::ANTIC_TEXTURE_HANDLE.typed()),
+            shaded: true,
             ..Default::default()
         },
-        transform: Transform::from_scale(Vec3::new(1.0 / 2.0, 1.0 / 2.0, 1.0)),
+    );
+
+    // commands.spawn(Camera2dBundle::default());
+    let mut antic_camera_bundle = Camera2dBundle {
+        camera: Camera {
+            name: Some(antic::render::ANTIC_CAMERA.to_string()),
+            ..Default::default()
+        },
+        transform: Transform::from_scale(Vec3::new(1.0 , 1.0, 1.0)),
+        ..Default::default()
+    };
+
+    antic_camera_bundle.camera.window = WindowId::new();
+    let camera_projection = &mut antic_camera_bundle.orthographic_projection;
+    camera_projection.update(320.0, 320.0);
+    antic_camera_bundle.camera.projection_matrix = camera_projection.get_projection_matrix();
+    antic_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
+    commands.spawn(antic_camera_bundle);
+
+    commands.spawn(PbrBundle {
+        mesh: mesh_handle,
+        material: ATARI_MATERIAL_HANDLE.typed(),
+        visible: Visible {
+            is_visible: true,
+            is_transparent: false,
+        },
+        transform: Transform {
+            translation: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+    commands.spawn(LightBundle {
+        transform: Transform::from_translation(Vec3::new(-20.0, 0.0, 30.0)),
+        ..Default::default()
+    });
+    commands.spawn(Camera3dBundle {
+        transform: Transform::from_translation(Vec3::new(0.0 , 0.0, 10.0))
+            .looking_at(Vec3::new(-0.0, -0.0, 0.0), Vec3::unit_y()),
         ..Default::default()
     });
 
-    commands
-        .spawn(PbrBundle {
-            mesh: QUAD_HANDLE.typed(),
-            material: RED_MATERIAL_HANDLE.typed(),
-            visible: Visible {
-                is_visible: false,
-                is_transparent: false,
-            },
-            ..Default::default()
-        })
-        .with(DebugComponent)
-        .with(ScanLine);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            18.0,
-            20.0,
-            (384.0 + 18.0 * 8.0) / 2.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(CPUDebug);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            12.0,
-            20.0,
-            (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(AnticDebug);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            12.0,
-            20.0,
-            (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(GtiaDebug);
+    // commands
+    //     .spawn(PbrBundle {
+    //         mesh: QUAD_HANDLE.typed(),
+    //         material: RED_MATERIAL_HANDLE.typed(),
+    //         visible: Visible {
+    //             is_visible: false,
+    //             is_transparent: false,
+    //         },
+    //         ..Default::default()
+    //     })
+    //     .with(DebugComponent)
+    //     .with(ScanLine);
+    // commands
+    //     .spawn(atari_text::TextAreaBundle::new(
+    //         18.0,
+    //         20.0,
+    //         (384.0 + 18.0 * 8.0) / 2.0,
+    //         (256.0 - 20.0 * 8.0) / 2.0,
+    //     ))
+    //     .with(DebugComponent)
+    //     .with(CPUDebug);
+    // commands
+    //     .spawn(atari_text::TextAreaBundle::new(
+    //         12.0,
+    //         20.0,
+    //         (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
+    //         (256.0 - 20.0 * 8.0) / 2.0,
+    //     ))
+    //     .with(DebugComponent)
+    //     .with(AnticDebug);
+    // commands
+    //     .spawn(atari_text::TextAreaBundle::new(
+    //         12.0,
+    //         20.0,
+    //         (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
+    //         (256.0 - 20.0 * 8.0) / 2.0,
+    //     ))
+    //     .with(DebugComponent)
+    //     .with(GtiaDebug);
 
     // Setup our world
-    // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_translation(Vec3::new(-10.0 * 8.0, 0.0 * 8.0, 40.0 * 8.0))
-    //         .looking_at(Vec3::new(-2.0 * 8.0, -0.0 * 8.0, 0.0), Vec3::unit_y()),
-    //     ..Default::default()
-    // });
 }
+
 
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
@@ -661,7 +688,7 @@ fn main() {
     app.add_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
         width: 384.0 * 2.0,
-        height: 256.0 * 2.0,
+        height: 240.0 * 2.0,
         resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
@@ -674,9 +701,10 @@ fn main() {
         return_from_run: false,
     });
     app.add_plugins(DefaultPlugins);
+    #[cfg(target_arch = "wasm32")]
+    app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_plugin(atari_text::AtartTextPlugin::default());
-
-    // app.add_stage_before("UPDATE", "pre_update", SystemStage::parallel());
+    app.add_plugin(antic::AnticPlugin::default());
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
@@ -684,13 +712,9 @@ fn main() {
 
     let frame = FrameState::default();
 
-    #[cfg(target_arch = "wasm32")]
-    app.add_plugin(bevy_webgl2::WebGL2Plugin);
-    app.add_asset::<AnticLine>()
-        .add_asset::<AtariPalette>()
-        .add_asset::<StandardMaterial>()
+    app
         .add_resource(State::new(EmulatorState::Idle))
-        .add_resource(ClearColor(gtia::atari_color(0)))
+        // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(system)
         .add_resource(cpu)
         .add_resource(frame)
@@ -709,6 +733,7 @@ fn main() {
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
+        .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())
         .run();
 }

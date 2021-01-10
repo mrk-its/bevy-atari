@@ -1,11 +1,14 @@
+pub mod render;
+
 use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
-use bevy::prelude::*;
 use bevy::reflect::TypeUuid;
 use bevy::render::pipeline::RenderPipeline;
+use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
 use emulator_6502::Interface6502;
+use render::AnticRendererGraphBuilder;
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
@@ -633,9 +636,21 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     system.read(offs as u16)
 }
 
+#[derive(Bundle, Default)]
+pub struct AnticLineBundle {
+    pub mesh: Handle<Mesh>,
+    pub draw: Draw,
+    pub visible: Visible,
+    pub render_pipelines: RenderPipelines,
+    // pub main_pass: MainPass,
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+}
+
 pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
     commands
-        .spawn(MeshBundle {
+        .spawn(AnticLineBundle {
+            // main_pass: MainPass,
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
@@ -675,4 +690,16 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_ext
             start_scan_line: mode_line.scan_line,
         })
         .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
+}
+
+#[derive(Default)]
+pub struct AnticPlugin;
+
+impl Plugin for AnticPlugin {
+    fn build(&self, app: &mut AppBuilder) {
+        app.add_asset::<AnticLine>().add_asset::<AtariPalette>();
+        let resources = app.resources_mut();
+        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
+        render_graph.add_antic_graph(resources);
+    }
 }

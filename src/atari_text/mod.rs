@@ -20,9 +20,9 @@ use bevy::{prelude::*, render::renderer::RenderResources};
 
 use crate::render_resources::Charset;
 
-const VERTEX_SHADER: &str = include_str!("shaders/antic.vert");
-const FRAGMENT_SHADER: &str = include_str!("shaders/text.frag");
-pub const CHARSET_DATA: &[u8] = include_bytes!("../assets/charset.dat");
+const VERTEX_SHADER: &str = include_str!("text.vert");
+const FRAGMENT_SHADER: &str = include_str!("text.frag");
+pub const CHARSET_DATA: &[u8] = include_bytes!("charset.dat");
 
 pub const ATARI_TEXT_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 2785347777738765446);

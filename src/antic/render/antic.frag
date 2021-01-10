@@ -53,8 +53,8 @@ vec4 encodeSRGB(vec4 linearRGB_in) {
     return vec4(mix(a, b, c), linearRGB_in.a);
 }
 
-#define encodeColor(x) encodeSRGB(x)
-// #define encodeColor(x) (x)
+// #define encodeColor(x) encodeSRGB(x)
+#define encodeColor(x) (x)
 
 bool get_player_pixel(int n, float px, int y, vec4 hpos) {
     if (px >= hpos[n] && px < hpos[n] + float(gtia[y].player_size[n])) {
