@@ -181,9 +181,18 @@
     }
 
     function update_status() {
-      document.querySelector("#disk_1 span").innerText = localStorage.disk_1_filename || 'none';
-      document.querySelector("#osrom span").innerText = localStorage.osrom_filename || 'none';
-      document.querySelector("#basic span").innerText = localStorage.basic_filename || 'none';
+      for(key of ['disk_1', 'osrom', 'basic']) {
+        let fn = localStorage[`${key}_filename`];
+        let sel = document.querySelector(`#${key} span`);
+        if(fn) {
+          sel.innerText = fn;
+        } else {
+          sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
+        }
+      }
+      // document.querySelector("#disk_1 span").innerHTML = localStorage.disk_1_filename || none_text;
+      // document.querySelector("#osrom span").innerHTML= localStorage.osrom_filename || none_text;
+      // document.querySelector("#basic span").innerHTML = localStorage.basic_filename || none_text;
     }
 
     function init_binary_data(key) {
@@ -209,11 +218,16 @@
     }
     async function open_local_file(event) {
       event.preventDefault();
-      let handles = await window.showOpenFilePicker();
-      for(handle of handles) {
-        let file = await handle.getFile();
+      // let handles = await window.showOpenFilePicker();
+      // for(handle of handles) {
+      //   let file = await handle.getFile();
+      //   handle_file(file);
+      // }
+      for(file of event.target.files) {
+        console.log(file);
         handle_file(file);
       }
+      event.target.value = "";
     }
   </script>
 
@@ -264,7 +278,8 @@
       <button onclick="reset(false, false); blur()">Restart (Warm)</button>
       <button onclick="reset(true, false); blur()">Restart (Cold)</button>
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
-      <button onclick="open_local_file(event); blur()" style="float: right">Open</button>
+      <input type="file" onchange="open_local_file(event);blur()"></input>
+      <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
     </div>
     <div class="files">
       <div id="osrom">

@@ -13,49 +13,78 @@ use bevy::render::{
 use std::convert::TryInto;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct Charset {
-    pub data: [u8; 1024],
+    pub data: Vec<u8>,
 }
 
 impl Default for Charset {
     fn default() -> Self {
-        Self { data: [0; 1024] }
+        Self { data: Vec::with_capacity(1024) }
     }
 }
 
 impl Charset {
-    pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
-        let mut charset = Charset::default();
-        system.antic_copy_to_slice(offs as u16, &mut charset.data);
-        charset
+    pub fn set_data(&mut self, system: &mut AtariSystem, offs: usize, size: usize) {
+        unsafe {
+            self.data.set_len(size);
+        }
+        system.antic_copy_to_slice(offs as u16, &mut self.data[..size]);
     }
 }
 
-unsafe impl Byteable for Charset {}
+impl Bytes for Charset {
+    fn write_bytes(&self, buffer: &mut [u8]) {
+        self.data.write_bytes(buffer);
+    }
+
+    fn byte_len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn byte_capacity(&self) -> usize {
+        1024
+    }
+}
+
 impl_render_resource_bytes!(Charset);
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct LineData {
-    pub data: [u8; 48],
+    pub data: Vec<u8>,
 }
 
 impl LineData {
-    pub fn new(system: &mut AtariSystem, offs: usize) -> Self {
-        let mut data = LineData::default(); // TODO - perf
-        system.antic_copy_to_slice(offs as u16, &mut data.data);
-        data
+    pub fn set_data(&mut self, system: &mut AtariSystem, offs: usize, size: usize) {
+        if size > 0 {
+            unsafe {self.data.set_len(size)}
+            system.antic_copy_to_slice(offs as u16, &mut self.data[..size]);
+        }
     }
 }
 
 impl Default for LineData {
     fn default() -> Self {
-        Self { data: [0; 48] }
+        LineData {
+            data: Vec::with_capacity(48),
+        }
     }
 }
 
-unsafe impl Byteable for LineData {}
+impl Bytes for LineData {
+    fn write_bytes(&self, buffer: &mut [u8]) {
+        self.data.write_bytes(buffer);
+    }
+
+    fn byte_len(&self) -> usize {
+        self.data.len()
+    }
+
+    fn byte_capacity(&self) -> usize {
+        48
+    }
+}
 impl_render_resource_bytes!(LineData);
 
 #[repr(C)]
@@ -80,9 +109,9 @@ unsafe impl Byteable for Palette {}
 impl_render_resource_bytes!(Palette);
 
 #[repr(C)]
-#[derive(Default, Clone, Copy, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct GTIARegsArray {
-    pub regs: [GTIARegs; 8],
+    pub regs: Vec<GTIARegs>,
 }
 
 #[repr(C)]
@@ -100,7 +129,23 @@ pub struct GTIARegs {
     pub _fill: u32,
 }
 
-unsafe impl Byteable for GTIARegsArray {}
+unsafe impl Byteable for GTIARegs {}
+impl_render_resource_bytes!(GTIARegs);
+
+impl Bytes for GTIARegsArray {
+    fn write_bytes(&self, buffer: &mut [u8]) {
+        assert!(self.regs.len() <=8 );
+        self.regs.write_bytes(buffer);
+    }
+
+    fn byte_len(&self) -> usize {
+        std::mem::size_of::<GTIARegs>() * self.regs.len()
+    }
+
+    fn byte_capacity(&self) -> usize {
+        std::mem::size_of::<GTIARegs>() * 8
+    }
+}
 impl_render_resource_bytes!(GTIARegsArray);
 
 #[repr(C)]
