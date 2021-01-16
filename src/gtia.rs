@@ -78,6 +78,7 @@ pub struct Gtia {
     pub consol: u8,
     pub consol_mask: u8,
     pub consol_force_mask: u8,
+    pub clear_collisions: bool,
 }
 
 impl Default for Gtia {
@@ -91,6 +92,7 @@ impl Default for Gtia {
             consol_mask: 0x7,
             consol_force_mask: 0x7, // force option on start;
             scan_line: 0,
+            clear_collisions: false,
         }
     }
 }
@@ -100,8 +102,8 @@ impl Gtia {
         let addr = addr & 0x1f;
         let value = match addr {
             0x0..=0xf => {
-                //info!("reading collisions at {:x}", addr);
-                if true && (addr == 6 || addr == 7) {
+                if false && (addr == 6 || addr == 7) {
+                    // info!("reading collisions at {:x}, scanline: {:?}", addr, self.scan_line);
                     // Player2/3 collisions with playfield, for Fred
                     0xff
                 } else {
@@ -138,6 +140,10 @@ impl Gtia {
             SIZEM => self.regs.sizem = _size_pm(value) / 4,
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
             CONSOL => self.consol_mask = 0x7 & !value,
+            HITCLR => {
+                // info!("resetting collisions, scan_line: {:?}", self.scan_line);
+                self.clear_collisions = true;
+            }
             _ => (),
         }
     }

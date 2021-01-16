@@ -16,7 +16,7 @@ mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
-use bevy::reflect::TypeUuid;
+use bevy::{reflect::TypeUuid, render::{pass::LoadOp, render_graph::RenderGraph}, sprite::QUAD_HANDLE};
 use bevy::{
     prelude::*,
     render::{camera::Camera, entity::Camera2dBundle, pipeline::PipelineDescriptor},
@@ -28,13 +28,16 @@ use bevy::{
 };
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::AnticLine;
-use system::AtariSystem;
+use system::{AtariSystem, antic::{CollisionsPass, render::pass_node::PassNode}};
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
 
 pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723728);
+
+pub const COLLISIONS_MATERIAL_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723729);
 
 pub struct DebugComponent;
 pub struct ScanLine;
@@ -60,6 +63,9 @@ enum BreakPoint {
     NotPC(u16),
     ScanLine(usize),
 }
+
+#[derive(Default)]
+pub struct ClearCollisions(pub bool);
 
 #[derive(Default, Debug)]
 struct FrameState {
@@ -588,6 +594,16 @@ fn setup(
         },
     );
 
+    materials.set_untracked(
+        COLLISIONS_MATERIAL_HANDLE,
+        StandardMaterial {
+            // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
+            albedo_texture: Some(antic::render::COLLISIONS_TEXTURE_HANDLE.typed()),
+            shaded: false,
+            ..Default::default()
+        },
+    );
+
     let mut antic_camera_bundle = Camera2dBundle {
         camera: Camera {
             name: Some(antic::render::ANTIC_CAMERA.to_string()),
@@ -608,19 +624,35 @@ fn setup(
     // let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
 
     commands.spawn(PbrBundle {
-        mesh: mesh_handle,
+        mesh: mesh_handle.clone_weak(),
         material: ATARI_MATERIAL_HANDLE.typed(),
         visible: Visible {
             is_visible: true,
             is_transparent: false,
         },
         transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(2.0, 2.0, 1.0),
+            translation: Vec3::new(0.0, 120.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     });
+
+    commands.spawn(PbrBundle {
+        mesh: mesh_handle,
+        material: COLLISIONS_MATERIAL_HANDLE.typed(),
+        visible: Visible {
+            is_visible: true,
+            is_transparent: false,
+        },
+        transform: Transform {
+            translation: Vec3::new(0.0, 120.0-240.0, 0.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
+
     commands.spawn(Camera2dBundle::default());
     // commands.spawn(LightBundle {
     //     transform: Transform::from_translation(Vec3::new(-20.0, 0.0, 30.0)),
@@ -632,47 +664,58 @@ fn setup(
     //     ..Default::default()
     // });
 
-    // commands
-    //     .spawn(PbrBundle {
-    //         mesh: QUAD_HANDLE.typed(),
-    //         material: RED_MATERIAL_HANDLE.typed(),
-    //         visible: Visible {
-    //             is_visible: false,
-    //             is_transparent: false,
-    //         },
-    //         ..Default::default()
-    //     })
-    //     .with(DebugComponent)
-    //     .with(ScanLine);
-    // commands
-    //     .spawn(atari_text::TextAreaBundle::new(
-    //         18.0,
-    //         20.0,
-    //         (384.0 + 18.0 * 8.0) / 2.0,
-    //         (256.0 - 20.0 * 8.0) / 2.0,
-    //     ))
-    //     .with(DebugComponent)
-    //     .with(CPUDebug);
-    // commands
-    //     .spawn(atari_text::TextAreaBundle::new(
-    //         12.0,
-    //         20.0,
-    //         (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
-    //         (256.0 - 20.0 * 8.0) / 2.0,
-    //     ))
-    //     .with(DebugComponent)
-    //     .with(AnticDebug);
-    // commands
-    //     .spawn(atari_text::TextAreaBundle::new(
-    //         12.0,
-    //         20.0,
-    //         (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
-    //         (256.0 - 20.0 * 8.0) / 2.0,
-    //     ))
-    //     .with(DebugComponent)
-    //     .with(GtiaDebug);
+    commands
+        .spawn(PbrBundle {
+            mesh: QUAD_HANDLE.typed(),
+            material: RED_MATERIAL_HANDLE.typed(),
+            visible: Visible {
+                is_visible: false,
+                is_transparent: false,
+            },
+            ..Default::default()
+        })
+        .with(DebugComponent)
+        .with(ScanLine);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            18.0,
+            20.0,
+            (384.0 + 18.0 * 8.0) / 2.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(CPUDebug);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            12.0,
+            20.0,
+            (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(AnticDebug);
+    commands
+        .spawn(atari_text::TextAreaBundle::new(
+            12.0,
+            20.0,
+            (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
+            (256.0 - 20.0 * 8.0) / 2.0,
+        ))
+        .with(DebugComponent)
+        .with(GtiaDebug);
 
     // Setup our world
+}
+
+pub fn clear_collisions(mut atari_system: ResMut<AtariSystem>, mut render_graph: ResMut<RenderGraph>) {
+    let node: &mut PassNode::<&CollisionsPass> = render_graph.get_node_mut(antic::render::COLLISIONS_PASS).unwrap();
+    let clear_collisions = atari_system.gtia.clear_collisions;
+    node.descriptor.color_attachments[0].ops.load = if clear_collisions {
+        atari_system.gtia.clear_collisions = false;
+        LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0))
+    } else {
+        LoadOp::Load
+    };
 }
 
 /// This example illustrates how to create a custom material asset and a shader that uses that material
@@ -726,6 +769,7 @@ fn main() {
         .add_system_to_stage("pre_update", keyboard_system.system())
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
+        .add_system_to_stage("post_update", clear_collisions.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())

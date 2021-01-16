@@ -1,9 +1,10 @@
 #version 300 es
 
 precision highp float;
+precision mediump int;
 
 in vec2 v_Uv;
-out vec4 o_Target;
+layout(location = 0) out vec4 o_Target;
 
 layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
     float line_width;
@@ -11,6 +12,7 @@ layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
     float hscrol;
     float line_height;
     float line_voffset;
+    float scan_line;
 };
 
 layout(std140) uniform AnticLine_data { // set = 1 binding = 2
@@ -197,13 +199,15 @@ void main() {
     bool p1 = get_player_pixel(1, px, cy, hposp) || !p5 && m1;
     bool p2 = get_player_pixel(2, px, cy, hposp) || !p5 && m2;
     bool p3 = get_player_pixel(3, px, cy, hposp) || !p5 && m3;
-    bool p01 = p0 || p1;
-    bool p23 = p2 || p3;
 
     bool pf0 = color_reg_index == 1;
     bool pf1 = !hires && color_reg_index == 2;
     bool pf2 = hires || color_reg_index == 3;
     bool pf3 = color_reg_index == 4 || p5 && (m0 || m1 || m2 || m3);
+
+# ifndef COLLISIONS
+    bool p01 = p0 || p1;
+    bool p23 = p2 || p3;
     bool pf01 = pf0 || pf1;
     bool pf23 = pf2 || pf3;
 
@@ -219,6 +223,7 @@ void main() {
     bool sf2 = pf2  &&  !(p23 && pri03)  &&  !(p01 && !pri2)  &&  !sf3;
     bool sb = !p01  &&  !p23  &&  !pf01  &&  !pf23;
 
+
     int color_reg = 0;
     if(sp0) color_reg |= gtia[cy].colpm[0];
     if(sp1) color_reg |= gtia[cy].colpm[1];
@@ -233,4 +238,7 @@ void main() {
         color_reg = color_reg & 0xf0 | (get_color_reg(cy, 2) & 0xf);
     }
     o_Target = encodeColor(palette[color_reg]);
+# else
+    o_Target = vec4((pf3 && (p0 || p1)) ? 1.0 : 0.0, (p2 || p3) && (pf0 || pf1 || pf2 || pf3) ? 1.0 : 0.0, 0.0, 1.0);
+# endif
 }

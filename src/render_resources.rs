@@ -156,6 +156,7 @@ pub struct AnticLineDescr {
     pub hscrol: f32,
     pub line_height: f32,
     pub line_voffset: f32,
+    pub scan_line: f32,
 }
 
 unsafe impl Byteable for AnticLineDescr {}
