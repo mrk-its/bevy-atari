@@ -28,8 +28,5 @@ layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
 
 void main() {
     gl_Position = ViewProj * Model * vec4(Vertex_Position, 1.0);
-#ifdef ___COLLISIONS
-    gl_Position = gl_Position + vec4(0.0, 2.0 - 2.0 * scan_line / 240.0, 0.0, 0.0);
-#endif
     v_Uv = Vertex_Uv;
 }

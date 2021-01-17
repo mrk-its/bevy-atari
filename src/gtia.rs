@@ -101,15 +101,7 @@ impl Gtia {
     pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
-            0x0..=0xf => {
-                if false && (addr == 6 || addr == 7) {
-                    // info!("reading collisions at {:x}, scanline: {:?}", addr, self.scan_line);
-                    // Player2/3 collisions with playfield, for Fred
-                    0xff
-                } else {
-                    self.collisions[addr]
-                }
-            }
+            0x0..=0xf => self.collisions[addr],
             CONSOL => self.consol & self.consol_mask & self.consol_force_mask,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
@@ -143,12 +135,45 @@ impl Gtia {
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
                 self.clear_collisions = true;
+                self.collisions.iter_mut().for_each(|v| *v = 0);
             }
             _ => (),
         }
     }
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
+    }
+    pub fn update_collisions(&mut self, data: [u32; 4]) {
+        // info!(
+        //     "update collisions: {:?}, scanline: {:?}",
+        //     data, self.scan_line
+        // );
+
+        self.collisions[M0PF] |= (data[0] & 0xf) as u8;
+        self.collisions[M1PF] |= ((data[0] >> 4) & 0xf) as u8;
+        self.collisions[M2PF] |= ((data[0] >> 8) & 0xf) as u8;
+        self.collisions[M3PF] |= ((data[0] >> 12) & 0xf) as u8;
+
+        self.collisions[P0PF] |= (data[1] & 0xf) as u8;
+        self.collisions[P1PF] |= ((data[1] >> 4) & 0xf) as u8;
+        self.collisions[P2PF] |= ((data[1] >> 8) & 0xf) as u8;
+        self.collisions[P3PF] |= ((data[1] >> 12) & 0xf) as u8;
+
+        self.collisions[M0PL] |= (data[2] & 0xf) as u8;
+        self.collisions[M1PL] |= ((data[2] >> 4) & 0xf) as u8;
+        self.collisions[M2PL] |= ((data[2] >> 8) & 0xf) as u8;
+        self.collisions[M3PL] |= ((data[2] >> 12) & 0xf) as u8;
+
+        self.collisions[P0PL] |= (data[3] & 0xf) as u8;
+        self.collisions[P1PL] |= ((data[3] >> 4) & 0xf) as u8;
+        self.collisions[P2PL] |= ((data[3] >> 8) & 0xf) as u8;
+        self.collisions[P3PL] |= ((data[3] >> 12) & 0xf) as u8;
+
+        // fred
+        // if data[1] > 0 {
+        //     self.collisions[P2PF] |= 0xf; // collision with any playfield color
+        //     self.collisions[P3PF] |= 0xf;
+        // }
     }
 }
 

@@ -4,7 +4,8 @@ precision highp float;
 precision mediump int;
 
 in vec2 v_Uv;
-layout(location = 0) out vec4 o_Target;
+layout(location = 0) out vec4 o_ColorTarget;
+layout(location = 1) out uvec4 o_CollisionsTarget;
 
 layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
     float line_width;
@@ -205,7 +206,6 @@ void main() {
     bool pf2 = hires || color_reg_index == 3;
     bool pf3 = color_reg_index == 4 || p5 && (m0 || m1 || m2 || m3);
 
-# ifndef COLLISIONS
     bool p01 = p0 || p1;
     bool p23 = p2 || p3;
     bool pf01 = pf0 || pf1;
@@ -237,8 +237,32 @@ void main() {
     if(hires && color_reg_index == 2) {
         color_reg = color_reg & 0xf0 | (get_color_reg(cy, 2) & 0xf);
     }
-    o_Target = encodeColor(palette[color_reg]);
-# else
-    o_Target = vec4((pf3 && (p0 || p1)) ? 1.0 : 0.0, (p2 || p3) && (pf0 || pf1 || pf2 || pf3) ? 1.0 : 0.0, 0.0, 1.0);
-# endif
+    o_ColorTarget = encodeColor(palette[color_reg]);
+    // o_Target = vec4((pf0 || true) && (p0 || p1) ? 1.0 : 0.0, pf1 && (p0 || p1) ? 1.0 : 0.0, pf2 && (p0 || p1) ? 1.0 : 0.0, 1.0);
+
+    int pf_bits = (pf0 ? 1 : 0) | (pf1 ? 2 : 0) | (pf2 ? 4 : 0) | (pf3 ? 8 : 0);
+
+    int p0pf = p0 ? pf_bits : 0;
+    int p1pf = p1 ? pf_bits << 4 : 0;
+    int p2pf = p2 ? pf_bits << 8 : 0;
+    int p3pf = p3 ? pf_bits << 12 : 0;
+
+    int m0pf = m0 ? pf_bits : 0;
+    int m1pf = m1 ? pf_bits << 4 : 0;
+    int m2pf = m2 ? pf_bits << 8 : 0;
+    int m3pf = m3 ? pf_bits << 12 : 0;
+
+    int player_bits = int(p0) | (int(p1) << 1) | (int(p2) << 2) | (int(p3) << 3);
+
+    int m0pl = m0 ? player_bits : 0;
+    int m1pl = m1 ? player_bits << 4 : 0;
+    int m2pl = m2 ? player_bits << 8 : 0;
+    int m3pl = m3 ? player_bits << 12 : 0;
+
+    int p0pl = p0 ? player_bits & ~1 : 0;
+    int p1pl = p1 ? (player_bits & ~2) << 4 : 0;
+    int p2pl = p2 ? (player_bits & ~4) << 8 : 0;
+    int p3pl = p3 ? (player_bits & ~8) << 12 : 0;
+
+    o_CollisionsTarget = uvec4(m0pf | m1pf | m2pf | m3pf, p0pf | p1pf | p2pf | p3pf, m0pl | m1pl | m2pl | m3pl, p0pl | p1pl | p2pl | p3pl);
 }

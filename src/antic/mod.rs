@@ -3,7 +3,7 @@ pub mod render;
 use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
-use bevy::render::pipeline::{PipelineSpecialization, RenderPipeline, ShaderSpecialization};
+use bevy::render::pipeline::RenderPipeline;
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{
     reflect::TypeUuid,
@@ -11,7 +11,7 @@ use bevy::{
 };
 use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
 use emulator_6502::Interface6502;
-use render::{AnticRendererGraphBuilder, CollisionsRenderGraphBuilder};
+use render::AnticRendererGraphBuilder;
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
@@ -654,24 +654,25 @@ pub struct AnticLineBundle {
 }
 
 pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
-
-
     commands
         .spawn(AnticLineBundle {
             // main_pass: MainPass,
             mesh: QUAD_HANDLE.typed(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
-            ), RenderPipeline::specialized(
-                COLLISIONS_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
-                PipelineSpecialization {
-                    shader_specialization: ShaderSpecialization {
-                        initial_shader_defs: ["COLLISIONS"].iter().map(|x| x.to_string()).collect(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                }
-            )]),
+            render_pipelines: RenderPipelines::from_pipelines(vec![
+                RenderPipeline::new(
+                    ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
+                ),
+                // RenderPipeline::specialized(
+                //     COLLISIONS_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
+                //     PipelineSpecialization {
+                //         shader_specialization: ShaderSpecialization {
+                //             initial_shader_defs: ["COLLISIONS"].iter().map(|x| x.to_string()).collect(),
+                //             ..Default::default()
+                //         },
+                //         ..Default::default()
+                //     }
+                // )
+            ]),
             // visible: Visible {
             //     is_transparent: true,
             //     is_visible: true,
@@ -737,10 +738,10 @@ impl Plugin for AnticPlugin {
             ANTIC_PIPELINE_HANDLE,
             render::build_antic_pipeline(&mut shaders),
         );
-        pipelines.set_untracked(
-            COLLISIONS_PIPELINE_HANDLE,
-            render::build_collisions_pipeline(&mut shaders),
-        );
+        // pipelines.set_untracked(
+        //     COLLISIONS_PIPELINE_HANDLE,
+        //     render::build_collisions_pipeline(&mut shaders),
+        // );
         let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
 
         render_graph.add_system_node(
@@ -750,6 +751,6 @@ impl Plugin for AnticPlugin {
         render_graph.add_system_node("antic_line", RenderResourcesNode::<AnticLine>::new(true));
 
         render_graph.add_antic_graph(resources, &self.texture_size);
-        render_graph.add_collisions_graph(resources, &self.texture_size);
+        // render_graph.add_collisions_graph(resources, &self.texture_size);
     }
 }

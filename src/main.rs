@@ -16,10 +16,13 @@ mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
-use bevy::{reflect::TypeUuid, render::{pass::LoadOp, render_graph::RenderGraph}, sprite::QUAD_HANDLE};
 use bevy::{
     prelude::*,
     render::{camera::Camera, entity::Camera2dBundle, pipeline::PipelineDescriptor},
+};
+use bevy::{
+    reflect::TypeUuid,
+    sprite::QUAD_HANDLE,
 };
 use bevy::{
     render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass},
@@ -28,7 +31,7 @@ use bevy::{
 };
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::AnticLine;
-use system::{AtariSystem, antic::{CollisionsPass, render::pass_node::PassNode}};
+use system::AtariSystem;
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
@@ -265,7 +268,7 @@ fn atari_system(
 
     let debug_mode = frame.paused || frame.break_point.is_some();
 
-    if !debug_mode && atari_system.antic.scan_line == 0 && atari_system.antic.cycle == 0 {
+    if !debug_mode && atari_system.antic.scan_line == 248 && atari_system.antic.cycle == 0 {
         for (entity, _) in antic_lines.iter() {
             commands.despawn(entity);
         }
@@ -425,7 +428,7 @@ fn atari_system(
                     break;
                 }
             }
-            if atari_system.antic.scan_line == 0 {
+            if atari_system.antic.scan_line == 248 {
                 break;
             }
         }
@@ -624,34 +627,34 @@ fn setup(
     // let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
 
     commands.spawn(PbrBundle {
-        mesh: mesh_handle.clone_weak(),
+        mesh: mesh_handle,
         material: ATARI_MATERIAL_HANDLE.typed(),
         visible: Visible {
             is_visible: true,
             is_transparent: false,
         },
         transform: Transform {
-            translation: Vec3::new(0.0, 120.0, 0.0),
-            scale: Vec3::new(1.0, 1.0, 1.0),
+            translation: Vec3::new(0.0, 0.0, 0.0),
+            scale: Vec3::new(2.0, 2.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     });
 
-    commands.spawn(PbrBundle {
-        mesh: mesh_handle,
-        material: COLLISIONS_MATERIAL_HANDLE.typed(),
-        visible: Visible {
-            is_visible: true,
-            is_transparent: false,
-        },
-        transform: Transform {
-            translation: Vec3::new(0.0, 120.0-240.0, 0.0),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    });
+    // commands.spawn(PbrBundle {
+    //     mesh: mesh_handle,
+    //     material: COLLISIONS_MATERIAL_HANDLE.typed(),
+    //     visible: Visible {
+    //         is_visible: true,
+    //         is_transparent: false,
+    //     },
+    //     transform: Transform {
+    //         translation: Vec3::new(0.0, 120.0-240.0, 0.0),
+    //         scale: Vec3::new(1.0, 1.0, 1.0),
+    //         ..Default::default()
+    //     },
+    //     ..Default::default()
+    // });
 
     commands.spawn(Camera2dBundle::default());
     // commands.spawn(LightBundle {
@@ -707,17 +710,6 @@ fn setup(
     // Setup our world
 }
 
-pub fn clear_collisions(mut atari_system: ResMut<AtariSystem>, mut render_graph: ResMut<RenderGraph>) {
-    let node: &mut PassNode::<&CollisionsPass> = render_graph.get_node_mut(antic::render::COLLISIONS_PASS).unwrap();
-    let clear_collisions = atari_system.gtia.clear_collisions;
-    node.descriptor.color_attachments[0].ops.load = if clear_collisions {
-        atari_system.gtia.clear_collisions = false;
-        LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0))
-    } else {
-        LoadOp::Load
-    };
-}
-
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
@@ -769,7 +761,6 @@ fn main() {
         .add_system_to_stage("pre_update", keyboard_system.system())
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
-        .add_system_to_stage("post_update", clear_collisions.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())
