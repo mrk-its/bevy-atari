@@ -20,7 +20,9 @@ pub struct Charset {
 
 impl Default for Charset {
     fn default() -> Self {
-        Self { data: Vec::with_capacity(1024) }
+        Self {
+            data: Vec::with_capacity(1024),
+        }
     }
 }
 
@@ -58,7 +60,7 @@ pub struct LineData {
 impl LineData {
     pub fn set_data(&mut self, system: &mut AtariSystem, offs: usize, size: usize) {
         if size > 0 {
-            unsafe {self.data.set_len(size)}
+            unsafe { self.data.set_len(size) }
             system.antic_copy_to_slice(offs as u16, &mut self.data[..size]);
         }
     }
@@ -134,7 +136,7 @@ impl_render_resource_bytes!(GTIARegs);
 
 impl Bytes for GTIARegsArray {
     fn write_bytes(&self, buffer: &mut [u8]) {
-        assert!(self.regs.len() <=8 );
+        assert!(self.regs.len() <= 8);
         self.regs.write_bytes(buffer);
     }
 
@@ -178,4 +180,11 @@ pub struct AnticLine {
 #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
 pub struct AtariPalette {
     pub palette: Palette,
+}
+
+#[derive(Debug, RenderResources, TypeUuid)]
+#[uuid = "dace545e-4bc6-4595-a79d-1124fa694977"]
+pub struct CustomTexture {
+    pub color: Color,
+    pub texture: Option<Handle<Texture>>,
 }

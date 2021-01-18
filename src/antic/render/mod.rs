@@ -1,6 +1,9 @@
 use std::borrow::Cow;
 
-use bevy::render::{render_graph::{Node, PassNode}};
+use bevy::render::{
+    pipeline::PrimitiveTopology,
+    render_graph::{Node, PassNode},
+};
 use bevy::render::{
     render_graph::RenderGraph,
     texture::{Extent3d, TextureFormat},
@@ -23,15 +26,17 @@ use bevy::{
     render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension},
 };
 
-
 use crate::render_resources::AnticLine;
 
 pub const ANTIC_PASS: &str = "antic_pass";
 pub const ANTIC_CAMERA: &str = "antic_camera";
 pub const ANTIC_TEXTURE: &str = "antic_texture";
 pub const LOAD_COLLISIONS_PASS: &str = "load_collisions_pass";
+pub const COLLISIONS_AGG_PASS: &str = "collisions_agg_pass";
+pub const COLLISIONS_AGG_CAMERA: &str = "collisions_agg_camera";
 
 pub const COLLISIONS_TEXTURE: &str = "collisions_texture";
+pub const COLLISIONS_AGG_TEXTURE: &str = "collisions_agg_texture";
 
 pub const ANTIC_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 13378939762009864026);
@@ -39,21 +44,48 @@ pub const ANTIC_TEXTURE_HANDLE: HandleUntyped =
 pub const COLLISIONS_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 13378939762009864077);
 
+pub const COLLISIONS_AGG_TEXTURE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 13378939762609864078);
+
 const VERTEX_SHADER: &str = include_str!("antic.vert");
 const FRAGMENT_SHADER: &str = include_str!("antic.frag");
+const COLLISIONS_FRAGMENT_SHADER: &str = include_str!("collisions.frag");
+const COLLISIONS_VERTEX_SHADER: &str = include_str!("collisions.vert");
 
 pub fn build_antic_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
     });
+
+    if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
+        descr.cull_mode = CullMode::None;
+    }
     pipeline_descr.name = Some("ANTIC".to_string());
+    pipeline_descr.depth_stencil_state = None;
+    pipeline_descr
+}
+
+pub fn build_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
+    let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
+        vertex: shaders.add(Shader::from_glsl(
+            ShaderStage::Vertex,
+            COLLISIONS_VERTEX_SHADER,
+        )),
+        fragment: Some(shaders.add(Shader::from_glsl(
+            ShaderStage::Fragment,
+            COLLISIONS_FRAGMENT_SHADER,
+        ))),
+    });
+    pipeline_descr.name = Some("COLLISIONS".to_string());
 
     if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
         descr.cull_mode = CullMode::None;
     }
 
     pipeline_descr.depth_stencil_state = None;
+    pipeline_descr.primitive_topology = PrimitiveTopology::PointList;
+    info!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
 }
 
@@ -66,25 +98,43 @@ impl AnticRendererGraphBuilder for RenderGraph {
         let mut textures = resources.get_mut::<Assets<Texture>>().unwrap();
         let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
         active_cameras.add(ANTIC_CAMERA);
+        active_cameras.add(COLLISIONS_AGG_CAMERA);
         let mut pass_node = PassNode::<&AnticLine>::new(PassDescriptor {
-            color_attachments: vec![RenderPassColorAttachmentDescriptor {
-                attachment: TextureAttachment::Input("color_attachment".to_string()),
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0)),
-                    store: true,
+            color_attachments: vec![
+                RenderPassColorAttachmentDescriptor {
+                    attachment: TextureAttachment::Input("color_attachment".to_string()),
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0)),
+                        store: true,
+                    },
                 },
-            },RenderPassColorAttachmentDescriptor {
-                attachment: TextureAttachment::Input("collisions_attachment".to_string()),
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 0.0)),
-                    store: true,
+                RenderPassColorAttachmentDescriptor {
+                    attachment: TextureAttachment::Input("collisions_attachment".to_string()),
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 0.0)), // TODO - remove?
+                        store: true,
+                    },
                 },
-            }],
+            ],
             depth_stencil_attachment: None,
             sample_count: 1,
         });
+
+        let mut collisions_agg_pass_node =
+            PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
+                color_attachments: vec![RenderPassColorAttachmentDescriptor {
+                    attachment: TextureAttachment::Input("collisions_attachment".to_string()),
+                    resolve_target: None,
+                    ops: Operations {
+                        load: LoadOp::Load, // TODO - remove?
+                        store: true,
+                    },
+                }],
+                depth_stencil_attachment: None,
+                sample_count: 1,
+            });
 
         let texture = Texture::new(
             Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
@@ -102,8 +152,19 @@ impl AnticRendererGraphBuilder for RenderGraph {
         );
         textures.set_untracked(COLLISIONS_TEXTURE_HANDLE, collisions_texture);
 
+        let collisions_agg_texture = Texture::new(
+            Extent3d::new(texture_size.x as u32, 1, 1),
+            TextureDimension::D2,
+            vec![],
+            TextureFormat::Rgba16Uint,
+        );
+        textures.set_untracked(COLLISIONS_AGG_TEXTURE_HANDLE, collisions_agg_texture);
 
         self.add_system_node(ANTIC_CAMERA, CameraNode::new(ANTIC_CAMERA));
+        self.add_system_node(
+            COLLISIONS_AGG_CAMERA,
+            CameraNode::new(COLLISIONS_AGG_CAMERA),
+        );
 
         self.add_node(
             ANTIC_TEXTURE,
@@ -113,12 +174,21 @@ impl AnticRendererGraphBuilder for RenderGraph {
             COLLISIONS_TEXTURE,
             TextureNode::new(COLLISIONS_TEXTURE_HANDLE.typed()),
         );
+        self.add_node(
+            COLLISIONS_AGG_TEXTURE,
+            TextureNode::new(COLLISIONS_AGG_TEXTURE_HANDLE.typed()),
+        );
 
         pass_node.add_camera(ANTIC_CAMERA);
+        collisions_agg_pass_node.add_camera(COLLISIONS_AGG_CAMERA);
+
         self.add_node(ANTIC_PASS, pass_node);
+        self.add_node(COLLISIONS_AGG_PASS, collisions_agg_pass_node);
         self.add_node(LOAD_COLLISIONS_PASS, LoadCollisionsPass);
 
         self.add_node_edge(ANTIC_CAMERA, ANTIC_PASS).unwrap();
+        self.add_node_edge(COLLISIONS_AGG_CAMERA, COLLISIONS_AGG_PASS)
+            .unwrap();
 
         self.add_slot_edge(
             ANTIC_TEXTURE,
@@ -134,11 +204,28 @@ impl AnticRendererGraphBuilder for RenderGraph {
             "collisions_attachment",
         )
         .unwrap();
+
+        self.add_slot_edge(
+            COLLISIONS_AGG_TEXTURE,
+            TextureNode::TEXTURE,
+            COLLISIONS_AGG_PASS,
+            "collisions_attachment",
+        )
+        .unwrap();
+
         self.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
         self.add_node_edge(COLLISIONS_TEXTURE, ANTIC_PASS).unwrap();
+        self.add_node_edge(COLLISIONS_AGG_TEXTURE, COLLISIONS_AGG_PASS)
+            .unwrap();
 
-        self.add_node_edge(ANTIC_PASS, LOAD_COLLISIONS_PASS).unwrap();
+        // self.add_node_edge(ANTIC_PASS, LOAD_COLLISIONS_PASS).unwrap();
+        // self.add_node_edge(LOAD_COLLISIONS_PASS, MAIN_PASS).unwrap();
+
+        self.add_node_edge(ANTIC_PASS, COLLISIONS_AGG_PASS).unwrap();
+        self.add_node_edge(COLLISIONS_AGG_PASS, LOAD_COLLISIONS_PASS)
+            .unwrap();
         self.add_node_edge(LOAD_COLLISIONS_PASS, MAIN_PASS).unwrap();
+
         self.add_node_edge("transform", ANTIC_PASS).unwrap();
         self.add_node_edge("atari_palette", ANTIC_PASS).unwrap();
         self.add_node_edge("antic_line", ANTIC_PASS).unwrap();
@@ -196,15 +283,15 @@ impl Node for LoadCollisionsPass {
         _input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
     ) {
-        let mut buffer: Vec<u32> = Vec::with_capacity(384 * 240 * 4);
+        let mut buffer: Vec<u32> = Vec::with_capacity(384 * 1 * 4);
         unsafe {
             buffer.set_len(buffer.capacity());
         }
-        render_context.read_pixels_u32(1, 0, 0, 384, 240, &mut buffer);
+        render_context.read_pixels_u32(0, 0, 0, 384, 1, &mut buffer);
         let mut dst: [u32; 4] = [0; 4];
 
         for (i, b) in buffer.iter().enumerate() {
-            dst[i&3] |= *b;
+            dst[i & 3] |= *b;
         }
         if dst[0] > 0 || dst[1] > 0 || dst[2] > 0 || dst[3] > 0 {
             let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();

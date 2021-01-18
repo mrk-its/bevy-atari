@@ -18,20 +18,21 @@ use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
 use bevy::{
     prelude::*,
-    render::{camera::Camera, entity::Camera2dBundle, pipeline::PipelineDescriptor},
+    render::{
+        camera::Camera,
+        entity::Camera2dBundle,
+        pipeline::{PipelineDescriptor, RenderPipeline},
+    },
 };
-use bevy::{
-    reflect::TypeUuid,
-    sprite::QUAD_HANDLE,
-};
+use bevy::{reflect::TypeUuid, sprite::QUAD_HANDLE};
 use bevy::{
     render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass},
     window::WindowId,
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::AnticLine;
-use system::AtariSystem;
+use render_resources::{AnticLine, CustomTexture};
+use system::{antic::COLLISIONS_PIPELINE_HANDLE, AtariSystem};
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
@@ -40,7 +41,7 @@ pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723728);
 
 pub const COLLISIONS_MATERIAL_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723729);
+    HandleUntyped::weak_from_u64(CustomTexture::TYPE_UUID, 11482402411138723729);
 
 pub struct DebugComponent;
 pub struct ScanLine;
@@ -573,6 +574,7 @@ const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
 fn setup(
     commands: &mut Commands,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut textures: ResMut<Assets<CustomTexture>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
@@ -597,13 +599,11 @@ fn setup(
         },
     );
 
-    materials.set_untracked(
+    textures.set_untracked(
         COLLISIONS_MATERIAL_HANDLE,
-        StandardMaterial {
-            // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
-            albedo_texture: Some(antic::render::COLLISIONS_TEXTURE_HANDLE.typed()),
-            shaded: false,
-            ..Default::default()
+        CustomTexture {
+            color: Color::rgba(0.0, 1.0, 0.0, 1.0),
+            texture: Some(antic::render::COLLISIONS_TEXTURE_HANDLE.typed()),
         },
     );
 
@@ -623,8 +623,24 @@ fn setup(
     antic_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
     commands.spawn(antic_camera_bundle);
 
+    let mut collisions_agg_camera_bundle = Camera2dBundle {
+        camera: Camera {
+            name: Some(antic::render::COLLISIONS_AGG_CAMERA.to_string()),
+            ..Default::default()
+        },
+        transform: Transform::from_scale(Vec3::new(1.0, -1.0, 1.0)),
+        ..Default::default()
+    };
+
+    collisions_agg_camera_bundle.camera.window = WindowId::new();
+    let camera_projection = &mut collisions_agg_camera_bundle.orthographic_projection;
+    camera_projection.update(ANTIC_TEXTURE_SIZE.x, 1.0);
+    collisions_agg_camera_bundle.camera.projection_matrix =
+        camera_projection.get_projection_matrix();
+    collisions_agg_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
+    commands.spawn(collisions_agg_camera_bundle);
+
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
-    // let mesh_handle = meshes.add(Mesh::from(shape::Box::new(5.0, 5.0, 5.0)));
 
     commands.spawn(PbrBundle {
         mesh: mesh_handle,
@@ -635,37 +651,31 @@ fn setup(
         },
         transform: Transform {
             translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(2.0, 2.0, 1.0),
+            scale: Vec3::new(1.0, 1.0, 1.0),
             ..Default::default()
         },
         ..Default::default()
     });
 
-    // commands.spawn(PbrBundle {
-    //     mesh: mesh_handle,
-    //     material: COLLISIONS_MATERIAL_HANDLE.typed(),
-    //     visible: Visible {
-    //         is_visible: true,
-    //         is_transparent: false,
-    //     },
-    //     transform: Transform {
-    //         translation: Vec3::new(0.0, 120.0-240.0, 0.0),
-    //         scale: Vec3::new(1.0, 1.0, 1.0),
-    //         ..Default::default()
-    //     },
-    //     ..Default::default()
-    // });
+    let mesh = Mesh::from(shape::Quad::new(Vec2::new(384.0, 1.0)));
+    let mesh_handle = meshes.add(mesh);
+    let bundle = antic::entities::CollisionsAggBundle {
+        mesh: mesh_handle,
+        render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+            COLLISIONS_PIPELINE_HANDLE.typed(),
+        )]),
+        texture: COLLISIONS_MATERIAL_HANDLE.typed(),
+        visible: Visible {
+            is_visible: true,
+            is_transparent: false,
+        },
+        ..Default::default()
+    };
+
+    info!("bundle: {:?}", bundle.render_pipelines);
+    commands.spawn(bundle);
 
     commands.spawn(Camera2dBundle::default());
-    // commands.spawn(LightBundle {
-    //     transform: Transform::from_translation(Vec3::new(-20.0, 0.0, 30.0)),
-    //     ..Default::default()
-    // });
-    // commands.spawn(Camera3dBundle {
-    //     transform: Transform::from_translation(Vec3::new(0.0 , 0.0, 10.0))
-    //         .looking_at(Vec3::new(-0.0, -0.0, 0.0), Vec3::unit_y()),
-    //     ..Default::default()
-    // });
 
     commands
         .spawn(PbrBundle {
@@ -731,7 +741,7 @@ fn main() {
     app.add_plugins(DefaultPlugins);
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
-    app.add_plugin(atari_text::AtartTextPlugin::default());
+    // app.add_plugin(atari_text::AtartTextPlugin::default());
     app.add_plugin(antic::AnticPlugin {
         texture_size: ANTIC_TEXTURE_SIZE,
     });
