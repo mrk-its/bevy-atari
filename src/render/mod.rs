@@ -99,6 +99,11 @@ impl AnticRendererGraphBuilder for RenderGraph {
         let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
         active_cameras.add(ANTIC_CAMERA);
         active_cameras.add(COLLISIONS_AGG_CAMERA);
+
+        let mut pass_order: Vec<&str> = Vec::new();
+        pass_order.push(ANTIC_PASS);
+        pass_order.push(COLLISIONS_AGG_PASS);
+
         let mut pass_node = PassNode::<&AnticLine>::new(PassDescriptor {
             color_attachments: vec![
                 RenderPassColorAttachmentDescriptor {
@@ -184,7 +189,10 @@ impl AnticRendererGraphBuilder for RenderGraph {
 
         self.add_node(ANTIC_PASS, pass_node);
         self.add_node(COLLISIONS_AGG_PASS, collisions_agg_pass_node);
+
+
         self.add_node(LOAD_COLLISIONS_PASS, LoadCollisionsPass);
+        pass_order.push(LOAD_COLLISIONS_PASS);
 
         self.add_node_edge(ANTIC_CAMERA, ANTIC_PASS).unwrap();
         self.add_node_edge(COLLISIONS_AGG_CAMERA, COLLISIONS_AGG_PASS)
@@ -218,13 +226,11 @@ impl AnticRendererGraphBuilder for RenderGraph {
         self.add_node_edge(COLLISIONS_AGG_TEXTURE, COLLISIONS_AGG_PASS)
             .unwrap();
 
-        // self.add_node_edge(ANTIC_PASS, LOAD_COLLISIONS_PASS).unwrap();
-        // self.add_node_edge(LOAD_COLLISIONS_PASS, MAIN_PASS).unwrap();
+        pass_order.push(MAIN_PASS);
 
-        self.add_node_edge(ANTIC_PASS, COLLISIONS_AGG_PASS).unwrap();
-        self.add_node_edge(COLLISIONS_AGG_PASS, LOAD_COLLISIONS_PASS)
-            .unwrap();
-        self.add_node_edge(LOAD_COLLISIONS_PASS, MAIN_PASS).unwrap();
+        for (i, &pass_name) in pass_order[..pass_order.len() - 1].iter().enumerate() {
+            self.add_node_edge(pass_name, pass_order[i+1]).unwrap();
+        }
 
         self.add_node_edge("transform", ANTIC_PASS).unwrap();
         self.add_node_edge("atari_palette", ANTIC_PASS).unwrap();

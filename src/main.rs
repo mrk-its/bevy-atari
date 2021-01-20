@@ -3,7 +3,8 @@ extern crate bitflags;
 use std::io::prelude::*;
 pub mod atr;
 pub mod sio;
-
+pub mod entities;
+pub mod render;
 pub mod antic;
 mod atari800_state;
 pub mod atari_text;
@@ -16,6 +17,7 @@ mod render_resources;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
+
 use bevy::{
     prelude::*,
     render::{
@@ -26,8 +28,7 @@ use bevy::{
 };
 use bevy::{reflect::TypeUuid, sprite::QUAD_HANDLE};
 use bevy::{
-    render::{camera::CameraProjection, mesh::shape, render_graph::base::MainPass},
-    window::WindowId,
+    render::{mesh::shape, render_graph::base::MainPass},
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
@@ -593,7 +594,7 @@ fn setup(
         ATARI_MATERIAL_HANDLE,
         StandardMaterial {
             // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
-            albedo_texture: Some(antic::render::ANTIC_TEXTURE_HANDLE.typed()),
+            albedo_texture: Some(render::ANTIC_TEXTURE_HANDLE.typed()),
             shaded: false,
             ..Default::default()
         },
@@ -603,79 +604,42 @@ fn setup(
         COLLISIONS_MATERIAL_HANDLE,
         CustomTexture {
             color: Color::rgba(0.0, 1.0, 0.0, 1.0),
-            texture: Some(antic::render::COLLISIONS_TEXTURE_HANDLE.typed()),
+            texture: Some(render::COLLISIONS_TEXTURE_HANDLE.typed()),
         },
     );
 
-    let mut antic_camera_bundle = Camera2dBundle {
-        camera: Camera {
-            name: Some(antic::render::ANTIC_CAMERA.to_string()),
-            ..Default::default()
-        },
-        transform: Transform::from_scale(Vec3::new(1.0, -1.0, 1.0)),
-        ..Default::default()
-    };
-
-    antic_camera_bundle.camera.window = WindowId::new();
-    let camera_projection = &mut antic_camera_bundle.orthographic_projection;
-    camera_projection.update(ANTIC_TEXTURE_SIZE.x, ANTIC_TEXTURE_SIZE.y);
-    antic_camera_bundle.camera.projection_matrix = camera_projection.get_projection_matrix();
-    antic_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
-    commands.spawn(antic_camera_bundle);
-
-    let mut collisions_agg_camera_bundle = Camera2dBundle {
-        camera: Camera {
-            name: Some(antic::render::COLLISIONS_AGG_CAMERA.to_string()),
-            ..Default::default()
-        },
-        transform: Transform::from_scale(Vec3::new(1.0, -1.0, 1.0)),
-        ..Default::default()
-    };
-
-    collisions_agg_camera_bundle.camera.window = WindowId::new();
-    let camera_projection = &mut collisions_agg_camera_bundle.orthographic_projection;
-    camera_projection.update(ANTIC_TEXTURE_SIZE.x, 1.0);
-    collisions_agg_camera_bundle.camera.projection_matrix =
-        camera_projection.get_projection_matrix();
-    collisions_agg_camera_bundle.camera.depth_calculation = camera_projection.depth_calculation();
-    commands.spawn(collisions_agg_camera_bundle);
+    commands.spawn(entities::create_antic_camera());
+    commands.spawn(entities::create_collisions_camera());
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
 
     commands.spawn(PbrBundle {
         mesh: mesh_handle,
         material: ATARI_MATERIAL_HANDLE.typed(),
-        visible: Visible {
-            is_visible: true,
-            is_transparent: false,
-        },
-        transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(1.0, 1.0, 1.0),
-            ..Default::default()
-        },
         ..Default::default()
     });
 
     let mesh = Mesh::from(shape::Quad::new(Vec2::new(384.0, 1.0)));
     let mesh_handle = meshes.add(mesh);
-    let bundle = antic::entities::CollisionsAggBundle {
+    let bundle = entities::CollisionsAggBundle {
         mesh: mesh_handle,
         render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
             COLLISIONS_PIPELINE_HANDLE.typed(),
         )]),
         texture: COLLISIONS_MATERIAL_HANDLE.typed(),
-        visible: Visible {
-            is_visible: true,
-            is_transparent: false,
-        },
         ..Default::default()
     };
 
     info!("bundle: {:?}", bundle.render_pipelines);
     commands.spawn(bundle);
 
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle {
+        transform: Transform {
+            scale: Vec3::new(0.5, 0.5, 1.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    });
 
     commands
         .spawn(PbrBundle {

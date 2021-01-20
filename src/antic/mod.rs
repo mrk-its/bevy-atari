@@ -1,5 +1,5 @@
-pub mod entities;
-pub mod render;
+use crate::render;
+use crate::render::AnticRendererGraphBuilder;
 use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette, CustomTexture};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
@@ -11,7 +11,6 @@ use bevy::{
 };
 use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
 use emulator_6502::Interface6502;
-use render::AnticRendererGraphBuilder;
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
@@ -642,7 +641,7 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
 
 pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
     commands
-        .spawn(entities::AnticLineBundle {
+        .spawn(crate::entities::AnticLineBundle {
             // main_pass: MainPass,
             mesh: QUAD_HANDLE.typed(),
             render_pipelines: RenderPipelines::from_pipelines(vec![
