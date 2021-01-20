@@ -708,6 +708,7 @@ fn main() {
     // app.add_plugin(atari_text::AtartTextPlugin::default());
     app.add_plugin(antic::AnticPlugin {
         texture_size: ANTIC_TEXTURE_SIZE,
+        enable_collisions: true,
     });
 
     let mut system = AtariSystem::new();
