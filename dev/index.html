@@ -1,0 +1,301 @@
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body {
+      background: linear-gradient(135deg,
+          white 0%,
+          white 49%,
+          black 49%,
+          black 51%,
+          white 51%,
+          white 100%);
+      background-repeat: repeat;
+      background-size: 20px 20px;
+    }
+
+    canvas {
+      background-color: white;
+    }
+
+    #canvas-container {
+      margin: 0px auto;
+      width: 768px;
+    }
+
+    .files>div {
+      padding: 1em;
+      margin: 1em;
+      background-color: white;
+      border: 2px solid black;
+      position: relative;
+    }
+
+    .files>div label {
+      float: left;
+    }
+
+    .files .actions {
+      float: right;
+    }
+
+    .buttons {
+      margin: 1em 1em;
+    }
+  </style>
+  <script>
+    const k_file_header = [150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137, 0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196, 7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0, 141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6, 165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173, 226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8, 208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0, 133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11, 133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9, 32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172, 121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169, 82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3, 169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32, 89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11, 173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140, 118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0];
+    function store(key, url, filename, data) {
+      localStorage[key] = btoa(data);
+      localStorage[key + "_url"] = url;
+      localStorage[key + "_filename"] = filename;
+      set_binary_data(key, url, data);
+      update_status();
+    }
+
+    function store_exists(key, url) {
+      return key && localStorage[key] && localStorage[key + "_url"] == url;
+    }
+
+    function store_delete(key) {
+      delete localStorage[key];
+      delete localStorage[key + "_url"];
+      delete localStorage[key + "_filename"];
+      set_binary_data(key, "", []);
+      update_status();
+    }
+
+    function xex2atr(data) {
+      let n_sectors = Math.floor((data.length + 127) / 128) + 3;
+      let size = n_sectors * 128 / 16; // size in paragraphs;
+      let size_h = Math.floor(size / 256);
+      let size_l = size % 256;
+      let atr_buf = new Uint8Array(n_sectors * 128 + 16);
+      atr_buf.set(k_file_header, 0);
+      atr_buf.set(data, k_file_header.length);
+      atr_buf[2] = size_l;
+      atr_buf[3] = size_h;
+      atr_buf[25] = data.length % 256;
+      atr_buf[26] = Math.floor(data.length / 256);
+      return atr_buf;
+    }
+    function eject(event) {
+      event.preventDefault();
+      store_delete(event.target.parentNode.parentNode.attributes.id.value);
+      update_fragment();
+    }
+    function set_binary(url, data) {
+      var filename = url_to_filename(url);
+      if (filename.toLowerCase().endsWith(".rom") || filename.toLowerCase().endsWith(".bin")) {
+        if (data.length == 0x4000) {
+          store("osrom", url, filename, data);
+        } else if (data.length == 0x2000) {
+          store("basic", url, filename, data);
+        } else {
+          console.warn("invalid length of rom file", data.length);
+        }
+      } else if (filename.toLowerCase().endsWith(".state")) {
+        set_binary_data("state", filename, data);
+      } else if (filename.toLowerCase().endsWith(".atr")) {
+        let is_valid = (data[0] == 0x96 && data[1] == 0x02 && data[4] == 128 && data[5] == 0);
+        if (is_valid) {
+          store("disk_1", url, filename, data);
+        } else {
+          console.warn("unsupported ATR file");
+        }
+      } else if (filename.toLowerCase().endsWith(".xex")) {
+        let atr_filename = filename.substring(0, filename.length - 4) + "[auto-k-file].atr";
+        store("disk_1", url, atr_filename, xex2atr(data));
+      }
+    }
+
+    function is_absolute_url(url) {
+      return url && (url.startsWith("http://") || url.startsWith("https://"));
+    }
+
+    function url_to_filename(url) {
+      var path;
+      if (is_absolute_url(url)) {
+        let url_obj = new URL(url);
+        path = decodeURIComponent(url_obj.pathname);
+      } else {
+        path = url;
+      }
+      let fn = path.split("/");
+      fn = fn[fn.length - 1];
+      return fn;
+    }
+
+    function fetch_url(url) {
+      if (is_absolute_url(url)) {
+        url = "https://atari.ha.sed.pl/" + url;
+      }
+      return fetch(url).then(r => r.arrayBuffer()).then(function (data) {
+        return new Uint8Array(data);
+      })
+    }
+
+    function fetch_binary_data(key, url) {
+      if (store_exists(key, url)) {
+        init_binary_data(key);
+        return Promise.resolve(key);
+      }
+      return fetch_url(url).then(function (data) {
+        set_binary(url, data);
+        return key;
+      })
+    }
+
+    function handle_file(file) {
+      let name = file.name;
+      file.arrayBuffer().then(function (data) {
+        set_binary(name, new Uint8Array(data));
+      })
+    }
+
+    function on_drop_handler(event) {
+      event.preventDefault();
+      let url = event.dataTransfer.getData("text/plain");
+      if (url) {
+        fetch_binary_data("", url).then(update_fragment);
+      } else {
+        for(file of event.dataTransfer.files) {
+          handle_file(file);
+        }
+      }
+    }
+
+    function on_hash_change() {
+      reload_from_fragment();
+    }
+
+    function update_fragment() {
+      let hash = ['disk_1', 'osrom', 'basic'].map(
+        key => [key, localStorage[key + "_url"]]
+      ).filter(
+        i => is_absolute_url(i[1])
+      ).map(i => `${i[0]}==${i[1]}`).join("||");
+
+      document.location.hash = '#' + encodeURIComponent(hash);
+    }
+
+    function update_status() {
+      for(key of ['disk_1', 'osrom', 'basic']) {
+        let fn = localStorage[`${key}_filename`];
+        let sel = document.querySelector(`#${key} span`);
+        if(fn) {
+          sel.innerText = fn;
+        } else {
+          sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
+        }
+      }
+      // document.querySelector("#disk_1 span").innerHTML = localStorage.disk_1_filename || none_text;
+      // document.querySelector("#osrom span").innerHTML= localStorage.osrom_filename || none_text;
+      // document.querySelector("#basic span").innerHTML = localStorage.basic_filename || none_text;
+    }
+
+    function init_binary_data(key) {
+      let data = localStorage[key];
+      let url = localStorage[key + "_url"]
+      let filename = localStorage[key + "_filename"]
+      if (data) {
+        let d = new Uint8Array(atob(data).split(","));
+        set_binary_data(key, filename, d);
+        update_status();
+      }
+    }
+    function reload_from_fragment() {
+      let todo = [];
+
+      for (let [key, url] of decodeURIComponent(document.location.hash.substring(1)).split("||").filter(x => x).map(part => part.split("=="))) {
+        todo.push(fetch_binary_data(key, url));
+      };
+      return Promise.all(todo)
+    }
+    function blur() {
+      document.activeElement.blur();
+    }
+    async function open_local_file(event) {
+      event.preventDefault();
+      // let handles = await window.showOpenFilePicker();
+      // for(handle of handles) {
+      //   let file = await handle.getFile();
+      //   handle_file(file);
+      // }
+      for(file of event.target.files) {
+        console.log(file);
+        handle_file(file);
+      }
+      event.target.value = "";
+    }
+  </script>
+
+  <script type="module">
+    import init, { set_joystick, set_binary_data, cmd, reset, set_state } from './wasm.js?v=11'
+    async function run() {
+      try {
+        await init()
+      } catch (e) {
+        console.warn(e);
+      }
+      window.set_binary_data = set_binary_data;
+      window.cmd = cmd;
+      window.reset = reset;
+      window.set_state = set_state;
+
+      init_binary_data("osrom");
+      init_binary_data("basic");
+      init_binary_data("disk_1");
+      update_status();
+
+      reload_from_fragment().then(function () {
+        set_state("running");
+        // reset(true);
+        update_fragment();
+        console.log("done");
+      })
+    }
+    run();
+
+    function auto_focus() {
+      let canvas = document.getElementsByTagName("canvas");
+      if (!canvas.length) {
+        setTimeout(auto_focus, 100);
+      } else {
+        canvas[0].focus();
+      }
+    }
+    auto_focus()
+  </script>
+</head>
+
+
+<body onhashchange="on_hash_change();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
+  <div id="canvas-container">
+    <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
+    <div class="buttons">
+      <button onclick="reset(false, false); blur()">Restart (Warm)</button>
+      <button onclick="reset(true, false); blur()">Restart (Cold)</button>
+      <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
+      <input type="file" onchange="open_local_file(event);blur()"></input>
+      <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
+    </div>
+    <div class="files">
+      <div id="osrom">
+        OSROM: <span></span>
+        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
+      </div>
+      <div id="basic">
+        Basic: <span></span>
+        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
+      </div>
+      <div id="disk_1">
+        Disk 1: <span></span>
+        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>
