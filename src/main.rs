@@ -3,6 +3,8 @@ extern crate bitflags;
 use std::io::prelude::*;
 pub mod antic;
 mod atari800_state;
+pub mod time_used_plugin;
+
 pub mod atari_text;
 pub mod atr;
 pub mod entities;
@@ -16,6 +18,8 @@ mod render_resources;
 pub mod sio;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
+use bevy::{core::{Time, Timer}, diagnostic};
+use bevy::utils::Duration;
 
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
@@ -35,6 +39,7 @@ use bevy::{
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::{AnticLine, CustomTexture};
 use system::{antic::COLLISIONS_PIPELINE_HANDLE, AtariSystem};
+use time_used_plugin::TimeUsedPlugin;
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 11482402499638723727);
@@ -128,7 +133,9 @@ fn keyboard_system(
 ) {
     let handled = if autorepeat_disabled.timer.finished() {
         let mut handled = true;
-        if keyboard.just_pressed(KeyCode::F8) {
+        if keyboard.just_pressed(KeyCode::F7) {
+            display_config.fps = !display_config.fps;
+        } else if keyboard.just_pressed(KeyCode::F8) {
             display_config.debug = !display_config.debug;
         } else if keyboard.pressed(KeyCode::F9) {
             if !frame.paused {
@@ -174,8 +181,6 @@ fn keyboard_system(
 }
 
 struct FPSState(Timer);
-use bevy::core::{Time, Timer};
-use bevy::utils::Duration;
 
 impl Default for FPSState {
     fn default() -> Self {
@@ -191,9 +196,11 @@ fn update_fps(
 ) {
     if state.0.tick(time.delta_seconds()).finished() {
         for mut fps in fps_query.iter_mut() {
-            if let Some(d) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
-                if let Some(avg) = d.average() {
-                    fps.set_text(&format!("FPS: {:.1}", avg));
+            if let Some(ft) = diagnostics.get(FrameTimeDiagnosticsPlugin::FRAME_TIME) {
+                if let Some(t) = diagnostics.get(TimeUsedPlugin::TIME_USED) {
+                    if let (Some(ft), Some(t)) = (ft.average(), t.average()) {
+                        fps.set_text(&format!("{:.1} {:.2}", 1.0 / ft, t / ft));
+                    }
                 }
             }
         }
@@ -735,7 +742,6 @@ fn setup(
 
     // Setup our world
 }
-
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
@@ -750,6 +756,8 @@ fn main() {
         vsync: true,
         ..Default::default()
     });
+    app.add_plugin(time_used_plugin::TimeUsedPlugin);
+    // app.add_resource(imeUsed::default());
     app.add_resource(WinitConfig {
         force_fps: Some(50.0),
         return_from_run: false,
@@ -775,7 +783,7 @@ fn main() {
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
-            debug: true,
+            debug: false,
         })
         .add_resource(system)
         .add_resource(cpu)
