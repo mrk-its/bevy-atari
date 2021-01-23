@@ -17,11 +17,13 @@ pub mod sio;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
-use bevy::{diagnostic::{self, Diagnostics, FrameTimeDiagnosticsPlugin}, reflect::TypeUuid};
+use bevy::{
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    reflect::TypeUuid,
+};
 use bevy::{
     prelude::*,
     render::{
-        camera::Camera,
         entity::Camera2dBundle,
         pipeline::{PipelineDescriptor, RenderPipeline},
     },
@@ -49,6 +51,13 @@ pub struct Parent {
     pub global_transform: GlobalTransform,
 }
 
+#[derive(PartialEq, Copy, Clone, Default)]
+pub struct DisplayConfig {
+    pub fps: bool,
+    pub debug: bool,
+}
+
+pub struct MainCamera;
 pub struct DebugComponent;
 pub struct ScanLine;
 pub struct CPUDebug;
@@ -80,7 +89,6 @@ pub struct ClearCollisions(pub bool);
 
 #[derive(Default, Debug)]
 struct FrameState {
-    is_debug: bool,
     current_mode: Option<ModeLineDescr>,
     paused: bool,
     break_point: Option<BreakPoint>,
@@ -110,9 +118,8 @@ struct AutoRepeatTimer {
 }
 
 fn keyboard_system(
-    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<(&mut GlobalTransform, &Camera)>,
     time: Res<Time>,
+    mut display_config: ResMut<DisplayConfig>,
     keyboard: Res<Input<KeyCode>>,
     mut autorepeat_disabled: Local<AutoRepeatTimer>,
     mut frame: ResMut<FrameState>,
@@ -122,8 +129,7 @@ fn keyboard_system(
     let handled = if autorepeat_disabled.timer.finished() {
         let mut handled = true;
         if keyboard.just_pressed(KeyCode::F8) {
-            frame.is_debug = !frame.is_debug;
-            set_debug(frame.is_debug, &mut debug_components, &mut camera_query);
+            display_config.debug = !display_config.debug;
         } else if keyboard.pressed(KeyCode::F9) {
             if !frame.paused {
                 frame.set_breakpoint(BreakPoint::ScanLine(248))
@@ -168,15 +174,14 @@ fn keyboard_system(
 }
 
 struct FPSState(Timer);
-use bevy::utils::Duration;
 use bevy::core::{Time, Timer};
+use bevy::utils::Duration;
 
 impl Default for FPSState {
     fn default() -> Self {
         FPSState(Timer::new(Duration::from_secs(1), true))
     }
 }
-
 
 fn update_fps(
     mut state: Local<FPSState>,
@@ -186,7 +191,7 @@ fn update_fps(
 ) {
     if state.0.tick(time.delta_seconds()).finished() {
         for mut fps in fps_query.iter_mut() {
-            if let Some(d) =  diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+            if let Some(d) = diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
                 if let Some(avg) = d.average() {
                     fps.set_text(&format!("FPS: {:.1}", avg));
                 }
@@ -195,18 +200,55 @@ fn update_fps(
     }
 }
 
+#[derive(Default)]
+pub struct DisplayState {
+    pub last: DisplayConfig,
+}
+
+fn update_display_config(
+    mut state: Local<DisplayState>,
+    config: ResMut<DisplayConfig>,
+    mut fps_query: Query<&mut Visible, With<FPS>>,
+    mut debug_query: Query<&mut Visible, With<DebugComponent>>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+) {
+    if *config != state.last {
+        for mut v in fps_query.iter_mut() {
+            v.is_visible = config.fps;
+        }
+        for mut v in debug_query.iter_mut() {
+            v.is_visible = config.debug;
+        }
+        for mut camera_transform in camera_query.iter_mut() {
+            *camera_transform = if !config.debug {
+                Transform {
+                    scale: Vec3::new(0.5, 0.5, 1.0),
+                    ..Default::default()
+                }
+            } else {
+                Transform {
+                    scale: Vec3::new(1.0, 1.0, 1.0),
+                    translation: Vec3::new(384.0 / 2.0, 0.0, 0.0),
+                    ..Default::default()
+                }
+            }
+        }
+        state.last = *config;
+    }
+}
+
 fn debug_overlay_system(
+    display_config: ResMut<DisplayConfig>,
     mut atari_system: ResMut<AtariSystem>,
     mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
     mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
     mut gtia_debug: Query<&mut atari_text::TextArea, With<GtiaDebug>>,
     mut scan_line: Query<(&ScanLine, &mut GlobalTransform)>,
-    frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
 ) {
-    // if !frame.is_debug {
-    //     return;
-    // }
+    if !display_config.debug {
+        return;
+    }
     for mut text in cpu_debug.iter_mut() {
         let mut data = vec![];
         let f = cpu.status_register;
@@ -280,12 +322,11 @@ fn debug_overlay_system(
 
 fn atari_system(
     commands: &mut Commands,
+    mut display_config: ResMut<DisplayConfig>,
     antic_lines: Query<(Entity, &AnticLine)>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
-    mut debug_components: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<(&mut GlobalTransform, &Camera)>,
 ) {
     if frame.paused {
         return;
@@ -427,15 +468,13 @@ fn atari_system(
                 Some(BreakPoint::PC(pc)) => {
                     if cpu.program_counter == pc {
                         frame.clear_break_point();
-                        frame.is_debug = true;
-                        set_debug(true, &mut debug_components, &mut camera_query);
+                        display_config.debug = true;
                     }
                 }
                 Some(BreakPoint::NotPC(pc)) => {
                     if cpu.program_counter != pc {
                         frame.clear_break_point();
-                        frame.is_debug = true;
-                        set_debug(true, &mut debug_components, &mut camera_query);
+                        display_config.debug = true;
                     }
                 }
                 _ => (),
@@ -448,8 +487,7 @@ fn atari_system(
                 if *scan_line == atari_system.antic.scan_line {
                     frame.paused = true;
                     frame.break_point = None;
-                    frame.is_debug = true;
-                    set_debug(true, &mut debug_components, &mut camera_query);
+                    display_config.debug = true;
                     break;
                 }
             }
@@ -566,26 +604,6 @@ fn events(
     }
 }
 
-fn set_debug(
-    is_visible: bool,
-    debug_components: &mut Query<&mut Visible, With<DebugComponent>>,
-    camera_query: &mut Query<(&mut GlobalTransform, &Camera)>,
-) {
-    for mut visible in debug_components.iter_mut() {
-        visible.is_visible = is_visible;
-    }
-    for (mut transform, camera) in camera_query.iter_mut() {
-        if camera.window.is_primary() {
-            if is_visible {
-                *transform = GlobalTransform::from_translation(Vec3::new(384.0, -240.0, 0.0))
-                    .mul_transform(Transform::from_scale(Vec3::new(2.0, 2.0, 1.0)))
-            } else {
-                *transform = GlobalTransform::default()
-            }
-        }
-    }
-}
-
 #[allow(dead_code)]
 fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
     for mut transform in query.iter_mut() {
@@ -656,28 +674,31 @@ fn setup(
     info!("bundle: {:?}", bundle.render_pipelines);
     commands.spawn(bundle);
 
-    commands.spawn(Camera2dBundle {
-        transform: Transform {
-            translation: Vec3::new(0.0, 0.0, 0.0),
-            scale: Vec3::new(0.5, 0.5, 1.0),
+    commands
+        .spawn(Camera2dBundle {
+            transform: Transform {
+                translation: Vec3::new(0.0, 0.0, 0.0),
+                scale: Vec3::new(0.5, 0.5, 1.0),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    });
+        })
+        .with(MainCamera);
 
-
-    commands.spawn(Parent {
-        transform: Transform {
-            translation: Vec3::new(-384.0/2.0, 240.0 / 2.0, 0.0),
-            scale: Vec3::new(0.5, 0.5, 1.0),
+    commands
+        .spawn(Parent {
+            transform: Transform {
+                translation: Vec3::new(-384.0 / 2.0, 240.0 / 2.0, 0.0),
+                scale: Vec3::new(1.0, 1.0, 1.0),
+                ..Default::default()
+            },
             ..Default::default()
-        },
-        ..Default::default()
-    }).with_children(|commands| {
-        let mut fps = atari_text::TextAreaBundle::new(10, 1, 0, 0);
-        fps.visible.is_visible = true;
-        commands.spawn(fps).with(FPS);
-    });
+        })
+        .with_children(|commands| {
+            commands
+                .spawn(atari_text::TextAreaBundle::new(10, 1, 0, 0))
+                .with(FPS);
+        });
 
     commands
         .spawn(Parent {
@@ -687,13 +708,16 @@ fn setup(
         .with_children(|commands| {
             commands
                 .spawn(atari_text::TextAreaBundle::new(18, 20, 0, 0))
-                .with(CPUDebug).with(DebugComponent);
+                .with(CPUDebug)
+                .with(DebugComponent);
             commands
                 .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 1, 0))
-                .with(AnticDebug).with(DebugComponent);
+                .with(AnticDebug)
+                .with(DebugComponent);
             commands
                 .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 12 + 2, 0))
-                .with(GtiaDebug).with(DebugComponent);
+                .with(GtiaDebug)
+                .with(DebugComponent);
         });
 
     // commands
@@ -749,6 +773,10 @@ fn main() {
 
     app.add_resource(State::new(EmulatorState::Idle))
         // .add_resource(ClearColor(gtia::atari_color(0)))
+        .add_resource(DisplayConfig {
+            fps: true,
+            debug: true,
+        })
         .add_resource(system)
         .add_resource(cpu)
         .add_resource(frame)
@@ -768,6 +796,7 @@ fn main() {
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
         .on_state_update("running", EmulatorState::Running, update_fps.system())
+        .add_system(update_display_config.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())
         .run();
