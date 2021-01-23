@@ -78,7 +78,6 @@ pub struct Gtia {
     pub consol: u8,
     pub consol_mask: u8,
     pub consol_force_mask: u8,
-    pub clear_collisions: bool,
 }
 
 impl Default for Gtia {
@@ -92,7 +91,6 @@ impl Default for Gtia {
             consol_mask: 0x7,
             consol_force_mask: 0x7, // force option on start;
             scan_line: 0,
-            clear_collisions: false,
         }
     }
 }
@@ -134,7 +132,6 @@ impl Gtia {
             CONSOL => self.consol_mask = 0x7 & !value,
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
-                self.clear_collisions = true;
                 self.collisions.iter_mut().for_each(|v| *v = 0);
             }
             _ => (),

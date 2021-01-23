@@ -1,23 +1,23 @@
 #[macro_use]
 extern crate bitflags;
 use std::io::prelude::*;
-pub mod atr;
-pub mod sio;
-pub mod entities;
-pub mod render;
 pub mod antic;
 mod atari800_state;
 pub mod atari_text;
+pub mod atr;
+pub mod entities;
 pub mod gtia;
 mod js_api;
 mod palette;
 pub mod pia;
 pub mod pokey;
+pub mod render;
 mod render_resources;
+pub mod sio;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
 
-
+use bevy::{diagnostic::{self, Diagnostics, FrameTimeDiagnosticsPlugin}, reflect::TypeUuid};
 use bevy::{
     prelude::*,
     render::{
@@ -26,7 +26,6 @@ use bevy::{
         pipeline::{PipelineDescriptor, RenderPipeline},
     },
 };
-use bevy::{reflect::TypeUuid, sprite::QUAD_HANDLE};
 use bevy::{
     render::{mesh::shape, render_graph::base::MainPass},
     winit::WinitConfig,
@@ -44,11 +43,18 @@ pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
 pub const COLLISIONS_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(CustomTexture::TYPE_UUID, 11482402411138723729);
 
+#[derive(Default, Bundle)]
+pub struct Parent {
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+}
+
 pub struct DebugComponent;
 pub struct ScanLine;
 pub struct CPUDebug;
 pub struct AnticDebug;
 pub struct GtiaDebug;
+pub struct FPS;
 
 #[derive(Clone, Debug)]
 enum EmulatorState {
@@ -161,15 +167,32 @@ fn keyboard_system(
     }
 }
 
-fn atascii_to_screen(text: &str, inv: bool) -> Vec<u8> {
-    text.as_bytes()
-        .iter()
-        .map(|c| match *c {
-            0x00..=0x1f => *c + 0x40,
-            0x20..=0x5f => *c - 0x20,
-            _ => *c,
-        } + (inv as u8) * 128)
-        .collect()
+struct FPSState(Timer);
+use bevy::utils::Duration;
+use bevy::core::{Time, Timer};
+
+impl Default for FPSState {
+    fn default() -> Self {
+        FPSState(Timer::new(Duration::from_secs(1), true))
+    }
+}
+
+
+fn update_fps(
+    mut state: Local<FPSState>,
+    time: Res<Time>,
+    mut fps_query: Query<&mut atari_text::TextArea, With<FPS>>,
+    diagnostics: Res<Diagnostics>,
+) {
+    if state.0.tick(time.delta_seconds()).finished() {
+        for mut fps in fps_query.iter_mut() {
+            if let Some(d) =  diagnostics.get(FrameTimeDiagnosticsPlugin::FPS) {
+                if let Some(avg) = d.average() {
+                    fps.set_text(&format!("FPS: {:.1}", avg));
+                }
+            }
+        }
+    }
 }
 
 fn debug_overlay_system(
@@ -181,13 +204,13 @@ fn debug_overlay_system(
     frame: ResMut<FrameState>,
     cpu: ResMut<MOS6502>,
 ) {
-    if !frame.is_debug {
-        return;
-    }
+    // if !frame.is_debug {
+    //     return;
+    // }
     for mut text in cpu_debug.iter_mut() {
         let mut data = vec![];
         let f = cpu.status_register;
-        data.extend(atascii_to_screen(
+        data.extend(atari_text::atascii_to_screen(
             &format!(
                 " A: {:02x}   X: {:02x}     Y: {:02x}   S: {:02x}     F: {}{}-{}{}{}{}{}       {:3} / {:<3}        ",
                 cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer,
@@ -209,7 +232,7 @@ fn debug_overlay_system(
         if let Ok(instructions) = disasm6502::from_addr_array(&bytes, pc) {
             for i in instructions.iter().take(16) {
                 let line = format!(" {:04x} {:11} ", i.address, i.as_str());
-                data.extend(atascii_to_screen(&line, i.address == pc));
+                data.extend(atari_text::atascii_to_screen(&line, i.address == pc));
             }
         }
         &text.data.data[..data.len()].copy_from_slice(&data);
@@ -228,7 +251,7 @@ fn debug_overlay_system(
             atari_system.antic.nmist,
             atari_system.antic.nmien,
         );
-        let data = atascii_to_screen(&status_text, false);
+        let data = atari_text::atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
     }
     for mut text in gtia_debug.iter_mut() {
@@ -242,7 +265,7 @@ fn debug_overlay_system(
             atari_system.gtia.regs.prior as u8,
             atari_system.gtia.consol,
         );
-        let data = atascii_to_screen(&status_text, false);
+        let data = atari_text::atascii_to_screen(&status_text, false);
         &text.data.data[..data.len()].copy_from_slice(&data);
     }
     for (_, mut transform) in scan_line.iter_mut() {
@@ -635,51 +658,56 @@ fn setup(
 
     commands.spawn(Camera2dBundle {
         transform: Transform {
+            translation: Vec3::new(0.0, 0.0, 0.0),
             scale: Vec3::new(0.5, 0.5, 1.0),
             ..Default::default()
         },
         ..Default::default()
     });
 
+
+    commands.spawn(Parent {
+        transform: Transform {
+            translation: Vec3::new(-384.0/2.0, 240.0 / 2.0, 0.0),
+            scale: Vec3::new(0.5, 0.5, 1.0),
+            ..Default::default()
+        },
+        ..Default::default()
+    }).with_children(|commands| {
+        let mut fps = atari_text::TextAreaBundle::new(10, 1, 0, 0);
+        fps.visible.is_visible = true;
+        commands.spawn(fps).with(FPS);
+    });
+
     commands
-        .spawn(PbrBundle {
-            mesh: QUAD_HANDLE.typed(),
-            material: RED_MATERIAL_HANDLE.typed(),
-            visible: Visible {
-                is_visible: false,
-                is_transparent: false,
-            },
+        .spawn(Parent {
+            transform: Transform::from_translation(Vec3::new(384.0 / 2.0, 240.0 / 2.0, 0.0)),
             ..Default::default()
         })
-        .with(DebugComponent)
-        .with(ScanLine);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            18.0,
-            20.0,
-            (384.0 + 18.0 * 8.0) / 2.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(CPUDebug);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            12.0,
-            20.0,
-            (384.0 + 12.0 * 8.0) / 2.0 + 19.0 * 8.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(AnticDebug);
-    commands
-        .spawn(atari_text::TextAreaBundle::new(
-            12.0,
-            20.0,
-            (384.0 + 12.0 * 8.0) / 2.0 + (20.0 + 12.0) * 8.0,
-            (256.0 - 20.0 * 8.0) / 2.0,
-        ))
-        .with(DebugComponent)
-        .with(GtiaDebug);
+        .with_children(|commands| {
+            commands
+                .spawn(atari_text::TextAreaBundle::new(18, 20, 0, 0))
+                .with(CPUDebug).with(DebugComponent);
+            commands
+                .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 1, 0))
+                .with(AnticDebug).with(DebugComponent);
+            commands
+                .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 12 + 2, 0))
+                .with(GtiaDebug).with(DebugComponent);
+        });
+
+    // commands
+    //     .spawn(PbrBundle {
+    //         mesh: QUAD_HANDLE.typed(),
+    //         material: RED_MATERIAL_HANDLE.typed(),
+    //         visible: Visible {
+    //             is_visible: false,
+    //             is_transparent: false,
+    //         },
+    //         ..Default::default()
+    //     })
+    //     .with(DebugComponent)
+    //     .with(ScanLine);
 
     // Setup our world
 }
@@ -705,17 +733,19 @@ fn main() {
     app.add_plugins(DefaultPlugins);
     #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
-    // app.add_plugin(atari_text::AtartTextPlugin::default());
+    app.add_plugin(atari_text::AtartTextPlugin::default());
     app.add_plugin(antic::AnticPlugin {
         texture_size: ANTIC_TEXTURE_SIZE,
         enable_collisions: true,
     });
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
     system.reset(&mut cpu, true, true);
 
-    let frame = FrameState::default();
+    let mut frame = FrameState::default();
+    frame.break_point = Some(BreakPoint::PC(0x2002));
 
     app.add_resource(State::new(EmulatorState::Idle))
         // .add_resource(ClearColor(gtia::atari_color(0)))
@@ -737,6 +767,7 @@ fn main() {
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
+        .on_state_update("running", EmulatorState::Running, update_fps.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())
         .run();

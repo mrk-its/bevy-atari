@@ -8,6 +8,7 @@ const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
 const SKSTAT: usize = 0x0f;
 const IRQST: usize = 0x0e;
+const IRQEN: usize = 0x0e;
 
 pub const CLOCK_177: f32 = 1778400.0;
 pub const DIVIDER_64K: u32 = 28;
@@ -36,6 +37,19 @@ bitflags! {
     }
 }
 
+bitflags! {
+    pub struct IRQ: u8 {
+        const BRK = 0x80;
+        const KEY = 0x40;
+        const SIN = 0x20;
+        const SOUT = 0x10;
+        const SCMP = 0x08;
+        const T4 = 0x04;
+        const T2 = 0x02;
+        const T1 = 0x01;
+    }
+}
+
 pub struct Pokey {
     delay: [usize; 4],
     clock_divider: [u32; 4],
@@ -45,6 +59,7 @@ pub struct Pokey {
     kbcode: u8,
     skstat: u8,
     irqst: u8,
+    pub irqen: IRQ,
     backend: AudioBackend,
     rng: SmallRng,
 }
@@ -61,6 +76,7 @@ impl Default for Pokey {
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
+            irqen: IRQ::from_bits_truncate(0xff),
             backend: AudioBackend::new().unwrap(),
             audctl: AUDCTL::from_bits_truncate(0),
         }
@@ -218,6 +234,7 @@ impl Pokey {
                     self.reset_idle(i)
                 }
             }
+            IRQEN => self.irqen = IRQ::from_bits_truncate(value),
             _ => (),
         }
     }

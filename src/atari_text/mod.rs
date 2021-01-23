@@ -53,6 +53,24 @@ pub struct TextArea {
     pub charset: Charset,
 }
 
+pub fn atascii_to_screen(text: &str, inv: bool) -> Vec<u8> {
+    text.as_bytes()
+        .iter()
+        .map(|c| match *c {
+            0x00..=0x1f => *c + 0x40,
+            0x20..=0x5f => *c - 0x20,
+            _ => *c,
+        } + (inv as u8) * 128)
+        .collect()
+}
+
+impl TextArea {
+    pub fn set_text(&mut self, text: &str) {
+        let data = atascii_to_screen(text, false);
+        self.data.data[..data.len()].copy_from_slice(&data);
+    }
+}
+
 #[derive(Bundle, Default)]
 pub struct TextAreaBundle {
     pub mesh: Handle<Mesh>,
@@ -66,7 +84,9 @@ pub struct TextAreaBundle {
 }
 
 impl TextAreaBundle {
-    pub fn new(width: f32, height: f32, x_offset: f32, y_offset: f32) -> TextAreaBundle {
+    pub fn new(width: i32, height: i32, x_offset: i32, y_offset: i32) -> TextAreaBundle {
+        let width = width as f32;
+        let height = height as f32;
         let mut charset = Charset::default();
         charset.data.extend_from_slice(CHARSET_DATA);
         TextAreaBundle {
@@ -74,12 +94,15 @@ impl TextAreaBundle {
             render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                 ATARI_TEXT_PIPELINE_HANDLE.typed(),
             )]),
-            transform: Transform::from_translation(Vec3::new(x_offset, y_offset, 0.2))
-                .mul_transform(Transform::from_scale(Vec3::new(
-                    1.0 * width * 8.0,
-                    1.0 * height * 8.0,
+            transform: Transform {
+                translation: Vec3::new((x_offset as f32 + width / 2.0) * 8.0, (y_offset as f32 - height / 2.0) * 8.0, 0.2),
+                scale: Vec3::new(
+                    1.0 * (width as f32) * 8.0,
+                    1.0 * (height as f32) * 8.0,
                     1.0,
-                ))),
+                ),
+                ..Default::default()
+            },
             visible: Visible {
                 is_visible: false,
                 is_transparent: true,

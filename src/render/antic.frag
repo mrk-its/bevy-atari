@@ -264,5 +264,10 @@ void main() {
     int p2pl = p2 ? (player_bits & ~4) << 8 : 0;
     int p3pl = p3 ? (player_bits & ~8) << 12 : 0;
 
-    o_CollisionsTarget = uvec4(m0pf | m1pf | m2pf | m3pf, p0pf | p1pf | p2pf | p3pf, m0pl | m1pl | m2pl | m3pl, p0pl | p1pl | p2pl | p3pl);
+    if(true) {  // TODO - do not register collisions on HBLANK
+        o_CollisionsTarget = uvec4(m0pf | m1pf | m2pf | m3pf, p0pf | p1pf | p2pf | p3pf, m0pl | m1pl | m2pl | m3pl, p0pl | p1pl | p2pl | p3pl);
+    } else {
+        o_CollisionsTarget = uvec4(0, 0, 0, 0);
+    };
+
 }

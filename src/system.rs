@@ -1,4 +1,4 @@
-use crate::atari800_state::Atari800State;
+use crate::{atari800_state::Atari800State, pokey};
 use crate::atr::ATR;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
@@ -317,7 +317,7 @@ impl AtariSystem {
             self.set_joystick(0, up, down, left, right, fire);
             irq = false;
         }
-        irq
+        return irq && self.pokey.irqen.contains(pokey::IRQ::KEY);
     }
     pub fn set_joystick(
         &mut self,

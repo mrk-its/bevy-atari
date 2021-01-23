@@ -1,10 +1,15 @@
-use bevy::{prelude::*, render::{camera::{Camera, CameraProjection}, render_graph::base::MainPass}, window::WindowId};
+use bevy::{
+    prelude::*,
+    render::{
+        camera::{Camera, CameraProjection},
+        render_graph::base::MainPass,
+    },
+    window::WindowId,
+};
 
 use crate::render_resources::CustomTexture;
 
 use super::render;
-
-
 
 #[derive(Default)]
 pub struct CollisionsAggPass;
@@ -21,7 +26,6 @@ pub struct CollisionTextureDebugBundle {
     pub global_transform: GlobalTransform,
 }
 
-
 #[derive(Bundle, Default)]
 pub struct CollisionsAggBundle {
     pub mesh: Handle<Mesh>,
@@ -34,7 +38,6 @@ pub struct CollisionsAggBundle {
     pub global_transform: GlobalTransform,
 }
 
-
 #[derive(Bundle, Default)]
 pub struct AnticLineBundle {
     pub mesh: Handle<Mesh>,
@@ -45,7 +48,6 @@ pub struct AnticLineBundle {
     pub transform: Transform,
     pub global_transform: GlobalTransform,
 }
-
 
 pub fn create_2d_camera(name: &str, width: f32, height: f32) -> Camera2dBundle {
     let mut camera_bundle = Camera2dBundle {
@@ -69,19 +71,11 @@ pub fn create_2d_camera(name: &str, width: f32, height: f32) -> Camera2dBundle {
 }
 
 pub fn create_antic_camera() -> Camera2dBundle {
-    create_2d_camera(
-        render::ANTIC_CAMERA,
-        384.0,
-        240.0,
-    )
+    create_2d_camera(render::ANTIC_CAMERA, 384.0, 240.0)
 }
 
 pub fn create_collisions_camera() -> Camera2dBundle {
-    create_2d_camera(
-        render::COLLISIONS_AGG_CAMERA,
-        384.0,
-        1.0,
-    )
+    create_2d_camera(render::COLLISIONS_AGG_CAMERA, 384.0, 1.0)
 }
 
 // pub fn create_antic_display(meshes: Assets<Mesh>) -> PbrBundle {
