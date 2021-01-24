@@ -250,8 +250,8 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 COLLISIONS_BUFFER,
                 CollisionsBufferNode {
                     buffer_info: BufferInfo {
-                        size: texture_size.x as usize * height as usize * 8,
-                        buffer_usage: BufferUsage::COPY_SRC,
+                        size: texture_size.x as usize * height as usize * 16,
+                        buffer_usage: BufferUsage::COPY_DST | BufferUsage::INDIRECT,
                         mapped_at_creation: false,
                     },
                     buffer_id: None,
