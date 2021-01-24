@@ -192,7 +192,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
             )
             .unwrap();
 
-            let (index, height) = if false {
+            let (index, height) = if true {
                 let mut collisions_agg_pass_node =
                     PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
                         color_attachments: vec![RenderPassColorAttachmentDescriptor {

@@ -265,8 +265,8 @@ void main() {
     int p3pl = p3 ? (player_bits & ~8) << 12 : 0;
 
     o_CollisionsTarget = uvec4(
-        uint(m0pf | m1pf | m2pf | m3pf) | (uint(p0pf | p1pf | p2pf | p3pf) << 16),
-        uint(m0pl | m1pl | m2pl | m3pl) | (uint(p0pl | p1pl | p2pl | p3pl) << 16),
+        uint(m0pf | m1pf | m2pf | m3pf) | uint(p0pf | p1pf | p2pf | p3pf) << 16,
+        uint(m0pl | m1pl | m2pl | m3pl) | uint(p0pl | p1pl | p2pl | p3pl) << 16,
         0,
         0
     );
