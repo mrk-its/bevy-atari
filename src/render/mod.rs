@@ -244,14 +244,17 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 (1, texture_size.y as u32)
             };
 
-            self.add_node(COLLISIONS_BUFFER, CollisionsBufferNode {
-                buffer_info: BufferInfo {
-                    size: texture_size.x as usize * texture_size.y as usize * 8,
-                    buffer_usage: BufferUsage::COPY_SRC,
-                    mapped_at_creation: false,
+            self.add_node(
+                COLLISIONS_BUFFER,
+                CollisionsBufferNode {
+                    buffer_info: BufferInfo {
+                        size: texture_size.x as usize * texture_size.y as usize * 8,
+                        buffer_usage: BufferUsage::COPY_SRC,
+                        mapped_at_creation: false,
+                    },
+                    buffer_id: None,
                 },
-                buffer_id: None,
-            });
+            );
             self.add_node(
                 LOAD_COLLISIONS_PASS,
                 LoadCollisionsPass {
@@ -263,13 +266,8 @@ impl AnticRendererGraphBuilder for RenderGraph {
             );
             self.add_node_edge(COLLISIONS_BUFFER, LOAD_COLLISIONS_PASS)
                 .unwrap();
-            self.add_slot_edge(
-                COLLISIONS_BUFFER,
-                "buffer",
-                LOAD_COLLISIONS_PASS,
-                "buffer",
-            )
-            .unwrap();
+            self.add_slot_edge(COLLISIONS_BUFFER, "buffer", LOAD_COLLISIONS_PASS, "buffer")
+                .unwrap();
             pass_order.push(LOAD_COLLISIONS_PASS);
         }
         pass_order.push(MAIN_PASS);

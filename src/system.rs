@@ -1,7 +1,7 @@
-use crate::{atari800_state::Atari800State, pokey};
 use crate::atr::ATR;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
+use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
@@ -282,12 +282,12 @@ impl AtariSystem {
             self.pokey.resume();
             if map_joy {
                 joy_changed = joy_changed
-                || *ev == KeyCode::LShift
-                || *ev == KeyCode::RShift
-                || *ev == KeyCode::Up
-                || *ev == KeyCode::Down
-                || *ev == KeyCode::Left
-                || *ev == KeyCode::Right;
+                    || *ev == KeyCode::LShift
+                    || *ev == KeyCode::RShift
+                    || *ev == KeyCode::Up
+                    || *ev == KeyCode::Down
+                    || *ev == KeyCode::Left
+                    || *ev == KeyCode::Right;
             }
             if !joy_changed || is_ctl {
                 irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
@@ -297,12 +297,12 @@ impl AtariSystem {
         for ev in keyboard.get_just_released() {
             if map_joy {
                 joy_changed = joy_changed
-                || *ev == KeyCode::LShift
-                || *ev == KeyCode::RShift
-                || *ev == KeyCode::Up
-                || *ev == KeyCode::Down
-                || *ev == KeyCode::Left
-                || *ev == KeyCode::Right;
+                    || *ev == KeyCode::LShift
+                    || *ev == KeyCode::RShift
+                    || *ev == KeyCode::Up
+                    || *ev == KeyCode::Down
+                    || *ev == KeyCode::Left
+                    || *ev == KeyCode::Right;
             }
             if !joy_changed || is_ctl {
                 self.pokey.key_press(ev, false, is_shift, is_ctl);

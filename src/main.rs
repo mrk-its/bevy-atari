@@ -18,7 +18,7 @@ mod render_resources;
 pub mod sio;
 mod system;
 use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
-use bevy::{core::{Time, Timer}, diagnostic};
+use bevy::core::{Time, Timer};
 use bevy::utils::Duration;
 
 use bevy::{
@@ -618,7 +618,7 @@ fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
     }
 }
 
-const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 320.0, y: 200.0 };
+const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
 
 fn setup(
     commands: &mut Commands,

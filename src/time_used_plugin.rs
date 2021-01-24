@@ -1,5 +1,4 @@
-use bevy::core::{Time, Timer};
-use bevy::utils::Duration;
+use bevy::core::Time;
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
     prelude::*,
@@ -26,7 +25,6 @@ impl TimeUsedPlugin {
         diagnostics.add_measurement(Self::TIME_USED, dt);
     }
 }
-
 
 impl Plugin for TimeUsedPlugin {
     fn build(&self, app: &mut bevy::app::AppBuilder) {

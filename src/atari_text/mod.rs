@@ -95,12 +95,12 @@ impl TextAreaBundle {
                 ATARI_TEXT_PIPELINE_HANDLE.typed(),
             )]),
             transform: Transform {
-                translation: Vec3::new((x_offset as f32 + width / 2.0) * 8.0, (y_offset as f32 - height / 2.0) * 8.0, 0.2),
-                scale: Vec3::new(
-                    1.0 * (width as f32) * 8.0,
-                    1.0 * (height as f32) * 8.0,
-                    1.0,
+                translation: Vec3::new(
+                    (x_offset as f32 + width / 2.0) * 8.0,
+                    (y_offset as f32 - height / 2.0) * 8.0,
+                    0.2,
                 ),
+                scale: Vec3::new(1.0 * (width as f32) * 8.0, 1.0 * (height as f32) * 8.0, 1.0),
                 ..Default::default()
             },
             visible: Visible {
