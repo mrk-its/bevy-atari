@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use bevy::render::{
     pipeline::PrimitiveTopology,
     render_graph::{Node, PassNode},
+    renderer::{BufferId, BufferInfo, BufferUsage},
 };
 use bevy::render::{
     render_graph::RenderGraph,
@@ -25,7 +26,6 @@ use bevy::{
     reflect::TypeUuid,
     render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension},
 };
-
 use crate::render_resources::AnticLine;
 
 pub const ANTIC_PASS: &str = "antic_pass";
@@ -241,7 +241,14 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 (1, 240)
             };
 
-            self.add_node(LOAD_COLLISIONS_PASS, LoadCollisionsPass {index, height});
+            self.add_node(
+                LOAD_COLLISIONS_PASS,
+                LoadCollisionsPass {
+                    index,
+                    height,
+                    buffer_id: None,
+                },
+            );
             pass_order.push(LOAD_COLLISIONS_PASS);
         }
 
@@ -300,6 +307,7 @@ impl Node for TextureNode {
 pub struct LoadCollisionsPass {
     index: u32,
     height: u32,
+    buffer_id: Option<BufferId>,
 }
 
 impl Node for LoadCollisionsPass {
@@ -311,19 +319,41 @@ impl Node for LoadCollisionsPass {
         _input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
     ) {
-        let mut buffer: Vec<u32> = Vec::with_capacity(384 * self.height as usize * 4);
+        if self.buffer_id.is_none() {
+            let res = render_context.resources_mut();
+            self.buffer_id = Some(res.create_buffer(BufferInfo {
+                size: 384 * self.height as usize * 4 * 4,
+                buffer_usage: BufferUsage::COPY_SRC,
+                mapped_at_creation: false,
+            }));
+        }
+
+        render_context.read_pixels_u32(self.index, 0, 0, 384, self.height, self.buffer_id.unwrap());
+        let res = render_context.resources();
+
+        let mut buffer: Vec<u8> = Vec::with_capacity(384 * self.height as usize * 4 * 4);
         unsafe {
             buffer.set_len(buffer.capacity());
         }
-        render_context.read_pixels_u32(self.index, 0, 0, 384, self.height, &mut buffer);
-        let mut dst: [u32; 4] = [0; 4];
+        res.read_buffer(self.buffer_id.unwrap(), &mut buffer);
+        let mut dst: [u8; 16] = [0; 16];
 
         for (i, b) in buffer.iter().enumerate() {
-            dst[i & 3] |= *b;
+            dst[i & 15] |= *b;
         }
-        if dst[0] > 0 || dst[1] > 0 || dst[2] > 0 || dst[3] > 0 {
-            let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
-            atari_system.gtia.update_collisions(dst);
+        let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
+        unsafe {
+            let x = *std::mem::transmute::<&[u8; 16], &[u32; 4]>(&dst);
+
+            atari_system.gtia.update_collisions((x[0] as u64)| ((x[1] as u64) << 16) | ((x[2] as u64) << 32) | ((x[3] as u64) << 48));
         }
+    }
+
+    fn input(&self) -> &[ResourceSlotInfo] {
+        &[]
+    }
+
+    fn output(&self) -> &[ResourceSlotInfo] {
+        &[]
     }
 }

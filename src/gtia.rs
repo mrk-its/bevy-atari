@@ -140,31 +140,36 @@ impl Gtia {
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
-    pub fn update_collisions(&mut self, data: [u32; 4]) {
+    pub fn update_collisions(&mut self, data: u64) {
         // info!(
         //     "update collisions: {:?}, scanline: {:?}",
         //     data, self.scan_line
         // );
 
-        self.collisions[M0PF] |= (data[0] & 0xf) as u8;
-        self.collisions[M1PF] |= ((data[0] >> 4) & 0xf) as u8;
-        self.collisions[M2PF] |= ((data[0] >> 8) & 0xf) as u8;
-        self.collisions[M3PF] |= ((data[0] >> 12) & 0xf) as u8;
+        let data0 = data & 0xffff;
+        let data1 = (data >> 16) & 0xffff;
+        let data2 = (data >> 32) & 0xffff;
+        let data3 = (data >> 48) & 0xffff;
 
-        self.collisions[P0PF] |= (data[1] & 0xf) as u8;
-        self.collisions[P1PF] |= ((data[1] >> 4) & 0xf) as u8;
-        self.collisions[P2PF] |= ((data[1] >> 8) & 0xf) as u8;
-        self.collisions[P3PF] |= ((data[1] >> 12) & 0xf) as u8;
+        self.collisions[M0PF] |= (data0 & 0xf) as u8;
+        self.collisions[M1PF] |= ((data0 >> 4) & 0xf) as u8;
+        self.collisions[M2PF] |= ((data0 >> 8) & 0xf) as u8;
+        self.collisions[M3PF] |= ((data0 >> 12) & 0xf) as u8;
 
-        self.collisions[M0PL] |= (data[2] & 0xf) as u8;
-        self.collisions[M1PL] |= ((data[2] >> 4) & 0xf) as u8;
-        self.collisions[M2PL] |= ((data[2] >> 8) & 0xf) as u8;
-        self.collisions[M3PL] |= ((data[2] >> 12) & 0xf) as u8;
+        self.collisions[P0PF] |= (data1 & 0xf) as u8;
+        self.collisions[P1PF] |= ((data1 >> 4) & 0xf) as u8;
+        self.collisions[P2PF] |= ((data1 >> 8) & 0xf) as u8;
+        self.collisions[P3PF] |= ((data1 >> 12) & 0xf) as u8;
 
-        self.collisions[P0PL] |= (data[3] & 0xf) as u8;
-        self.collisions[P1PL] |= ((data[3] >> 4) & 0xf) as u8;
-        self.collisions[P2PL] |= ((data[3] >> 8) & 0xf) as u8;
-        self.collisions[P3PL] |= ((data[3] >> 12) & 0xf) as u8;
+        self.collisions[M0PL] |= (data2 & 0xf) as u8;
+        self.collisions[M1PL] |= ((data2 >> 4) & 0xf) as u8;
+        self.collisions[M2PL] |= ((data2 >> 8) & 0xf) as u8;
+        self.collisions[M3PL] |= ((data2 >> 12) & 0xf) as u8;
+
+        self.collisions[P0PL] |= (data3 & 0xf) as u8;
+        self.collisions[P1PL] |= ((data3 >> 4) & 0xf) as u8;
+        self.collisions[P2PL] |= ((data3 >> 8) & 0xf) as u8;
+        self.collisions[P3PL] |= ((data3 >> 12) & 0xf) as u8;
 
         // fred
         // if data[1] > 0 {
