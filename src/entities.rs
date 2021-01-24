@@ -75,9 +75,5 @@ pub fn create_antic_camera(size: Vec2) -> Camera2dBundle {
 }
 
 pub fn create_collisions_camera(size: Vec2) -> Camera2dBundle {
-    create_2d_camera(render::COLLISIONS_AGG_CAMERA, size.x, 1.0)
+    create_2d_camera(render::COLLISIONS_AGG_CAMERA, size.x, size.y)
 }
-
-// pub fn create_antic_display(meshes: Assets<Mesh>) -> PbrBundle {
-
-// }

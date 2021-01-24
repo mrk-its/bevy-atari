@@ -16,7 +16,6 @@ layout(std140) uniform Transform { // set = 2, binding = 0
 };
 
 void main() {
-    gl_PointSize = 30.0;
     gl_Position = ViewProj * Model * vec4(Vertex_Position, 1.0);
     v_Uv = Vertex_Uv;
 }

@@ -50,6 +50,8 @@ pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
 pub const COLLISIONS_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(CustomTexture::TYPE_UUID, 11482402411138723729);
 
+pub const COLLISION_AGG_HEIGHT: Option<u32> = Some(15);
+
 #[derive(Default, Bundle)]
 pub struct Parent {
     pub transform: Transform,
@@ -657,7 +659,12 @@ fn setup(
     );
 
     commands.spawn(entities::create_antic_camera(ANTIC_TEXTURE_SIZE));
-    commands.spawn(entities::create_collisions_camera(ANTIC_TEXTURE_SIZE));
+    if let Some(collision_agg_height) = COLLISION_AGG_HEIGHT {
+        commands.spawn(entities::create_collisions_camera(Vec2::new(
+            ANTIC_TEXTURE_SIZE.x,
+            collision_agg_height as f32,
+        )));
+    }
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
 
@@ -769,6 +776,7 @@ fn main() {
     app.add_plugin(antic::AnticPlugin {
         texture_size: ANTIC_TEXTURE_SIZE,
         enable_collisions: true,
+        collision_agg_height: COLLISION_AGG_HEIGHT,
     });
     app.add_plugin(FrameTimeDiagnosticsPlugin::default());
 

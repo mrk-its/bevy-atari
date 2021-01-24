@@ -703,6 +703,7 @@ pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_ext
 pub struct AnticPlugin {
     pub texture_size: Vec2,
     pub enable_collisions: bool,
+    pub collision_agg_height: Option<u32>,
 }
 
 #[derive(Default)]
@@ -781,6 +782,6 @@ impl Plugin for AnticPlugin {
             .add_node_edge("custom_texture", MAIN_PASS)
             .unwrap();
         let size = Vec2::new(self.texture_size.x, self.texture_size.y);
-        render_graph.add_antic_graph(resources, &size, self.enable_collisions);
+        render_graph.add_antic_graph(resources, &size, self.enable_collisions, self.collision_agg_height);
     }
 }
