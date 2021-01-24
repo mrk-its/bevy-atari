@@ -705,15 +705,6 @@ pub struct AnticPlugin {
     pub enable_collisions: bool,
 }
 
-impl Default for AnticPlugin {
-    fn default() -> Self {
-        Self {
-            texture_size: Vec2::new(384.0, 240.0),
-            enable_collisions: true,
-        }
-    }
-}
-
 #[derive(Default)]
 struct CollistionsReadState {
     buffer: Vec<u8>,
@@ -789,6 +780,7 @@ impl Plugin for AnticPlugin {
         render_graph
             .add_node_edge("custom_texture", MAIN_PASS)
             .unwrap();
-        render_graph.add_antic_graph(resources, &self.texture_size, self.enable_collisions);
+        let size = Vec2::new(self.texture_size.x, self.texture_size.y);
+        render_graph.add_antic_graph(resources, &size, self.enable_collisions);
     }
 }

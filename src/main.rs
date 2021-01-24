@@ -618,7 +618,7 @@ fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
     }
 }
 
-const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
+const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 320.0, y: 200.0 };
 
 fn setup(
     commands: &mut Commands,
@@ -656,8 +656,8 @@ fn setup(
         },
     );
 
-    commands.spawn(entities::create_antic_camera());
-    commands.spawn(entities::create_collisions_camera());
+    commands.spawn(entities::create_antic_camera(ANTIC_TEXTURE_SIZE));
+    commands.spawn(entities::create_collisions_camera(ANTIC_TEXTURE_SIZE));
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
 
@@ -747,8 +747,8 @@ fn main() {
     let mut app = App::build();
     app.add_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 384.0 * 2.0,
-        height: 240.0 * 2.0,
+        width: ANTIC_TEXTURE_SIZE.x * 2.0,
+        height: ANTIC_TEXTURE_SIZE.y * 2.0,
         resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]

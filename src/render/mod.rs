@@ -241,12 +241,12 @@ impl AnticRendererGraphBuilder for RenderGraph {
                     .unwrap();
                 (0, 1)
             } else {
-                (1, 240)
+                (1, texture_size.y as u32)
             };
 
             self.add_node(COLLISIONS_BUFFER, CollisionsBufferNode {
                 buffer_info: BufferInfo {
-                    size: 384 * 240 * 8,
+                    size: texture_size.x as usize * texture_size.y as usize * 8,
                     buffer_usage: BufferUsage::COPY_SRC,
                     mapped_at_creation: false,
                 },
@@ -256,6 +256,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 LOAD_COLLISIONS_PASS,
                 LoadCollisionsPass {
                     index,
+                    width: texture_size.x as u32,
                     height,
                     texture_format,
                 },
@@ -365,6 +366,7 @@ impl Node for CollisionsBufferNode {
 
 pub struct LoadCollisionsPass {
     index: u32,
+    width: u32,
     height: u32,
     texture_format: TextureFormat,
 }
@@ -385,7 +387,7 @@ impl Node for LoadCollisionsPass {
             self.texture_format,
             0,
             0,
-            384,
+            self.width,
             self.height,
             buffer_id,
         );

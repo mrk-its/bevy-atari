@@ -70,12 +70,12 @@ pub fn create_2d_camera(name: &str, width: f32, height: f32) -> Camera2dBundle {
     camera_bundle
 }
 
-pub fn create_antic_camera() -> Camera2dBundle {
-    create_2d_camera(render::ANTIC_CAMERA, 384.0, 240.0)
+pub fn create_antic_camera(size: Vec2) -> Camera2dBundle {
+    create_2d_camera(render::ANTIC_CAMERA, size.x, size.y)
 }
 
-pub fn create_collisions_camera() -> Camera2dBundle {
-    create_2d_camera(render::COLLISIONS_AGG_CAMERA, 384.0, 1.0)
+pub fn create_collisions_camera(size: Vec2) -> Camera2dBundle {
+    create_2d_camera(render::COLLISIONS_AGG_CAMERA, size.x, 1.0)
 }
 
 // pub fn create_antic_display(meshes: Assets<Mesh>) -> PbrBundle {
