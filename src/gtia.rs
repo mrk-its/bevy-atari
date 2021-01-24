@@ -140,11 +140,11 @@ impl Gtia {
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
-    pub fn update_collisions(&mut self, data: u64) {
-        // info!(
-        //     "update collisions: {:?}, scanline: {:?}",
-        //     data, self.scan_line
-        // );
+    pub fn update_collisions(&mut self, data: &u64) {
+        info!(
+            "update collisions: {:?}, scanline: {:?}",
+            data, self.scan_line
+        );
 
         let data0 = data & 0xffff;
         let data1 = (data >> 16) & 0xffff;

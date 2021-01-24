@@ -1,9 +1,12 @@
-use crate::render;
 use crate::render::AnticRendererGraphBuilder;
+use crate::render::COLLISIONS_BUFFER;
+use crate::render::{self, CollisionsBufferNode};
 use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette, CustomTexture};
 use crate::render_resources::{Charset, GTIARegsArray, LineData};
 use crate::system::AtariSystem;
-use bevy::render::{pipeline::RenderPipeline, render_graph::base::node::MAIN_PASS};
+use bevy::render::{
+    pipeline::RenderPipeline, render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext,
+};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{
     reflect::TypeUuid,
@@ -711,11 +714,51 @@ impl Default for AnticPlugin {
     }
 }
 
+#[derive(Default)]
+struct CollistionsReadState {
+    buffer: Vec<u8>,
+}
+
+fn collisions_read(_world: &mut World, resources: &mut Resources) {
+    let mut state = resources.get_mut::<CollistionsReadState>().unwrap();
+    let render_graph = resources.get_mut::<RenderGraph>().unwrap();
+    let render_resource_context = resources.get_mut::<Box<dyn RenderResourceContext>>();
+    if let Some(render_resource_context) = render_resource_context {
+        let collisions_buffer_node: &CollisionsBufferNode =
+            render_graph.get_node(COLLISIONS_BUFFER).unwrap();
+        if state.buffer.len() != collisions_buffer_node.buffer_info.size {
+            state.buffer = Vec::with_capacity(collisions_buffer_node.buffer_info.size);
+            unsafe {
+                state
+                    .buffer
+                    .set_len(collisions_buffer_node.buffer_info.size);
+            }
+        }
+        if let Some(buffer_id) = collisions_buffer_node.buffer_id {
+            render_resource_context.read_buffer(buffer_id, &mut state.buffer);
+
+            let mut collisions: u64 = 0;
+            let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
+            let data = &data[..data.len() / 8];
+            for v in data.iter() {
+                collisions |= *v;
+            }
+
+            if collisions != 0 {
+                let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
+                atari_system.gtia.update_collisions(&collisions);
+            }
+        }
+    }
+}
+
 impl Plugin for AnticPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_asset::<AnticLine>()
             .add_asset::<AtariPalette>()
             .add_asset::<CustomTexture>();
+        app.add_system_to_stage(stage::PRE_UPDATE, collisions_read.system());
+        app.add_resource(CollistionsReadState::default());
         let resources = app.resources_mut();
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
@@ -746,7 +789,6 @@ impl Plugin for AnticPlugin {
         render_graph
             .add_node_edge("custom_texture", MAIN_PASS)
             .unwrap();
-
         render_graph.add_antic_graph(resources, &self.texture_size, self.enable_collisions);
     }
 }

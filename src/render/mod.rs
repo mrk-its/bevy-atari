@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use crate::render_resources::AnticLine;
 use bevy::render::{
     pipeline::PrimitiveTopology,
     render_graph::{Node, PassNode},
@@ -26,7 +27,6 @@ use bevy::{
     reflect::TypeUuid,
     render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension},
 };
-use crate::render_resources::AnticLine;
 
 pub const ANTIC_PASS: &str = "antic_pass";
 pub const ANTIC_CAMERA: &str = "antic_camera";
@@ -34,6 +34,7 @@ pub const ANTIC_TEXTURE: &str = "antic_texture";
 pub const LOAD_COLLISIONS_PASS: &str = "load_collisions_pass";
 pub const COLLISIONS_AGG_PASS: &str = "collisions_agg_pass";
 pub const COLLISIONS_AGG_CAMERA: &str = "collisions_agg_camera";
+pub const COLLISIONS_BUFFER: &str = "collisions_buffer";
 
 pub const COLLISIONS_TEXTURE: &str = "collisions_texture";
 pub const COLLISIONS_AGG_TEXTURE: &str = "collisions_agg_texture";
@@ -169,11 +170,13 @@ impl AnticRendererGraphBuilder for RenderGraph {
         self.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
 
         if enable_collisions {
+            let texture_format = TextureFormat::Rg32Uint;
+
             let collisions_texture = Texture::new(
                 Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
                 TextureDimension::D2,
                 vec![],
-                TextureFormat::Rgba16Uint,
+                texture_format,
             );
             textures.set_untracked(COLLISIONS_TEXTURE_HANDLE, collisions_texture);
             self.add_node(
@@ -219,7 +222,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
                     Extent3d::new(texture_size.x as u32, 1, 1),
                     TextureDimension::D2,
                     vec![],
-                    TextureFormat::Rgba16Uint,
+                    texture_format,
                 );
                 textures.set_untracked(COLLISIONS_AGG_TEXTURE_HANDLE, collisions_agg_texture);
 
@@ -241,18 +244,36 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 (1, 240)
             };
 
+            self.add_node(COLLISIONS_BUFFER, CollisionsBufferNode {
+                buffer_info: BufferInfo {
+                    size: 384 * 240 * 8,
+                    buffer_usage: BufferUsage::COPY_SRC,
+                    mapped_at_creation: false,
+                },
+                buffer_id: None,
+            });
             self.add_node(
                 LOAD_COLLISIONS_PASS,
                 LoadCollisionsPass {
                     index,
                     height,
-                    buffer_id: None,
+                    texture_format,
                 },
             );
+            self.add_node_edge(COLLISIONS_BUFFER, LOAD_COLLISIONS_PASS)
+                .unwrap();
+            self.add_slot_edge(
+                COLLISIONS_BUFFER,
+                "buffer",
+                LOAD_COLLISIONS_PASS,
+                "buffer",
+            )
+            .unwrap();
             pass_order.push(LOAD_COLLISIONS_PASS);
         }
-
         pass_order.push(MAIN_PASS);
+
+        info!("pass_order: {:?}", pass_order);
 
         for (i, &pass_name) in pass_order[..pass_order.len() - 1].iter().enumerate() {
             self.add_node_edge(pass_name, pass_order[i + 1]).unwrap();
@@ -303,54 +324,79 @@ impl Node for TextureNode {
         }
     }
 }
+#[derive(Default)]
+pub struct CollisionsBufferNode {
+    pub buffer_info: BufferInfo,
+    pub buffer_id: Option<BufferId>,
+}
+
+impl CollisionsBufferNode {
+    pub const BUFFER: &'static str = "buffer";
+}
+
+impl Node for CollisionsBufferNode {
+    fn output(&self) -> &[ResourceSlotInfo] {
+        static OUTPUT: &[ResourceSlotInfo] = &[ResourceSlotInfo {
+            name: Cow::Borrowed(CollisionsBufferNode::BUFFER),
+            resource_type: RenderResourceType::Buffer,
+        }];
+        OUTPUT
+    }
+
+    fn update(
+        &mut self,
+        _world: &World,
+        _resources: &Resources,
+        render_context: &mut dyn bevy::render::renderer::RenderContext,
+        _input: &bevy::render::render_graph::ResourceSlots,
+        output: &mut bevy::render::render_graph::ResourceSlots,
+    ) {
+        let render_resource_context = render_context.resources_mut();
+        if self.buffer_id.is_none() {
+            let buffer_id = render_resource_context.create_buffer(self.buffer_info.clone());
+            self.buffer_id = Some(buffer_id);
+            output.set(
+                CollisionsBufferNode::BUFFER,
+                RenderResourceId::Buffer(buffer_id),
+            );
+        }
+    }
+}
 
 pub struct LoadCollisionsPass {
     index: u32,
     height: u32,
-    buffer_id: Option<BufferId>,
+    texture_format: TextureFormat,
 }
 
 impl Node for LoadCollisionsPass {
     fn update(
         &mut self,
         _world: &World,
-        resources: &Resources,
+        _resources: &Resources,
         render_context: &mut dyn bevy::render::renderer::RenderContext,
-        _input: &bevy::render::render_graph::ResourceSlots,
+        input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
     ) {
-        if self.buffer_id.is_none() {
-            let res = render_context.resources_mut();
-            self.buffer_id = Some(res.create_buffer(BufferInfo {
-                size: 384 * self.height as usize * 4 * 4,
-                buffer_usage: BufferUsage::COPY_SRC,
-                mapped_at_creation: false,
-            }));
-        }
+        let buffer_id = input.get("buffer").unwrap().get_buffer().unwrap();
 
-        render_context.read_pixels_u32(self.index, 0, 0, 384, self.height, self.buffer_id.unwrap());
-        let res = render_context.resources();
-
-        let mut buffer: Vec<u8> = Vec::with_capacity(384 * self.height as usize * 4 * 4);
-        unsafe {
-            buffer.set_len(buffer.capacity());
-        }
-        res.read_buffer(self.buffer_id.unwrap(), &mut buffer);
-        let mut dst: [u8; 16] = [0; 16];
-
-        for (i, b) in buffer.iter().enumerate() {
-            dst[i & 15] |= *b;
-        }
-        let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
-        unsafe {
-            let x = *std::mem::transmute::<&[u8; 16], &[u32; 4]>(&dst);
-
-            atari_system.gtia.update_collisions((x[0] as u64)| ((x[1] as u64) << 16) | ((x[2] as u64) << 32) | ((x[3] as u64) << 48));
-        }
+        render_context.read_pixels(
+            self.index,
+            self.texture_format,
+            0,
+            0,
+            384,
+            self.height,
+            buffer_id,
+        );
     }
 
     fn input(&self) -> &[ResourceSlotInfo] {
-        &[]
+        static INPUT: &[ResourceSlotInfo] = &[ResourceSlotInfo {
+            name: Cow::Borrowed("buffer"),
+            resource_type: RenderResourceType::Buffer,
+        }];
+        INPUT
     }
 
     fn output(&self) -> &[ResourceSlotInfo] {
