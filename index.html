@@ -280,6 +280,7 @@
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
+      <a href="#" onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
     </div>
     <div class="files">
       <div id="osrom">

@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use crate::render_resources::AnticLine;
 use bevy::render::{
     pipeline::PrimitiveTopology,
     render_graph::{Node, PassNode},
@@ -53,7 +52,7 @@ const FRAGMENT_SHADER: &str = include_str!("antic.frag");
 const COLLISIONS_FRAGMENT_SHADER: &str = include_str!("collisions.frag");
 const COLLISIONS_VERTEX_SHADER: &str = include_str!("collisions.vert");
 
-pub fn build_antic_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
+pub fn build_antic2_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
     let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
         vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
@@ -62,7 +61,7 @@ pub fn build_antic_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor 
     if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
         descr.cull_mode = CullMode::None;
     }
-    pipeline_descr.name = Some("ANTIC".to_string());
+    pipeline_descr.name = Some("ANTIC2".to_string());
     pipeline_descr.depth_stencil_state = None;
     pipeline_descr
 }
@@ -135,7 +134,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
             })
         }
 
-        let mut pass_node = PassNode::<&AnticLine>::new(PassDescriptor {
+        let mut pass_node = PassNode::<&crate::AnticFrame>::new(PassDescriptor {
             color_attachments,
             depth_stencil_attachment: None,
             sample_count: 1,
@@ -282,7 +281,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
 
         self.add_node_edge("transform", ANTIC_PASS).unwrap();
         self.add_node_edge("atari_palette", ANTIC_PASS).unwrap();
-        self.add_node_edge("antic_line", ANTIC_PASS).unwrap();
+        self.add_node_edge("antic_data", ANTIC_PASS).unwrap();
 
         self
     }

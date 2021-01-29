@@ -139,7 +139,6 @@ impl Plugin for AtartTextPlugin {
 
         render_graph.add_system_node("atari_text", RenderResourcesNode::<TextArea>::new(true));
 
-        // Add a Render Graph edge connecting our new "antic_line" node to the main pass node. This ensures "antic_line" runs before the main pass
         render_graph
             .add_node_edge("atari_text", base::node::MAIN_PASS)
             .unwrap();

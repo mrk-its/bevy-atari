@@ -5,6 +5,7 @@ pub mod antic;
 mod atari800_state;
 pub mod time_used_plugin;
 
+use bevy::{math::vec2, render::mesh::Indices};
 pub mod atari_text;
 pub mod atr;
 pub mod entities;
@@ -17,9 +18,12 @@ pub mod render;
 mod render_resources;
 pub mod sio;
 mod system;
-use antic::{create_mode_line, ModeLineDescr, SCAN_LINE_CYCLES};
-use bevy::core::{Time, Timer};
+use antic::{ModeLineDescr, ANTIC_DATA_HANDLE, SCAN_LINE_CYCLES};
 use bevy::utils::Duration;
+use bevy::{
+    core::{Time, Timer},
+    render::pipeline::PrimitiveTopology,
+};
 
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
@@ -37,8 +41,11 @@ use bevy::{
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::{AnticLine, CustomTexture};
-use system::{antic::COLLISIONS_PIPELINE_HANDLE, AtariSystem};
+use render_resources::{AnticData, AtariPalette, CustomTexture, GTIARegs};
+use system::{
+    antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE},
+    AtariSystem,
+};
 use time_used_plugin::TimeUsedPlugin;
 
 pub const RED_MATERIAL_HANDLE: HandleUntyped =
@@ -49,6 +56,11 @@ pub const ATARI_MATERIAL_HANDLE: HandleUntyped =
 
 pub const COLLISIONS_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(CustomTexture::TYPE_UUID, 11482402411138723729);
+
+pub const ANTIC_MESH_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 16056864393442354012);
+pub const ANTIC_MATERIAL_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 18422387557214033949);
 
 pub const COLLISION_AGG_HEIGHT: Option<u32> = Some(15);
 
@@ -94,11 +106,33 @@ enum BreakPoint {
 #[derive(Default)]
 pub struct ClearCollisions(pub bool);
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct FrameState {
     current_mode: Option<ModeLineDescr>,
     paused: bool,
     break_point: Option<BreakPoint>,
+    positions: Vec<[f32; 3]>,
+    custom: Vec<[u32; 4]>,
+    uvs: Vec<[f32; 2]>,
+    indices: Vec<u32>,
+    gtia_regs: Vec<GTIARegs>,
+}
+
+impl Default for FrameState {
+    fn default() -> Self {
+        let mut f = FrameState {
+            current_mode: None,
+            paused: false,
+            break_point: None,
+            positions: Vec::new(),
+            custom: Vec::new(),
+            uvs: Vec::new(),
+            indices: Vec::new(),
+            gtia_regs: Vec::with_capacity(240),
+        };
+        unsafe { f.gtia_regs.set_len(240) };
+        f
+    }
 }
 
 impl FrameState {
@@ -109,6 +143,52 @@ impl FrameState {
     fn clear_break_point(&mut self) {
         self.paused = true;
         self.break_point = None;
+    }
+    fn create_mode_line(&mut self, mode_line: &ModeLineDescr) {
+        let index_offset = self.positions.len() as u32;
+
+        let scan_line_y = mode_line.scan_line as f32 - 8.0;
+
+        let north_west = vec2(-192.0, 120.0 - scan_line_y);
+        let north_east = vec2(192.0, 120.0 - scan_line_y);
+        let south_west = vec2(-192.0, 120.0 - (scan_line_y + mode_line.height as f32));
+        let south_east = vec2(192.0, 120.0 - (scan_line_y + mode_line.height as f32));
+
+        self.positions.push([south_west.x, south_west.y, 0.0]);
+        self.positions.push([north_west.x, north_west.y, 0.0]);
+        self.positions.push([north_east.x, north_east.y, 0.0]);
+        self.positions.push([south_east.x, south_east.y, 0.0]);
+
+        self.uvs.push([0.0, 1.0]);
+        self.uvs.push([0.0, 0.0]);
+        self.uvs.push([1.0, 0.0]);
+        self.uvs.push([1.0, 1.0]);
+
+        let scan_line = mode_line.scan_line as u32 - 8;
+        let height = mode_line.height as u32;
+        let width = mode_line.width as u32 / 2;
+
+        let b0 = mode_line.mode as u32 | (scan_line << 8) | (height << 16) | (width << 24);
+        let b1 = mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8);
+        let b2 = mode_line.video_memory_offset as u32;
+        let b3 = mode_line.charset_memory_offset as u32;
+
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+
+        self.indices.extend(
+            [
+                index_offset + 0,
+                index_offset + 2,
+                index_offset + 1,
+                index_offset + 0,
+                index_offset + 3,
+                index_offset + 2,
+            ]
+            .iter(),
+        );
     }
 }
 
@@ -237,7 +317,7 @@ fn update_display_config(
             } else {
                 Transform {
                     scale: Vec3::new(1.0, 1.0, 1.0),
-                    translation: Vec3::new(384.0 / 2.0, 0.0, 0.0),
+                    translation: Vec3::new(384.0 / 2.0, -240.0 / 2.0, 0.0),
                     ..Default::default()
                 }
             }
@@ -329,24 +409,40 @@ fn debug_overlay_system(
     }
 }
 
+pub struct AnticFrame;
+
+fn post_running(
+    frame: ResMut<FrameState>,
+    mut meshes: ResMut<Assets<Mesh>>,
+) {
+    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+    mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, frame.positions.clone());
+    mesh.set_attribute("Vertex_Custom", frame.custom.clone());
+    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, frame.uvs.clone());
+    mesh.set_indices(Some(Indices::U32(frame.indices.clone())));
+    meshes.set(ANTIC_MESH_HANDLE, mesh);
+}
+
 fn atari_system(
-    commands: &mut Commands,
     mut display_config: ResMut<DisplayConfig>,
-    antic_lines: Query<(Entity, &AnticLine)>,
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
 ) {
     if frame.paused {
         return;
     }
-
     let debug_mode = frame.paused || frame.break_point.is_some();
+    let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
 
     if !debug_mode && atari_system.antic.scan_line == 248 && atari_system.antic.cycle == 0 {
-        for (entity, _) in antic_lines.iter() {
-            commands.despawn(entity);
-        }
+        frame.positions.clear();
+        frame.uvs.clear();
+        frame.custom.clear();
+        frame.indices.clear();
+        antic_data.video_memory.data.clear();
+        antic_data.charset_memory.data.clear();
     }
 
     loop {
@@ -421,37 +517,24 @@ fn atari_system(
                 None
             };
             if let Some(prev_mode_line) = prev_mode_line {
-                if debug_mode {
-                    for (entity, antic_line) in antic_lines.iter() {
-                        let not_intersects = antic_line.start_scan_line
-                            >= prev_mode_line.next_mode_line()
-                            || prev_mode_line.scan_line >= antic_line.end_scan_line;
-                        if !not_intersects {
-                            commands.despawn(entity);
-                        }
-                    }
-                }
-                create_mode_line(commands, prev_mode_line, 0.0);
+                frame.create_mode_line(&prev_mode_line);
             }
 
             let current_scan_line = atari_system.antic.scan_line;
             if let Some(current_line) = &mut frame.current_mode {
-                let k = (current_scan_line - current_line.scan_line).min(7);
-                if current_line.gtia_regs_array.regs.len() < 8 {
-                    current_line
-                        .gtia_regs_array
-                        .regs
-                        .push(atari_system.gtia.regs);
+                if current_scan_line >= 8 && current_scan_line < 248 {
+                    antic_data.gtia_regs.regs[current_scan_line - 8] = atari_system.gtia.regs;
                 }
+                let k = (current_scan_line - current_line.scan_line).min(7);
                 if k == 0 {
                     let charset_offset = (current_line.chbase as usize) * 256;
-                    current_line.line_data.set_data(
+                    current_line.video_memory_offset = antic_data.video_memory.push(
                         &mut atari_system,
                         current_line.data_offset,
                         current_line.n_bytes,
                     );
-                    // TODO suport 512 byte charsets?
-                    current_line.charset.set_data(
+                    // todo: detect charset memory changes
+                    current_line.charset_memory_offset = antic_data.charset_memory.push(
                         &mut atari_system,
                         charset_offset,
                         current_line.charset_size(),
@@ -624,9 +707,11 @@ const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
 
 fn setup(
     commands: &mut Commands,
+    mut pipelines: ResMut<Assets<PipelineDescriptor>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut textures: ResMut<Assets<CustomTexture>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut shaders: ResMut<Assets<Shader>>,
 ) {
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
     materials.set(
@@ -733,6 +818,32 @@ fn setup(
                 .with(GtiaDebug)
                 .with(DebugComponent);
         });
+    materials.set_untracked(
+        ANTIC_MATERIAL_HANDLE,
+        StandardMaterial {
+            albedo: Color::BEIGE,
+            albedo_texture: None,
+            shaded: false,
+        },
+    );
+
+    let pipeline_handle = pipelines.add(render::build_antic2_pipeline(&mut *shaders));
+
+    let mut bundle = MeshBundle {
+        mesh: ANTIC_MESH_HANDLE.typed(),
+        ..Default::default()
+    };
+    bundle.render_pipelines =
+        RenderPipelines::from_pipelines(vec![RenderPipeline::new(pipeline_handle)]);
+
+    commands
+        .spawn(bundle)
+        .with(AnticFrame)
+        .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>())
+        .with(ANTIC_DATA_HANDLE.typed::<AnticData>());
+
+    commands.remove_one::<MainPass>(commands.current_entity().unwrap());
+
 
     // commands
     //     .spawn(PbrBundle {
@@ -791,7 +902,7 @@ fn main() {
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
-            debug: false,
+            debug: true,
         })
         .add_resource(system)
         .add_resource(cpu)
@@ -803,6 +914,11 @@ fn main() {
             StateStage::<EmulatorState>::default(),
         )
         .add_stage_after(
+            "running",
+            "post_running",
+            StateStage::<EmulatorState>::default(),
+        )
+        .add_stage_after(
             stage::UPDATE,
             "idle_update",
             StateStage::<EmulatorState>::default(),
@@ -811,6 +927,11 @@ fn main() {
         // .add_system_to_stage("pre_update", reload_system.system())
         .add_system_to_stage("post_update", debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
+        .on_state_update(
+            "post_running",
+            EmulatorState::Running,
+            post_running.system(),
+        )
         .on_state_update("running", EmulatorState::Running, update_fps.system())
         .add_system(update_display_config.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())

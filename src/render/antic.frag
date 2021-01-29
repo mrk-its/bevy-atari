@@ -1,23 +1,16 @@
 #version 300 es
-
 precision highp float;
 precision highp int;
 
+in vec3 v_Position;
 in vec2 v_Uv;
+flat in uvec4 v_Custom;
+
 layout(location = 0) out vec4 o_ColorTarget;
 layout(location = 1) out uvec4 o_CollisionsTarget;
 
-layout(std140) uniform AnticLine_antic_line_descr {  // set = 1 binding = 1
-    float line_width;
-    int mode;
-    float hscrol;
-    float line_height;
-    float line_voffset;
-    float scan_line;
-};
-
-layout(std140) uniform AnticLine_data { // set = 1 binding = 2
-    uvec4 data[3];  // 48 bytes
+layout(std140) uniform Camera {
+    mat4 ViewProj;
 };
 
 struct GTIA {
@@ -30,25 +23,28 @@ struct GTIA {
     ivec4 prior;  // [prior, sizem, grafm, unused]
 };
 
-layout(std140) uniform AnticLine_gtia_regs_array { // set = 1 binding = 3
-    //ivec4 color_regs[2]; // [[bak, pf0, pf1, pf2], [bak, pf0, pf1, pf3]]
-    GTIA gtia[8];
-};
-
-layout(std140) uniform AnticLine_charset { // set = 1 binding = 4
-    uvec4 charset[64];
-};
-
-layout(std140) uniform AtariPalette_palette { // set=2 binding = 1
+layout(std140) uniform AtariPalette_palette { // set=1 binding = 0
     vec4 palette[256];
 };
 
-#define get_color_reg(line, k) gtia[line].color_regs[k>>2][k&3]
+layout(std140) uniform AnticData_gtia_regs { // set=3 binding = 0
+    GTIA gtia_regs[240];
+};
 
-#define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
-#define get_player_byte(_player, offset) (int(_player[(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
+layout(std140) uniform AnticData_video_memory { // set=3 binding = 1
+    uvec4 video_memory[240 * 3];
+};
 
-vec4 encodeSRGB(vec4 linearRGB_in) {
+layout(std140) uniform AnticData_charset_memory { // set=3 binding = 2
+    uvec4 charset_memory[1920];
+};
+
+
+#define get_color_reg(line, k) gtia_regs[line].color_regs[k>>2][k&3]
+#define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
+
+vec4 encodeSRGB(vec4 linearRGB_in)
+{
     vec3 linearRGB = linearRGB_in.rgb;
     vec3 a = 12.92 * linearRGB;
     vec3 b = 1.055 * pow(linearRGB, vec3(1.0 / 2.4)) - 0.055;
@@ -56,56 +52,71 @@ vec4 encodeSRGB(vec4 linearRGB_in) {
     return vec4(mix(a, b, c), linearRGB_in.a);
 }
 
+#define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
+#define get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
+#define get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
 // #define encodeColor(x) encodeSRGB(x)
 #define encodeColor(x) (x)
 
-bool get_player_pixel(int n, float px, int y, vec4 hpos) {
-    if (px >= hpos[n] && px < hpos[n] + float(gtia[y].player_size[n])) {
-        int pl_bit = 7 - int((px - hpos[n]) / float(gtia[y].player_size[n]) * 8.0);
-        int byte = gtia[y].grafp[n];
-        // int byte = get_player_byte(player[n], y);
+bool get_player_pixel(int n, float px, int scan_line, vec4 hpos) {
+    if (px >= hpos[n] && px < hpos[n] + float(gtia_regs[scan_line].player_size[n])) {
+        int pl_bit = 7 - int((px - hpos[n]) / float(gtia_regs[scan_line].player_size[n]) * 8.0);
+        int byte = gtia_regs[scan_line].grafp[n];
         return ((byte >> pl_bit) & 1) > 0;
     }
     return false;
 }
 
-bool get_missile_pixel(int n, float px, int y, vec4 hpos) {
-    float sizem = float(gtia[y].prior[1]);
+bool get_missile_pixel(int n, float px, int scan_line, vec4 hpos) {
+    float sizem = float(gtia_regs[scan_line].prior[1]);
     if (px >= hpos[n] && px < hpos[n] + sizem) {
         int bit = 1 - int((px - hpos[n]) / sizem * 2.0);
-        // int byte = get_player_byte(missiles, y) >> (n * 2);
-        int byte = gtia[y].prior[2] >> (n * 2);
+        int byte = gtia_regs[scan_line].prior[2] >> (n * 2);
         return ((byte >> bit) & 1) > 0;
     }
     return false;
 }
 
 void main() {
-    // float px = v_Uv[0] * line_width;
+    // vec4 output_color = Albedo;
+    int mode = uint_byte(v_Custom[0], 0);
+    int start_scan_line = uint_byte(v_Custom[0], 1);
+    int line_height = uint_byte(v_Custom[0], 2);
+    float line_width = float(uint_byte(v_Custom[0], 3)) * 2.0;
+
+    int hscrol = uint_byte(v_Custom[1], 0);
+    int line_voffset = uint_byte(v_Custom[1], 1);
+
+    int video_memory_offset = int(v_Custom[2]);
+    int charset_memory_offset = int(v_Custom[3]);
+
     float x = v_Uv[0] * 384.0;
     float px = x - 192.0 + line_width / 2.0;
 
     float px_scrolled = px + float(hscrol);  // pixel x position
-    int cy = int(v_Uv[1] * line_height * 0.99);
-    int y = cy + int(line_voffset);
+    int cy = int(v_Uv[1] * float(line_height) * 0.99);
+    int y = cy + line_voffset;
     bool hires = false;
 
-    vec4 hposp = vec4(gtia[cy].hposp) * 2.0 + vec4(line_width / 2.0 - 256.0);
-    vec4 hposm = vec4(gtia[cy].hposm) * 2.0 + vec4(line_width / 2.0 - 256.0);
+    int scan_line = start_scan_line + cy;
+
+    vec4 hposp = vec4(gtia_regs[scan_line].hposp) * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hposm = vec4(gtia_regs[scan_line].hposm) * 2.0 + vec4(line_width / 2.0 - 256.0);
 
     int color_reg_index = 0; // bg_color
+
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
-        color_reg_index = 0;
+
     } else if(mode == 0x2 || mode == 0x3) { // TODO - proper support for 0x3
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);
         int x = 7 - int(frac * 8.0);
 
-        int c = get_byte(data, n);
+        int c = get_video_memory(n);
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
-        int byte = get_byte(charset, offs);
+        int byte = get_charset_memory(offs);
 
         int pixel_val = (((byte >> x) & 1) ^ inv);
 
@@ -117,10 +128,10 @@ void main() {
         float frac = w - float(n);
         int x = 6 - int(frac * 4.0) * 2;
 
-        int c = get_byte(data, n);
+        int c = get_video_memory(n);
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
-        int byte = get_byte(charset, offs);
+        int byte = get_charset_memory(offs);
 
         color_reg_index = (byte >> x) & 3;
         if(inv != 0 && color_reg_index == 3) {
@@ -132,10 +143,10 @@ void main() {
         float frac = w - float(n);
         int x = 7 - int(frac * 8.0);
 
-        int c = get_byte(data, n);
+        int c = get_video_memory(n);
         int cc = c >> 6;
         int offs = (c & 0x3f) * 8 + (mode == 6 ? y : y / 2);
-        int byte = get_byte(charset, offs);
+        int byte = get_charset_memory(offs);
 
         if(((byte >> x) & 1) > 0) {
             color_reg_index = cc + 1;
@@ -148,7 +159,7 @@ void main() {
         float frac = w - float(n);
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
 
-        int byte = get_byte(data, n);
+        int byte = get_video_memory(n);
         color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0xb || mode == 0xc) {
         float w = px_scrolled / 16.0;
@@ -156,7 +167,7 @@ void main() {
         float frac = w - float(n);
         int bit_offs = 7-int(frac * 8.0); // bit offset in byte
 
-        int byte = get_byte(data, n);
+        int byte = get_video_memory(n);
         color_reg_index = (byte >> bit_offs) & 1;
     } else if(mode == 0x0d || mode == 0xe) {
         float w = px_scrolled / 8.0;
@@ -164,7 +175,7 @@ void main() {
         float frac = w - float(n);
         int bit_offs = 6-int(frac * 4.0) * 2; // bit offset in byte
 
-        int byte = get_byte(data, n);
+        int byte = get_video_memory(n);
         color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0x0f) {
 
@@ -173,13 +184,13 @@ void main() {
         float frac = w - float(n);
         int bit_offs = 7-int(frac * 8.0); // bit offset in byte
 
-        int byte = get_byte(data, n);
+        int byte = get_video_memory(n);
         int pixel_val = (byte >> bit_offs) & 1;
         color_reg_index = 3 - pixel_val;
         hires = true;
     };
 
-    int prior = gtia[cy].prior[0];
+    int prior = gtia_regs[scan_line].prior[0];
     bool pri0 = (prior & 1) > 0;
     bool pri1 = (prior & 2) > 0;
     bool pri2 = (prior & 4) > 0;
@@ -190,17 +201,17 @@ void main() {
     bool pri23 = pri2 || pri3;
     bool pri03 = pri0 || pri3;
 
-    bool m0 = get_missile_pixel(0, px, cy, hposm);
-    bool m1 = get_missile_pixel(1, px, cy, hposm);
-    bool m2 = get_missile_pixel(2, px, cy, hposm);
-    bool m3 = get_missile_pixel(3, px, cy, hposm);
+    bool m0 = get_missile_pixel(0, px, scan_line, hposm);
+    bool m1 = get_missile_pixel(1, px, scan_line, hposm);
+    bool m2 = get_missile_pixel(2, px, scan_line, hposm);
+    bool m3 = get_missile_pixel(3, px, scan_line, hposm);
 
     bool p5 = (prior & 0x10) > 0;
 
-    bool p0 = get_player_pixel(0, px, cy, hposp) || !p5 && m0;
-    bool p1 = get_player_pixel(1, px, cy, hposp) || !p5 && m1;
-    bool p2 = get_player_pixel(2, px, cy, hposp) || !p5 && m2;
-    bool p3 = get_player_pixel(3, px, cy, hposp) || !p5 && m3;
+    bool p0 = get_player_pixel(0, px, scan_line, hposp) || !p5 && m0;
+    bool p1 = get_player_pixel(1, px, scan_line, hposp) || !p5 && m1;
+    bool p2 = get_player_pixel(2, px, scan_line, hposp) || !p5 && m2;
+    bool p3 = get_player_pixel(3, px, scan_line, hposp) || !p5 && m3;
 
     bool pf0 = color_reg_index == 1;
     bool pf1 = !hires && color_reg_index == 2;
@@ -226,20 +237,19 @@ void main() {
 
 
     int color_reg = 0;
-    if(sp0) color_reg |= gtia[cy].colpm[0];
-    if(sp1) color_reg |= gtia[cy].colpm[1];
-    if(sp2) color_reg |= gtia[cy].colpm[2];
-    if(sp3) color_reg |= gtia[cy].colpm[3];
-    if(sf0) color_reg |= get_color_reg(cy, 1);
-    if(sf1) color_reg |= get_color_reg(cy, 2);
-    if(sf2) color_reg |= get_color_reg(cy, 3);
-    if(sf3) color_reg |= get_color_reg(cy, 4);
-    if(sb) color_reg |= get_color_reg(cy, 0);
+    if(sp0) color_reg |= gtia_regs[scan_line].colpm[0];
+    if(sp1) color_reg |= gtia_regs[scan_line].colpm[1];
+    if(sp2) color_reg |= gtia_regs[scan_line].colpm[2];
+    if(sp3) color_reg |= gtia_regs[scan_line].colpm[3];
+    if(sf0) color_reg |= get_color_reg(scan_line, 1);
+    if(sf1) color_reg |= get_color_reg(scan_line, 2);
+    if(sf2) color_reg |= get_color_reg(scan_line, 3);
+    if(sf3) color_reg |= get_color_reg(scan_line, 4);
+    if(sb) color_reg |= get_color_reg(scan_line, 0);
     if(hires && color_reg_index == 2) {
-        color_reg = color_reg & 0xf0 | (get_color_reg(cy, 2) & 0xf);
+        color_reg = color_reg & 0xf0 | (get_color_reg(scan_line, 2) & 0xf);
     }
     o_ColorTarget = encodeColor(palette[color_reg]);
-    // o_Target = vec4((pf0 || true) && (p0 || p1) ? 1.0 : 0.0, pf1 && (p0 || p1) ? 1.0 : 0.0, pf2 && (p0 || p1) ? 1.0 : 0.0, 1.0);
 
     int pf_bits = (pf0 ? 1 : 0) | (pf1 ? 2 : 0) | (pf2 ? 4 : 0) | (pf3 ? 8 : 0);
 
@@ -276,4 +286,9 @@ void main() {
         o_CollisionsTarget = uvec4(0, 0, 0, 0);
     }
 
+
+    // vec4 output_color = palette[get_color_reg(scan_line, color_reg_index)];
+    // // multiply the light by material color
+    // o_Target = encodeSRGB(output_color);
+    // // o_Target = output_color;
 }

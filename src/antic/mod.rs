@@ -1,25 +1,25 @@
 use crate::render::AnticRendererGraphBuilder;
 use crate::render::COLLISIONS_BUFFER;
 use crate::render::{self, CollisionsBufferNode};
-use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette, CustomTexture};
-use crate::render_resources::{Charset, GTIARegsArray, LineData};
+use crate::render_resources::{AtariPalette, AnticData, CustomTexture};
 use crate::system::AtariSystem;
 use bevy::render::{
-    pipeline::RenderPipeline, render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext,
+    render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext,
 };
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{
     reflect::TypeUuid,
-    render::render_graph::{AssetRenderResourcesNode, RenderResourcesNode},
+    render::render_graph::{AssetRenderResourcesNode},
 };
-use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
+use bevy::{render::pipeline::PipelineDescriptor};
 use emulator_6502::Interface6502;
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
 
-pub const ANTIC_PIPELINE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595296);
+pub const ANTIC_DATA_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 11338886280454987747);
+
 pub const COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595297);
 
@@ -205,9 +205,8 @@ pub struct ModeLineDescr {
     pub chbase: u8,
     pub pmbase: u8,
     pub hscrol: u8,
-    pub line_data: LineData,
-    pub charset: Charset,
-    pub gtia_regs_array: GTIARegsArray,
+    pub video_memory_offset: usize,
+    pub charset_memory_offset: usize,
 }
 
 impl ModeLineDescr {
@@ -494,9 +493,8 @@ impl Antic {
             chbase: self.chbase,
             pmbase: self.pmbase,
             hscrol,
-            line_data: LineData::default(),
-            charset: Charset::default(),
-            gtia_regs_array: GTIARegsArray::default(),
+            video_memory_offset: 0,
+            charset_memory_offset: 0,
         }
     }
 
@@ -642,64 +640,6 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     system.read(offs as u16)
 }
 
-pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
-    commands
-        .spawn(crate::entities::AnticLineBundle {
-            // main_pass: MainPass,
-            mesh: QUAD_HANDLE.typed(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![
-                RenderPipeline::new(
-                    ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
-                ),
-                // RenderPipeline::specialized(
-                //     COLLISIONS_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
-                //     PipelineSpecialization {
-                //         shader_specialization: ShaderSpecialization {
-                //             initial_shader_defs: ["COLLISIONS"].iter().map(|x| x.to_string()).collect(),
-                //             ..Default::default()
-                //         },
-                //         ..Default::default()
-                //     }
-                // )
-            ]),
-            // visible: Visible {
-            //     is_transparent: true,
-            //     is_visible: true,
-            // },
-            transform: Transform::from_translation(Vec3::new(
-                0.0,
-                128.0
-                    - (mode_line.scan_line as f32)
-                    - y_extra_offset
-                    - mode_line.height as f32 / 2.0,
-                0.0,
-            ))
-            .mul_transform(Transform::from_scale(Vec3::new(
-                384.0, // mode_line.width as f32,
-                mode_line.height as f32,
-                1.0,
-            ))),
-            ..Default::default()
-        })
-        .with(AnticLine {
-            // chbase: mode_line.chbase as u32,
-            end_scan_line: mode_line.next_mode_line(),
-            antic_line_descr: AnticLineDescr {
-                mode: mode_line.mode as u32,
-                line_width: mode_line.width as f32,
-                line_height: mode_line.height as f32,
-                line_voffset: mode_line.line_voffset as f32,
-                hscrol: mode_line.hscrol as f32,
-                scan_line: mode_line.scan_line as f32,
-            },
-            gtia_regs_array: mode_line.gtia_regs_array,
-            data: mode_line.line_data,
-            charset: mode_line.charset,
-            start_scan_line: mode_line.scan_line,
-        })
-        .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
-}
-
 pub struct AnticPlugin {
     pub texture_size: Vec2,
     pub enable_collisions: bool,
@@ -748,7 +688,7 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
 
 impl Plugin for AnticPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_asset::<AnticLine>()
+        app.add_asset::<AnticData>()
             .add_asset::<AtariPalette>()
             .add_asset::<CustomTexture>();
         app.add_system_to_stage(stage::PRE_UPDATE, collisions_read.system());
@@ -757,24 +697,25 @@ impl Plugin for AnticPlugin {
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
         let mut palettes = resources.get_mut::<Assets<AtariPalette>>().unwrap();
+        let mut antic_data = resources.get_mut::<Assets<AnticData>>().unwrap();
+
         pipelines.set_untracked(
             COLLISIONS_PIPELINE_HANDLE,
             render::build_collisions_pipeline(&mut shaders),
         );
         palettes.set_untracked(ATARI_PALETTE_HANDLE, AtariPalette::default());
+        antic_data.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
 
-        // Create a new shader pipeline
-        pipelines.set_untracked(
-            ANTIC_PIPELINE_HANDLE,
-            render::build_antic_pipeline(&mut shaders),
-        );
         let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
 
         render_graph.add_system_node(
             "atari_palette",
             AssetRenderResourcesNode::<AtariPalette>::new(false),
         );
-        render_graph.add_system_node("antic_line", RenderResourcesNode::<AnticLine>::new(true));
+        render_graph.add_system_node(
+            "antic_data",
+            AssetRenderResourcesNode::<AnticData>::new(false),
+        );
 
         render_graph.add_system_node(
             "custom_texture",
