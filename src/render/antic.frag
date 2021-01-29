@@ -82,7 +82,8 @@ bool get_missile_pixel(int n, float px, int y, vec4 hpos) {
 
 void main() {
     // float px = v_Uv[0] * line_width;
-    float px = 384.0 * (v_Uv[0] - 0.5) + line_width / 2.0;
+    float x = v_Uv[0] * 384.0;
+    float px = x - 192.0 + line_width / 2.0;
 
     float px_scrolled = px + float(hscrol);  // pixel x position
     int cy = int(v_Uv[1] * line_height * 0.99);
@@ -264,10 +265,15 @@ void main() {
     int p2pl = p2 ? (player_bits & ~4) << 8 : 0;
     int p3pl = p3 ? (player_bits & ~8) << 12 : 0;
 
-    o_CollisionsTarget = uvec4(
-        uint(m0pf | m1pf | m2pf | m3pf) | uint(p0pf | p1pf | p2pf | p3pf) << 16,
-        uint(m0pl | m1pl | m2pl | m3pl) | uint(p0pl | p1pl | p2pl | p3pl) << 16,
-        0,
-        0
-    );
+    if(x >= 0.0) {
+        o_CollisionsTarget = uvec4(
+            uint(m0pf | m1pf | m2pf | m3pf) | uint(p0pf | p1pf | p2pf | p3pf) << 16,
+            uint(m0pl | m1pl | m2pl | m3pl) | uint(p0pl | p1pl | p2pl | p3pl) << 16,
+            0,
+            0
+        );
+    } else {
+        o_CollisionsTarget = uvec4(0, 0, 0, 0);
+    }
+
 }

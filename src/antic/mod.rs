@@ -732,8 +732,10 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
             let mut collisions: u64 = 0;
             let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
             let data = &data[..data.len() / 8];
-            for v in data.iter() {
-                collisions |= *v;
+            for (i, v) in data.iter().enumerate() {
+                if (i & 1) == 0 {
+                    collisions |= *v;
+                }
             }
 
             if collisions != 0 {
