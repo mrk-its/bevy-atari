@@ -5,7 +5,6 @@ pub mod antic;
 mod atari800_state;
 pub mod time_used_plugin;
 
-use bevy::{math::vec2, render::mesh::Indices};
 pub mod atari_text;
 pub mod atr;
 pub mod entities;
@@ -22,7 +21,6 @@ use antic::{ModeLineDescr, ANTIC_DATA_HANDLE, SCAN_LINE_CYCLES};
 use bevy::utils::Duration;
 use bevy::{
     core::{Time, Timer},
-    render::pipeline::PrimitiveTopology,
 };
 
 use bevy::{
@@ -41,7 +39,7 @@ use bevy::{
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::{AnticData, AtariPalette, CustomTexture, GTIARegs};
+use render_resources::{AnticData, AtariPalette, CustomTexture};
 use system::{
     antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE},
     AtariSystem,
@@ -106,33 +104,11 @@ enum BreakPoint {
 #[derive(Default)]
 pub struct ClearCollisions(pub bool);
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct FrameState {
     current_mode: Option<ModeLineDescr>,
     paused: bool,
     break_point: Option<BreakPoint>,
-    positions: Vec<[f32; 3]>,
-    custom: Vec<[u32; 4]>,
-    uvs: Vec<[f32; 2]>,
-    indices: Vec<u32>,
-    gtia_regs: Vec<GTIARegs>,
-}
-
-impl Default for FrameState {
-    fn default() -> Self {
-        let mut f = FrameState {
-            current_mode: None,
-            paused: false,
-            break_point: None,
-            positions: Vec::new(),
-            custom: Vec::new(),
-            uvs: Vec::new(),
-            indices: Vec::new(),
-            gtia_regs: Vec::with_capacity(240),
-        };
-        unsafe { f.gtia_regs.set_len(240) };
-        f
-    }
 }
 
 impl FrameState {
@@ -144,53 +120,8 @@ impl FrameState {
         self.paused = true;
         self.break_point = None;
     }
-    fn create_mode_line(&mut self, mode_line: &ModeLineDescr) {
-        let index_offset = self.positions.len() as u32;
-
-        let scan_line_y = mode_line.scan_line as f32 - 8.0;
-
-        let north_west = vec2(-192.0, 120.0 - scan_line_y);
-        let north_east = vec2(192.0, 120.0 - scan_line_y);
-        let south_west = vec2(-192.0, 120.0 - (scan_line_y + mode_line.height as f32));
-        let south_east = vec2(192.0, 120.0 - (scan_line_y + mode_line.height as f32));
-
-        self.positions.push([south_west.x, south_west.y, 0.0]);
-        self.positions.push([north_west.x, north_west.y, 0.0]);
-        self.positions.push([north_east.x, north_east.y, 0.0]);
-        self.positions.push([south_east.x, south_east.y, 0.0]);
-
-        self.uvs.push([0.0, 1.0]);
-        self.uvs.push([0.0, 0.0]);
-        self.uvs.push([1.0, 0.0]);
-        self.uvs.push([1.0, 1.0]);
-
-        let scan_line = mode_line.scan_line as u32 - 8;
-        let height = mode_line.height as u32;
-        let width = mode_line.width as u32 / 2;
-
-        let b0 = mode_line.mode as u32 | (scan_line << 8) | (height << 16) | (width << 24);
-        let b1 = mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8);
-        let b2 = mode_line.video_memory_offset as u32;
-        let b3 = mode_line.charset_memory_offset as u32;
-
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
-        self.custom.push([b0, b1, b2, b3]);
-
-        self.indices.extend(
-            [
-                index_offset + 0,
-                index_offset + 2,
-                index_offset + 1,
-                index_offset + 0,
-                index_offset + 3,
-                index_offset + 2,
-            ]
-            .iter(),
-        );
-    }
 }
+
 
 fn gunzip(data: &[u8]) -> Vec<u8> {
     let mut decoder = flate2::read::GzDecoder::new(&data[..]);
@@ -412,14 +343,11 @@ fn debug_overlay_system(
 pub struct AnticFrame;
 
 fn post_running(
-    frame: ResMut<FrameState>,
+    mut atari_data_assets: ResMut<Assets<AnticData>>,
     mut meshes: ResMut<Assets<Mesh>>,
 ) {
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
-    mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, frame.positions.clone());
-    mesh.set_attribute("Vertex_Custom", frame.custom.clone());
-    mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, frame.uvs.clone());
-    mesh.set_indices(Some(Indices::U32(frame.indices.clone())));
+    let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
+    let mesh = antic_data.create_mesh();
     meshes.set(ANTIC_MESH_HANDLE, mesh);
 }
 
@@ -437,12 +365,7 @@ fn atari_system(
     let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
 
     if !debug_mode && atari_system.antic.scan_line == 248 && atari_system.antic.cycle == 0 {
-        frame.positions.clear();
-        frame.uvs.clear();
-        frame.custom.clear();
-        frame.indices.clear();
-        antic_data.video_memory.data.clear();
-        antic_data.charset_memory.data.clear();
+        antic_data.clear();
     }
 
     loop {
@@ -517,16 +440,16 @@ fn atari_system(
                 None
             };
             if let Some(prev_mode_line) = prev_mode_line {
-                frame.create_mode_line(&prev_mode_line);
+                antic_data.create_mode_line(&prev_mode_line);
             }
 
             let current_scan_line = atari_system.antic.scan_line;
             if let Some(current_line) = &mut frame.current_mode {
                 if current_scan_line >= 8 && current_scan_line < 248 {
+                    assert!(antic_data.gtia_regs.regs.len() == 240);
                     antic_data.gtia_regs.regs[current_scan_line - 8] = atari_system.gtia.regs;
                 }
-                let k = (current_scan_line - current_line.scan_line).min(7);
-                if k == 0 {
+                if current_scan_line == current_line.scan_line {
                     let charset_offset = (current_line.chbase as usize) * 256;
                     current_line.video_memory_offset = antic_data.video_memory.push(
                         &mut atari_system,
@@ -610,8 +533,6 @@ fn events(
                 disable_basic,
             } => {
                 atari_system.reset(&mut *cpu, cold, disable_basic);
-                *frame = FrameState::default();
-                atari_system.antic.scan_line = 0;
                 state.set_next(EmulatorState::Running).ok();
             }
             js_api::Message::SetState(new_state) => {

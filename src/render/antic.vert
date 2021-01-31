@@ -1,5 +1,6 @@
 #version 300 es
 precision highp float;
+precision highp int;
 
 in vec3 Vertex_Position;
 in vec2 Vertex_Uv;
