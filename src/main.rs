@@ -17,11 +17,9 @@ pub mod render;
 mod render_resources;
 pub mod sio;
 mod system;
-use antic::{ModeLineDescr, ANTIC_DATA_HANDLE, SCAN_LINE_CYCLES};
+use antic::ANTIC_DATA_HANDLE;
+use bevy::core::{Time, Timer};
 use bevy::utils::Duration;
-use bevy::{
-    core::{Time, Timer},
-};
 
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
@@ -106,7 +104,6 @@ pub struct ClearCollisions(pub bool);
 
 #[derive(Debug, Default)]
 struct FrameState {
-    current_mode: Option<ModeLineDescr>,
     paused: bool,
     break_point: Option<BreakPoint>,
 }
@@ -121,7 +118,6 @@ impl FrameState {
         self.break_point = None;
     }
 }
-
 
 fn gunzip(data: &[u8]) -> Vec<u8> {
     let mut decoder = flate2::read::GzDecoder::new(&data[..]);
@@ -373,97 +369,10 @@ fn atari_system(
             0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
             _ => (),
         }
-        if atari_system.antic.cycle == 0 {
-            if atari_system.antic.scan_line == 0 {
-                // antic reset
-                atari_system.antic.next_scan_line = 8;
-            }
-            atari_system.scanline_tick();
 
-            if atari_system
-                .antic
-                .dmactl
-                .contains(antic::DMACTL::PLAYER_DMA)
-            {
-                if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
-                    let b = antic::get_pm_data(&mut *atari_system, 0);
-                    atari_system.gtia.write(gtia::GRAFM, b);
-                }
-                if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
-                    let b = antic::get_pm_data(&mut *atari_system, 1);
-                    atari_system.gtia.write(gtia::GRAFP0, b);
-                    let b = antic::get_pm_data(&mut *atari_system, 2);
-                    atari_system.gtia.write(gtia::GRAFP1, b);
-                    let b = antic::get_pm_data(&mut *atari_system, 3);
-                    atari_system.gtia.write(gtia::GRAFP2, b);
-                    let b = antic::get_pm_data(&mut *atari_system, 4);
-                    atari_system.gtia.write(gtia::GRAFP3, b);
-                }
-            }
-
-            if atari_system.antic.is_new_mode_line() {
-                if atari_system.antic.dlist_dma() {
-                    let mut dlist_data = [0 as u8; 3];
-                    let offs = atari_system.antic.dlist_offset(0);
-                    atari_system.antic_copy_to_slice(offs, &mut dlist_data);
-                    atari_system.antic.set_dlist_data(dlist_data);
-                }
-                atari_system.antic.prepare_mode_line();
-            }
-            atari_system.antic.update_dma_cycles();
-            atari_system.antic.check_nmi();
-            if atari_system.antic.wsync() {
-                atari_system.antic.clear_wsync();
-                atari_system.antic.cycle = 105;
-                if frame.paused {
-                    return;
-                }
-            }
-        }
-        if atari_system.antic.fire_nmi() {
-            cpu.non_maskable_interrupt_request();
-        }
-        if atari_system.antic.gets_visible() {
-            // info!("here: {} {}", atari_system.antic.cycle, frame.visible_cycle);
-            let prev_mode_line = if atari_system.antic.scan_line >= 8
-                && atari_system.antic.scan_line == atari_system.antic.start_scan_line
-            {
-                // info!("creating mode line, cycle: {:?}", atari_system.antic.cycle);
-                let mode_line = atari_system.antic.create_next_mode_line();
-                let prev_mode_line = frame.current_mode.take();
-                // info!("created mode_line {:?}", mode_line.as_ref().unwrap());
-                frame.current_mode = Some(mode_line);
-                prev_mode_line
-            } else if atari_system.antic.scan_line == 248 {
-                frame.current_mode.take()
-            } else {
-                None
-            };
-            if let Some(prev_mode_line) = prev_mode_line {
-                antic_data.create_mode_line(&prev_mode_line);
-            }
-
-            let current_scan_line = atari_system.antic.scan_line;
-            if let Some(current_line) = &mut frame.current_mode {
-                if current_scan_line >= 8 && current_scan_line < 248 {
-                    assert!(antic_data.gtia_regs.regs.len() == 240);
-                    antic_data.gtia_regs.regs[current_scan_line - 8] = atari_system.gtia.regs;
-                }
-                if current_scan_line == current_line.scan_line {
-                    let charset_offset = (current_line.chbase as usize) * 256;
-                    current_line.video_memory_offset = antic_data.video_memory.push(
-                        &mut atari_system,
-                        current_line.data_offset,
-                        current_line.n_bytes,
-                    );
-                    // todo: detect charset memory changes
-                    current_line.charset_memory_offset = antic_data.charset_memory.push(
-                        &mut atari_system,
-                        charset_offset,
-                        current_line.charset_size(),
-                    );
-                }
-            }
+        antic::tick(&mut *atari_system, &mut *cpu, &mut *antic_data);
+        if frame.paused {
+            return;
         }
 
         atari_system.antic.steal_cycles();
@@ -472,12 +381,7 @@ fn atari_system(
 
         if cpu.remaining_cycles == 0 {
             if atari_system.antic.wsync() {
-                if atari_system.antic.cycle < 104 {
-                    atari_system.antic.cycle = 104;
-                    atari_system.antic.clear_wsync();
-                } else {
-                    atari_system.antic.cycle = SCAN_LINE_CYCLES - 1;
-                }
+                atari_system.antic.do_wsync();
             }
             match frame.break_point {
                 Some(BreakPoint::PC(pc)) => {
@@ -765,7 +669,6 @@ fn setup(
 
     commands.remove_one::<MainPass>(commands.current_entity().unwrap());
 
-
     // commands
     //     .spawn(PbrBundle {
     //         mesh: QUAD_HANDLE.typed(),
@@ -823,7 +726,7 @@ fn main() {
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
-            debug: false,
+            debug: true,
         })
         .add_resource(system)
         .add_resource(cpu)

@@ -1,4 +1,4 @@
-use crate::render::AnticRendererGraphBuilder;
+use crate::{gtia, render::AnticRendererGraphBuilder};
 use crate::render::COLLISIONS_BUFFER;
 use crate::render::{self, CollisionsBufferNode};
 use crate::render_resources::{AtariPalette, AnticData, CustomTexture};
@@ -12,7 +12,7 @@ use bevy::{
     render::render_graph::{AssetRenderResourcesNode},
 };
 use bevy::{render::pipeline::PipelineDescriptor};
-use emulator_6502::Interface6502;
+use emulator_6502::{Interface6502, MOS6502};
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
@@ -591,6 +591,16 @@ impl Antic {
     }
 
     #[inline(always)]
+    pub fn do_wsync(&mut self) {
+        if self.cycle < 104 {
+            self.cycle = 104;
+            self.clear_wsync();
+        } else {
+            self.cycle = SCAN_LINE_CYCLES - 1;
+        }
+    }
+
+    #[inline(always)]
     pub fn clear_wsync(&mut self) {
         self.wsync = false
     }
@@ -623,6 +633,81 @@ impl Antic {
         }
     }
 }
+
+pub fn tick(atari_system: &mut AtariSystem, cpu: &mut MOS6502, antic_data: &mut AnticData) {
+    if atari_system.antic.cycle == 0 {
+        if atari_system.antic.scan_line == 0 {
+            // antic reset
+            atari_system.antic.next_scan_line = 8;
+        }
+        atari_system.scanline_tick();
+
+        if atari_system
+            .antic
+            .dmactl
+            .contains(DMACTL::PLAYER_DMA)
+        {
+            if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
+                let b = get_pm_data(atari_system, 0);
+                atari_system.gtia.write(gtia::GRAFM, b);
+            }
+            if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
+                let b = get_pm_data(atari_system, 1);
+                atari_system.gtia.write(gtia::GRAFP0, b);
+                let b = get_pm_data(atari_system, 2);
+                atari_system.gtia.write(gtia::GRAFP1, b);
+                let b = get_pm_data(atari_system, 3);
+                atari_system.gtia.write(gtia::GRAFP2, b);
+                let b = get_pm_data(atari_system, 4);
+                atari_system.gtia.write(gtia::GRAFP3, b);
+            }
+        }
+
+        if atari_system.antic.is_new_mode_line() {
+            if atari_system.antic.dlist_dma() {
+                let mut dlist_data = [0 as u8; 3];
+                let offs = atari_system.antic.dlist_offset(0);
+                atari_system.antic_copy_to_slice(offs, &mut dlist_data);
+                atari_system.antic.set_dlist_data(dlist_data);
+            }
+            atari_system.antic.prepare_mode_line();
+        }
+        atari_system.antic.update_dma_cycles();
+        atari_system.antic.check_nmi();
+        if atari_system.antic.wsync() {
+            atari_system.antic.clear_wsync();
+            atari_system.antic.cycle = 105;
+        }
+    }
+    if atari_system.antic.fire_nmi() {
+        cpu.non_maskable_interrupt_request();
+    }
+    if atari_system.antic.gets_visible() {
+        if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line < 248 {
+            assert!(antic_data.gtia_regs.regs.len() == 240);
+            antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] =
+                atari_system.gtia.regs;
+            if atari_system.antic.scan_line == atari_system.antic.start_scan_line {
+                let mut mode_line = atari_system.antic.create_next_mode_line();
+                let charset_offset = (mode_line.chbase as usize) * 256;
+                mode_line.video_memory_offset = antic_data.video_memory.push(
+                    atari_system,
+                    mode_line.data_offset,
+                    mode_line.n_bytes,
+                );
+                // todo: detect charset memory changes
+                mode_line.charset_memory_offset = antic_data.charset_memory.push(
+                    atari_system,
+                    charset_offset,
+                    mode_line.charset_size(),
+                );
+
+                antic_data.create_mode_line(&mode_line);
+            }
+        }
+    }
+}
+
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
