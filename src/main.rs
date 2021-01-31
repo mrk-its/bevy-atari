@@ -902,7 +902,7 @@ fn main() {
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
-            debug: true,
+            debug: false,
         })
         .add_resource(system)
         .add_resource(cpu)
