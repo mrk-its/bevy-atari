@@ -1,7 +1,6 @@
-use crate::{antic::ModeLineDescr, gtia::atari_color};
-use bevy::{math::vec2, prelude::*, render::{mesh::Indices, pipeline::PrimitiveTopology}};
 use crate::system::AtariSystem;
-use bevy::{app::prelude, asset::Handle};
+use crate::{antic::ModeLineDescr, gtia::atari_color};
+use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
 use bevy::reflect::TypeUuid;
@@ -10,6 +9,11 @@ use bevy::render::{
     impl_render_resource_bytes,
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
+};
+use bevy::{
+    math::vec2,
+    prelude::*,
+    render::{mesh::Indices, pipeline::PrimitiveTopology},
 };
 use std::convert::TryInto;
 
@@ -52,7 +56,6 @@ impl Bytes for Charset {
 
 impl_render_resource_bytes!(Charset);
 
-
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct VideoMemory {
@@ -63,7 +66,7 @@ impl VideoMemory {
     pub fn push(&mut self, system: &mut AtariSystem, atari_offs: usize, size: usize) -> usize {
         let offset = self.data.len();
         unsafe { self.data.set_len(offset + size) }
-        system.antic_copy_to_slice(atari_offs as u16, &mut self.data[offset..offset+size]);
+        system.antic_copy_to_slice(atari_offs as u16, &mut self.data[offset..offset + size]);
         offset
     }
 }
@@ -90,8 +93,6 @@ impl Bytes for VideoMemory {
     }
 }
 impl_render_resource_bytes!(VideoMemory);
-
-
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -121,9 +122,11 @@ pub struct GTIARegsArray {
 }
 
 impl GTIARegsArray {
-    pub fn new(capacity: usize) -> Self { let regs = Vec::with_capacity(capacity); Self { regs } }
+    pub fn new(capacity: usize) -> Self {
+        let regs = Vec::with_capacity(capacity);
+        Self { regs }
+    }
 }
-
 
 #[repr(C)]
 #[derive(Default, Clone, Copy, Debug)]
@@ -181,7 +184,7 @@ pub struct AnticData {
     #[render_resources(ignore)]
     pub positions: Vec<[f32; 3]>,
     #[render_resources(ignore)]
-    pub custom: Vec<[u32; 4]>,
+    pub custom: Vec<[f32; 4]>,
     #[render_resources(ignore)]
     pub uvs: Vec<[f32; 2]>,
     #[render_resources(ignore)]
@@ -231,10 +234,10 @@ impl AnticData {
         let height = mode_line.height as u32;
         let width = mode_line.width as u32 / 2;
 
-        let b0 = mode_line.mode as u32 | (scan_line << 8) | (height << 16) | (width << 24);
-        let b1 = mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8);
-        let b2 = mode_line.video_memory_offset as u32;
-        let b3 = mode_line.charset_memory_offset as u32;
+        let b0 = (mode_line.mode as u32 | (scan_line << 8) | (height << 16)) as f32;
+        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16)) as f32;
+        let b2 = mode_line.video_memory_offset as f32;
+        let b3 = mode_line.charset_memory_offset as f32;
 
         self.custom.push([b0, b1, b2, b3]);
         self.custom.push([b0, b1, b2, b3]);
@@ -259,7 +262,9 @@ impl Default for AnticData {
     fn default() -> Self {
         bevy::utils::tracing::info!("creating new AnticData!");
         let mut gtia_regs = GTIARegsArray::new(240);
-        unsafe {gtia_regs.regs.set_len(240);}
+        unsafe {
+            gtia_regs.regs.set_len(240);
+        }
         let video_memory = VideoMemory::new(240 * 48);
         // max 30 lines of text mode so:
         let charset_memory = VideoMemory::new(30 * 1024);

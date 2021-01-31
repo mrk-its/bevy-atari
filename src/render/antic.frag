@@ -4,7 +4,7 @@ precision highp int;
 
 in vec3 v_Position;
 in vec2 v_Uv;
-flat in uvec4 v_Custom;
+flat in vec4 v_Custom;
 
 layout(location = 0) out vec4 o_ColorTarget;
 layout(location = 1) out uvec4 o_CollisionsTarget;
@@ -79,13 +79,13 @@ bool get_missile_pixel(int n, float px, int scan_line, vec4 hpos) {
 
 void main() {
     // vec4 output_color = Albedo;
-    int mode = uint_byte(v_Custom[0], 0);
-    int start_scan_line = uint_byte(v_Custom[0], 1);
-    int line_height = uint_byte(v_Custom[0], 2);
-    float line_width = float(uint_byte(v_Custom[0], 3)) * 2.0;
+    int mode = uint_byte(uint(v_Custom[0]), 0);
+    int start_scan_line = uint_byte(uint(v_Custom[0]), 1);
+    int line_height = uint_byte(uint(v_Custom[0]), 2);
 
-    int hscrol = uint_byte(v_Custom[1], 0);
-    int line_voffset = uint_byte(v_Custom[1], 1);
+    int hscrol = uint_byte(uint(v_Custom[1]), 0);
+    int line_voffset = uint_byte(uint(v_Custom[1]), 1);
+    float line_width = float(uint_byte(uint(v_Custom[1]), 2)) * 2.0;
 
     int video_memory_offset = int(v_Custom[2]);
     int charset_memory_offset = int(v_Custom[3]);
