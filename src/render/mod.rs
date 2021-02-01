@@ -27,6 +27,8 @@ use bevy::{
     render::{camera::ActiveCameras, render_graph::CameraNode, texture::TextureDimension},
 };
 
+use crate::{antic::ANTIC_DATA_HANDLE, render_resources::AnticData, DATA_TEXTURE_HANDLE};
+
 pub const ANTIC_PASS: &str = "antic_pass";
 pub const ANTIC_CAMERA: &str = "antic_camera";
 pub const ANTIC_TEXTURE: &str = "antic_texture";
@@ -169,7 +171,9 @@ impl AnticRendererGraphBuilder for RenderGraph {
         )
         .unwrap();
         self.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
-
+        self.add_node("data_texture_update", UpdateDataTextureNode::default());
+        self.add_node_edge("data_texture_update", ANTIC_PASS)
+            .unwrap();
         if enable_collisions {
             let texture_format = TextureFormat::Rg32Uint;
 
@@ -402,5 +406,57 @@ impl Node for LoadCollisionsPass {
 
     fn output(&self) -> &[ResourceSlotInfo] {
         &[]
+    }
+}
+
+#[derive(Default)]
+pub struct UpdateDataTextureNode {
+    pub buffer_id: Option<BufferId>,
+}
+
+impl UpdateDataTextureNode {
+    pub const BUFFER: &'static str = "buffer";
+}
+
+impl Node for UpdateDataTextureNode {
+    fn update(
+        &mut self,
+        _world: &World,
+        resources: &Resources,
+        render_context: &mut dyn bevy::render::renderer::RenderContext,
+        _input: &bevy::render::render_graph::ResourceSlots,
+        _output: &mut bevy::render::render_graph::ResourceSlots,
+    ) {
+        let render_resource_context = render_context.resources_mut();
+        if self.buffer_id.is_none() {
+            let buffer_info = BufferInfo {
+                size: 42 * 256 * 4,
+                buffer_usage: BufferUsage::MAP_WRITE | BufferUsage::COPY_SRC,
+                mapped_at_creation: false,
+            };
+            let buffer_id = render_resource_context.create_buffer(buffer_info);
+            self.buffer_id = Some(buffer_id);
+            info!("created texture buffer!");
+        }
+        let antic_data_assets = resources.get::<Assets<AnticData>>().unwrap();
+        let antic_data = antic_data_assets.get(ANTIC_DATA_HANDLE).unwrap();
+        let len = antic_data.texture_data.len() as u64;
+        render_resource_context.write_mapped_buffer(
+            self.buffer_id.unwrap(),
+            0..len,
+            &mut |data, _renderer| data.copy_from_slice(&antic_data.texture_data),
+        );
+        let texture = render_resource_context
+            .get_asset_resource_untyped(DATA_TEXTURE_HANDLE, 0)
+            .unwrap();
+        render_context.copy_buffer_to_texture(
+            self.buffer_id.unwrap(),
+            0,
+            0,
+            texture.get_texture().unwrap(),
+            [0, 0, 0],
+            0,
+            Extent3d::new(256, 42, 1),
+        )
     }
 }

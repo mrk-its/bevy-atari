@@ -15,7 +15,7 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, pipeline::PrimitiveTopology},
 };
-use std::convert::TryInto;
+use std::{char, convert::TryInto};
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -179,8 +179,8 @@ impl_render_resource_bytes!(AnticLineDescr);
 #[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
 pub struct AnticData {
     pub gtia_regs: GTIARegsArray,
-    pub video_memory: VideoMemory,
-    pub charset_memory: VideoMemory,
+    // pub video_memory: VideoMemory,
+    // pub charset_memory: VideoMemory,
     #[render_resources(ignore)]
     pub positions: Vec<[f32; 3]>,
     #[render_resources(ignore)]
@@ -189,16 +189,60 @@ pub struct AnticData {
     pub uvs: Vec<[f32; 2]>,
     #[render_resources(ignore)]
     pub indices: Vec<u32>,
+    #[render_resources(ignore)]
+    pub texture_data: Vec<u8>,
+}
+
+impl Default for AnticData {
+    fn default() -> Self {
+        bevy::utils::tracing::info!("creating new AnticData!");
+        let mut gtia_regs = GTIARegsArray::new(240);
+        unsafe {
+            gtia_regs.regs.set_len(240);
+        }
+        // let video_memory = VideoMemory::new(240 * 48);
+        // // max 30 lines of text mode so:
+        // let charset_memory = VideoMemory::new(30 * 1024);
+        let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
+        Self {
+            gtia_regs,
+            // video_memory,
+            // charset_memory,
+            positions: Default::default(),
+            custom: Default::default(),
+            uvs: Default::default(),
+            indices: Default::default(),
+            texture_data,
+        }
+    }
 }
 
 impl AnticData {
+    pub fn push_antic_memory(
+        &mut self,
+        atari_system: &mut AtariSystem,
+        offset: usize,
+        len: usize,
+    ) -> usize {
+        let dst_offset = self.texture_data.len();
+        assert!(dst_offset + len <= self.texture_data.capacity());
+        unsafe {
+            self.texture_data.set_len(dst_offset + len);
+        }
+        atari_system.antic_copy_to_slice(
+            offset as u16,
+            &mut self.texture_data[dst_offset..dst_offset + len],
+        );
+        dst_offset
+    }
     pub fn clear(&mut self) {
         self.positions.clear();
         self.custom.clear();
         self.uvs.clear();
         self.indices.clear();
-        self.video_memory.data.clear();
-        self.charset_memory.data.clear();
+        // self.video_memory.data.clear();
+        // self.charset_memory.data.clear();
+        self.texture_data.clear();
     }
 
     pub fn create_mesh(&self) -> Mesh {
@@ -235,7 +279,8 @@ impl AnticData {
         let width = mode_line.width as u32 / 2;
 
         let b0 = (mode_line.mode as u32 | (scan_line << 8) | (height << 16)) as f32;
-        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16)) as f32;
+        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16))
+            as f32;
         let b2 = mode_line.video_memory_offset as f32;
         let b3 = mode_line.charset_memory_offset as f32;
 
@@ -255,28 +300,6 @@ impl AnticData {
             ]
             .iter(),
         );
-    }
-}
-
-impl Default for AnticData {
-    fn default() -> Self {
-        bevy::utils::tracing::info!("creating new AnticData!");
-        let mut gtia_regs = GTIARegsArray::new(240);
-        unsafe {
-            gtia_regs.regs.set_len(240);
-        }
-        let video_memory = VideoMemory::new(240 * 48);
-        // max 30 lines of text mode so:
-        let charset_memory = VideoMemory::new(30 * 1024);
-        Self {
-            gtia_regs,
-            video_memory,
-            charset_memory,
-            positions: Default::default(),
-            custom: Default::default(),
-            uvs: Default::default(),
-            indices: Default::default(),
-        }
     }
 }
 

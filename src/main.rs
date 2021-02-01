@@ -18,8 +18,11 @@ mod render_resources;
 pub mod sio;
 mod system;
 use antic::ANTIC_DATA_HANDLE;
-use bevy::core::{Time, Timer};
-use bevy::utils::Duration;
+use bevy::{render::renderer::{RenderContext, RenderResourceContext}, utils::Duration};
+use bevy::{
+    core::{Time, Timer},
+    render::texture::{Extent3d, TextureDimension, TextureFormat},
+};
 
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
@@ -37,6 +40,7 @@ use bevy::{
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
+use rand::distributions::Standard;
 use render_resources::{AnticData, AtariPalette, CustomTexture};
 use system::{
     antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE},
@@ -57,6 +61,12 @@ pub const ANTIC_MESH_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 16056864393442354012);
 pub const ANTIC_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 18422387557214033949);
+
+pub const TEST_MATERIAL_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 18422387557214033950);
+
+pub const DATA_TEXTURE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
 pub const COLLISION_AGG_HEIGHT: Option<u32> = Some(15);
 
@@ -359,6 +369,18 @@ fn atari_system(
     }
     let debug_mode = frame.paused || frame.break_point.is_some();
     let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
+    // let data_texture = textures.get_mut(DATA_TEXTURE_HANDLE).unwrap();
+
+    // materials.set_untracked(
+    //     TEST_MATERIAL_HANDLE,
+    //     StandardMaterial {
+    //         albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
+    //         albedo_texture: Some(DATA_TEXTURE_HANDLE.typed()),
+    //         shaded: false,
+    //         ..Default::default()
+    //     },
+    // );
+
 
     if !debug_mode && atari_system.antic.scan_line == 248 && atari_system.antic.cycle == 0 {
         antic_data.clear();
@@ -370,7 +392,12 @@ fn atari_system(
             _ => (),
         }
 
-        antic::tick(&mut *atari_system, &mut *cpu, &mut *antic_data);
+        antic::tick(
+            &mut *atari_system,
+            &mut *cpu,
+            &mut *antic_data,
+            // &mut *data_texture,
+        );
         if frame.paused {
             return;
         }
@@ -537,6 +564,7 @@ fn setup(
     mut textures: ResMut<Assets<CustomTexture>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut shaders: ResMut<Assets<Shader>>,
+    mut tex: ResMut<Assets<Texture>>,
 ) {
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
     materials.set(
@@ -547,8 +575,31 @@ fn setup(
             shaded: false,
         },
     );
-    // load a texture and retrieve its aspect ratio
-    // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
+
+    // 30 * 1024 - max charset memory
+    // 48 * 240 - max video memory
+    // total: 42240
+    // 42240 / (256 * 4) = 41.25
+
+
+    let texture = Texture::new_fill(
+        Extent3d::new(256, 42, 1),
+        TextureDimension::D2,
+        &[0, 0, 0, 0],
+        TextureFormat::R32Uint,
+    );
+
+    tex.set_untracked(DATA_TEXTURE_HANDLE, texture);
+
+    materials.set_untracked(
+        TEST_MATERIAL_HANDLE,
+        StandardMaterial {
+            albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
+            albedo_texture: Some(DATA_TEXTURE_HANDLE.typed()),
+            shaded: false,
+            ..Default::default()
+        },
+    );
 
     materials.set_untracked(
         ATARI_MATERIAL_HANDLE,
@@ -665,7 +716,8 @@ fn setup(
         .spawn(bundle)
         .with(AnticFrame)
         .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>())
-        .with(ANTIC_DATA_HANDLE.typed::<AnticData>());
+        .with(ANTIC_DATA_HANDLE.typed::<AnticData>())
+        .with(TEST_MATERIAL_HANDLE.typed::<StandardMaterial>());
 
     commands.remove_one::<MainPass>(commands.current_entity().unwrap());
 
@@ -726,7 +778,7 @@ fn main() {
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
-            debug: true,
+            debug: false,
         })
         .add_resource(system)
         .add_resource(cpu)

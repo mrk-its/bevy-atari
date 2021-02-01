@@ -1,17 +1,12 @@
-use crate::{gtia, render::AnticRendererGraphBuilder};
 use crate::render::COLLISIONS_BUFFER;
 use crate::render::{self, CollisionsBufferNode};
-use crate::render_resources::{AtariPalette, AnticData, CustomTexture};
+use crate::render_resources::{AnticData, AtariPalette, CustomTexture};
 use crate::system::AtariSystem;
-use bevy::render::{
-    render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext,
-};
+use crate::{gtia, render::AnticRendererGraphBuilder};
+use bevy::render::pipeline::PipelineDescriptor;
+use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
-use bevy::{
-    reflect::TypeUuid,
-    render::render_graph::{AssetRenderResourcesNode},
-};
-use bevy::{render::pipeline::PipelineDescriptor};
+use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
 use emulator_6502::{Interface6502, MOS6502};
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
@@ -634,7 +629,12 @@ impl Antic {
     }
 }
 
-pub fn tick(atari_system: &mut AtariSystem, cpu: &mut MOS6502, antic_data: &mut AnticData) {
+pub fn tick(
+    atari_system: &mut AtariSystem,
+    cpu: &mut MOS6502,
+    antic_data: &mut AnticData,
+    // data_texture: &mut Texture,
+) {
     if atari_system.antic.cycle == 0 {
         if atari_system.antic.scan_line == 0 {
             // antic reset
@@ -642,11 +642,7 @@ pub fn tick(atari_system: &mut AtariSystem, cpu: &mut MOS6502, antic_data: &mut 
         }
         atari_system.scanline_tick();
 
-        if atari_system
-            .antic
-            .dmactl
-            .contains(DMACTL::PLAYER_DMA)
-        {
+        if atari_system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
             if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
                 let b = get_pm_data(atari_system, 0);
                 atari_system.gtia.write(gtia::GRAFM, b);
@@ -685,18 +681,20 @@ pub fn tick(atari_system: &mut AtariSystem, cpu: &mut MOS6502, antic_data: &mut 
     if atari_system.antic.gets_visible() {
         if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line < 248 {
             assert!(antic_data.gtia_regs.regs.len() == 240);
-            antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] =
-                atari_system.gtia.regs;
+            antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] = atari_system.gtia.regs;
             if atari_system.antic.scan_line == atari_system.antic.start_scan_line {
                 let mut mode_line = atari_system.antic.create_next_mode_line();
                 let charset_offset = (mode_line.chbase as usize) * 256;
-                mode_line.video_memory_offset = antic_data.video_memory.push(
+
+                mode_line.video_memory_offset = antic_data.push_antic_memory(
                     atari_system,
                     mode_line.data_offset,
                     mode_line.n_bytes,
                 );
+
                 // todo: detect charset memory changes
-                mode_line.charset_memory_offset = antic_data.charset_memory.push(
+
+                mode_line.charset_memory_offset = antic_data.push_antic_memory(
                     atari_system,
                     charset_offset,
                     mode_line.charset_size(),
@@ -707,7 +705,6 @@ pub fn tick(atari_system: &mut AtariSystem, cpu: &mut MOS6502, antic_data: &mut 
         }
     }
 }
-
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
@@ -810,6 +807,11 @@ impl Plugin for AnticPlugin {
             .add_node_edge("custom_texture", MAIN_PASS)
             .unwrap();
         let size = Vec2::new(self.texture_size.x, self.texture_size.y);
-        render_graph.add_antic_graph(resources, &size, self.enable_collisions, self.collision_agg_height);
+        render_graph.add_antic_graph(
+            resources,
+            &size,
+            self.enable_collisions,
+            self.collision_agg_height,
+        );
     }
 }

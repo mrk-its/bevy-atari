@@ -1,6 +1,7 @@
 #version 300 es
 precision highp float;
 precision highp int;
+precision highp usampler2D;
 
 in vec3 v_Position;
 in vec2 v_Uv;
@@ -31,14 +32,13 @@ layout(std140) uniform AnticData_gtia_regs { // set=3 binding = 0
     GTIA gtia_regs[240];
 };
 
-layout(std140) uniform AnticData_video_memory { // set=3 binding = 1
-    uvec4 video_memory[240 * 3];
+layout(std140) uniform StandardMaterial_albedo { // set = 4, binding = 0
+    vec4 Albedo;
 };
 
-layout(std140) uniform AnticData_charset_memory { // set=3 binding = 2
-    uvec4 charset_memory[1920];
-};
-
+//#ifdef STANDARDMATERIAL_ALBEDO_TEXTURE
+uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
+//#endif
 
 #define get_color_reg(line, k) gtia_regs[line].color_regs[k>>2][k&3]
 #define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
@@ -52,11 +52,15 @@ vec4 encodeSRGB(vec4 linearRGB_in)
     return vec4(mix(a, b, c), linearRGB_in.a);
 }
 
-#define get_byte(data, offset) (int(data[offset >> 4][(offset >> 2) & 3] >> ((offset & 3) << 3)) & 255)
-#define get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
-#define get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
+#define get_byte(data, offset) (int(data[(offset) / 16][((offset) / 4) & 3] >> (((offset) & 3) * 8)) & 255)
+#define _get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
+#define _get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
 // #define encodeColor(x) encodeSRGB(x)
 #define encodeColor(x) (x)
+
+#define get_texture_byte(offset) ((int(texelFetch(StandardMaterial_albedo_texture, ivec2(((offset)>>2) & 0xff, (offset >> 10)), 0)[0]) >> (((offset) & 3) * 8)) & 0xff)
+#define get_charset_memory(offset) get_texture_byte(charset_memory_offset + offset)
+#define get_video_memory(offset) get_texture_byte(video_memory_offset + offset)
 
 bool get_player_pixel(int n, float px, int scan_line, vec4 hpos) {
     if (px >= hpos[n] && px < hpos[n] + float(gtia_regs[scan_line].player_size[n])) {
@@ -78,6 +82,7 @@ bool get_missile_pixel(int n, float px, int scan_line, vec4 hpos) {
 }
 
 void main() {
+    uvec4 t = texelFetch(StandardMaterial_albedo_texture, ivec2(1, 0), 0);
     // vec4 output_color = Albedo;
     int mode = uint_byte(uint(v_Custom[0]), 0);
     int start_scan_line = uint_byte(uint(v_Custom[0]), 1);
