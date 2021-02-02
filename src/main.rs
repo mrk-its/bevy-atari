@@ -579,14 +579,14 @@ fn setup(
     // 30 * 1024 - max charset memory
     // 48 * 240 - max video memory
     // total: 42240
-    // 42240 / (256 * 4) = 41.25
+    // 42240 / (256 * 4 * 4) = 10.3125
 
 
     let texture = Texture::new_fill(
-        Extent3d::new(256, 42, 1),
+        Extent3d::new(256, 11, 1),
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::R32Uint,
+        TextureFormat::Rgba32Uint
     );
 
     tex.set_untracked(DATA_TEXTURE_HANDLE, texture);
@@ -751,7 +751,6 @@ fn main() {
         ..Default::default()
     });
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    // app.add_resource(imeUsed::default());
     app.add_resource(WinitConfig {
         force_fps: Some(50.0),
         return_from_run: false,

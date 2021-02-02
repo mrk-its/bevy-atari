@@ -1,10 +1,6 @@
 use std::borrow::Cow;
 
-use bevy::render::{
-    pipeline::PrimitiveTopology,
-    render_graph::{Node, PassNode},
-    renderer::{BufferId, BufferInfo, BufferUsage},
-};
+use bevy::render::{pipeline::PrimitiveTopology, render_graph::{Node, PassNode}, renderer::{BufferId, BufferInfo, BufferUsage, RenderResourceContext}};
 use bevy::render::{
     render_graph::RenderGraph,
     texture::{Extent3d, TextureFormat},
@@ -112,6 +108,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
         let mut textures = resources.get_mut::<Assets<Texture>>().unwrap();
         let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
         let mut pass_order: Vec<&str> = Vec::new();
+        let render_resource_context = resources.get_mut::<Box<dyn RenderResourceContext>>();
 
         pass_order.push(ANTIC_PASS);
 
@@ -428,9 +425,10 @@ impl Node for UpdateDataTextureNode {
         _output: &mut bevy::render::render_graph::ResourceSlots,
     ) {
         let render_resource_context = render_context.resources_mut();
+
         if self.buffer_id.is_none() {
             let buffer_info = BufferInfo {
-                size: 42 * 256 * 4,
+                size: 11 * 256 * 4 * 4,
                 buffer_usage: BufferUsage::MAP_WRITE | BufferUsage::COPY_SRC,
                 mapped_at_creation: false,
             };
@@ -456,7 +454,7 @@ impl Node for UpdateDataTextureNode {
             texture.get_texture().unwrap(),
             [0, 0, 0],
             0,
-            Extent3d::new(256, 42, 1),
+            Extent3d::new(256, 11, 1),
         )
     }
 }

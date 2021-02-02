@@ -40,8 +40,24 @@ layout(std140) uniform StandardMaterial_albedo { // set = 4, binding = 0
 uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
 //#endif
 
-#define get_color_reg(line, k) gtia_regs[line].color_regs[k>>2][k&3]
+#define get_color_reg(k) gtia_regs[scan_line].color_regs[k>>2][k&3]
+#define get_gtia_colpm(k) gtia_regs[scan_line].colpm[k]
+#define get_gtia_prior() gtia_regs[scan_line].prior[0]
+#define get_gtia_hposp_vec4() vec4(gtia_regs[scan_line].hposp)
+#define get_gtia_hposm_vec4() vec4(gtia_regs[scan_line].hposm)
+#define get_gtia_player_size(n) gtia_regs[scan_line].player_size[n]
+#define get_gtia_missile_size() gtia_regs[scan_line].prior[1]
+#define get_gtia_grafp(n) gtia_regs[scan_line].grafp[n]
+#define get_gtia_grafm() gtia_regs[scan_line].prior[2]
 #define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
+
+#define get_byte(data, offset) (int(data[(offset) / 16][((offset) / 4) & 3] >> (((offset) & 3) * 8)) & 255)
+#define _get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
+#define _get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
+
+#define get_texture_byte(offset) ((int(texelFetch(StandardMaterial_albedo_texture, ivec2(((offset)>>4) & 0xff, (offset >> 12)), 0)[(offset >> 2) & 3]) >> (((offset) & 3) * 8)) & 0xff)
+#define get_charset_memory(offset) get_texture_byte(charset_memory_offset + offset)
+#define get_video_memory(offset) get_texture_byte(video_memory_offset + offset)
 
 vec4 encodeSRGB(vec4 linearRGB_in)
 {
@@ -52,30 +68,24 @@ vec4 encodeSRGB(vec4 linearRGB_in)
     return vec4(mix(a, b, c), linearRGB_in.a);
 }
 
-#define get_byte(data, offset) (int(data[(offset) / 16][((offset) / 4) & 3] >> (((offset) & 3) * 8)) & 255)
-#define _get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
-#define _get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
 // #define encodeColor(x) encodeSRGB(x)
 #define encodeColor(x) (x)
 
-#define get_texture_byte(offset) ((int(texelFetch(StandardMaterial_albedo_texture, ivec2(((offset)>>2) & 0xff, (offset >> 10)), 0)[0]) >> (((offset) & 3) * 8)) & 0xff)
-#define get_charset_memory(offset) get_texture_byte(charset_memory_offset + offset)
-#define get_video_memory(offset) get_texture_byte(video_memory_offset + offset)
-
 bool get_player_pixel(int n, float px, int scan_line, vec4 hpos) {
-    if (px >= hpos[n] && px < hpos[n] + float(gtia_regs[scan_line].player_size[n])) {
-        int pl_bit = 7 - int((px - hpos[n]) / float(gtia_regs[scan_line].player_size[n]) * 8.0);
-        int byte = gtia_regs[scan_line].grafp[n];
+    float sizep = float(get_gtia_player_size(n));
+    if (px >= hpos[n] && px < hpos[n] + sizep) {
+        int pl_bit = 7 - int((px - hpos[n]) / sizep * 8.0);
+        int byte = get_gtia_grafp(n);
         return ((byte >> pl_bit) & 1) > 0;
     }
     return false;
 }
 
 bool get_missile_pixel(int n, float px, int scan_line, vec4 hpos) {
-    float sizem = float(gtia_regs[scan_line].prior[1]);
+    float sizem = float(get_gtia_missile_size());
     if (px >= hpos[n] && px < hpos[n] + sizem) {
         int bit = 1 - int((px - hpos[n]) / sizem * 2.0);
-        int byte = gtia_regs[scan_line].prior[2] >> (n * 2);
+        int byte = get_gtia_grafm() >> (n * 2);
         return ((byte >> bit) & 1) > 0;
     }
     return false;
@@ -105,8 +115,8 @@ void main() {
 
     int scan_line = start_scan_line + cy;
 
-    vec4 hposp = vec4(gtia_regs[scan_line].hposp) * 2.0 + vec4(line_width / 2.0 - 256.0);
-    vec4 hposm = vec4(gtia_regs[scan_line].hposm) * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hposp = get_gtia_hposp_vec4() * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hposm = get_gtia_hposm_vec4() * 2.0 + vec4(line_width / 2.0 - 256.0);
 
     int color_reg_index = 0; // bg_color
 
@@ -195,7 +205,7 @@ void main() {
         hires = true;
     };
 
-    int prior = gtia_regs[scan_line].prior[0];
+    int prior = get_gtia_prior();
     bool pri0 = (prior & 1) > 0;
     bool pri1 = (prior & 2) > 0;
     bool pri2 = (prior & 4) > 0;
@@ -242,17 +252,17 @@ void main() {
 
 
     int color_reg = 0;
-    if(sp0) color_reg |= gtia_regs[scan_line].colpm[0];
-    if(sp1) color_reg |= gtia_regs[scan_line].colpm[1];
-    if(sp2) color_reg |= gtia_regs[scan_line].colpm[2];
-    if(sp3) color_reg |= gtia_regs[scan_line].colpm[3];
-    if(sf0) color_reg |= get_color_reg(scan_line, 1);
-    if(sf1) color_reg |= get_color_reg(scan_line, 2);
-    if(sf2) color_reg |= get_color_reg(scan_line, 3);
-    if(sf3) color_reg |= get_color_reg(scan_line, 4);
-    if(sb) color_reg |= get_color_reg(scan_line, 0);
+    if(sp0) color_reg |= get_gtia_colpm(0);
+    if(sp1) color_reg |= get_gtia_colpm(1);
+    if(sp2) color_reg |= get_gtia_colpm(2);
+    if(sp3) color_reg |= get_gtia_colpm(3);
+    if(sf0) color_reg |= get_color_reg(1);
+    if(sf1) color_reg |= get_color_reg(2);
+    if(sf2) color_reg |= get_color_reg(3);
+    if(sf3) color_reg |= get_color_reg(4);
+    if(sb) color_reg |= get_color_reg(0);
     if(hires && color_reg_index == 2) {
-        color_reg = color_reg & 0xf0 | (get_color_reg(scan_line, 2) & 0xf);
+        color_reg = color_reg & 0xf0 | (get_color_reg(2) & 0xf);
     }
     o_ColorTarget = encodeColor(palette[color_reg]);
 
