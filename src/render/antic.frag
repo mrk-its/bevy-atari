@@ -45,15 +45,13 @@ uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
 #define get_gtia_prior() gtia_regs[scan_line].prior[0]
 #define get_gtia_hposp_vec4() vec4(gtia_regs[scan_line].hposp)
 #define get_gtia_hposm_vec4() vec4(gtia_regs[scan_line].hposm)
-#define get_gtia_player_size(n) gtia_regs[scan_line].player_size[n]
+#define get_gtia_player_size_vec4() vec4(gtia_regs[scan_line].player_size)
 #define get_gtia_missile_size() gtia_regs[scan_line].prior[1]
-#define get_gtia_grafp(n) gtia_regs[scan_line].grafp[n]
+#define get_gtia_grafp_ivec4() gtia_regs[scan_line].grafp
 #define get_gtia_grafm() gtia_regs[scan_line].prior[2]
-#define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
 
-#define get_byte(data, offset) (int(data[(offset) / 16][((offset) / 4) & 3] >> (((offset) & 3) * 8)) & 255)
-#define _get_video_memory(offset) get_byte(video_memory, video_memory_offset + offset)
-#define _get_charset_memory(offset) get_byte(charset_memory, charset_memory_offset + offset)
+
+#define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
 
 #define get_texture_byte(offset) ((int(texelFetch(StandardMaterial_albedo_texture, ivec2(((offset)>>4) & 0xff, (offset >> 12)), 0)[(offset >> 2) & 3]) >> (((offset) & 3) * 8)) & 0xff)
 #define get_charset_memory(offset) get_texture_byte(charset_memory_offset + offset)
@@ -71,29 +69,25 @@ vec4 encodeSRGB(vec4 linearRGB_in)
 // #define encodeColor(x) encodeSRGB(x)
 #define encodeColor(x) (x)
 
-bool get_player_pixel(int n, float px, int scan_line, vec4 hpos) {
-    float sizep = float(get_gtia_player_size(n));
-    if (px >= hpos[n] && px < hpos[n] + sizep) {
-        int pl_bit = 7 - int((px - hpos[n]) / sizep * 8.0);
-        int byte = get_gtia_grafp(n);
-        return ((byte >> pl_bit) & 1) > 0;
-    }
-    return false;
+vec4 get_player_pixels(vec4 px, int scan_line, vec4 hpos) {
+    vec4 psize = get_gtia_player_size_vec4();
+    vec4 cond = vec4(greaterThanEqual(px, hpos)) * vec4(lessThan(px, hpos + psize));
+    ivec4 pl_bit = ivec4(mix(vec4(7.9999), vec4(0.0), (px - hpos) / psize));
+    ivec4 byte = get_gtia_grafp_ivec4();
+    return mix(vec4(0.0), vec4(greaterThan((byte >> pl_bit) & 1, ivec4(0))), cond);
 }
 
-bool get_missile_pixel(int n, float px, int scan_line, vec4 hpos) {
+const ivec4 missile_shift = ivec4(0, 2, 4, 6);
+
+vec4 get_missile_pixels(vec4 px, int scan_line, vec4 hpos) {
     float sizem = float(get_gtia_missile_size());
-    if (px >= hpos[n] && px < hpos[n] + sizem) {
-        int bit = 1 - int((px - hpos[n]) / sizem * 2.0);
-        int byte = get_gtia_grafm() >> (n * 2);
-        return ((byte >> bit) & 1) > 0;
-    }
-    return false;
+    vec4 cond = vec4(greaterThanEqual(px, hpos)) * vec4(lessThan(px, hpos + sizem));
+    ivec4 bit = ivec4(1) - ivec4((px - hpos) / sizem * 2.0);
+    ivec4 byte = ivec4(get_gtia_grafm()) >> missile_shift;
+    return mix(vec4(0.0), vec4(greaterThan((byte >> bit) & 1, ivec4(0))), cond);
 }
 
 void main() {
-    uvec4 t = texelFetch(StandardMaterial_albedo_texture, ivec2(1, 0), 0);
-    // vec4 output_color = Albedo;
     int mode = uint_byte(uint(v_Custom[0]), 0);
     int start_scan_line = uint_byte(uint(v_Custom[0]), 1);
     int line_height = uint_byte(uint(v_Custom[0]), 2);
@@ -115,8 +109,9 @@ void main() {
 
     int scan_line = start_scan_line + cy;
 
-    vec4 hposp = get_gtia_hposp_vec4() * 2.0 + vec4(line_width / 2.0 - 256.0);
-    vec4 hposm = get_gtia_hposm_vec4() * 2.0 + vec4(line_width / 2.0 - 256.0);
+    vec4 hpos_offs = vec4(line_width / 2.0 - 256.0);
+    vec4 hposp = get_gtia_hposp_vec4() * 2.0 + hpos_offs;
+    vec4 hposm = get_gtia_hposm_vec4() * 2.0 + hpos_offs;
 
     int color_reg_index = 0; // bg_color
 
@@ -216,17 +211,20 @@ void main() {
     bool pri23 = pri2 || pri3;
     bool pri03 = pri0 || pri3;
 
-    bool m0 = get_missile_pixel(0, px, scan_line, hposm);
-    bool m1 = get_missile_pixel(1, px, scan_line, hposm);
-    bool m2 = get_missile_pixel(2, px, scan_line, hposm);
-    bool m3 = get_missile_pixel(3, px, scan_line, hposm);
+    vec4 vpx = vec4(px);
+    vec4 m = get_missile_pixels(vpx, scan_line, hposm);
+    bool m0 = m[0] > 0.0;
+    bool m1 = m[1] > 0.0;
+    bool m2 = m[2] > 0.0;
+    bool m3 = m[3] > 0.0;
 
     bool p5 = (prior & 0x10) > 0;
 
-    bool p0 = get_player_pixel(0, px, scan_line, hposp) || !p5 && m0;
-    bool p1 = get_player_pixel(1, px, scan_line, hposp) || !p5 && m1;
-    bool p2 = get_player_pixel(2, px, scan_line, hposp) || !p5 && m2;
-    bool p3 = get_player_pixel(3, px, scan_line, hposp) || !p5 && m3;
+    bvec4 p = bvec4(get_player_pixels(vpx, scan_line, hposp) + float(!p5) * m);
+    bool p0 = p[0];
+    bool p1 = p[1];
+    bool p2 = p[2];
+    bool p3 = p[3];
 
     bool pf0 = color_reg_index == 1;
     bool pf1 = !hires && color_reg_index == 2;
@@ -266,6 +264,8 @@ void main() {
     }
     o_ColorTarget = encodeColor(palette[color_reg]);
 
+    // TODO - do not check collisions on HBLANK
+
     int pf_bits = (pf0 ? 1 : 0) | (pf1 ? 2 : 0) | (pf2 ? 4 : 0) | (pf3 ? 8 : 0);
 
     int p0pf = p0 ? pf_bits : 0;
@@ -290,20 +290,10 @@ void main() {
     int p2pl = p2 ? (player_bits & ~4) << 8 : 0;
     int p3pl = p3 ? (player_bits & ~8) << 12 : 0;
 
-    if(x >= 0.0) {
-        o_CollisionsTarget = uvec4(
-            uint(m0pf | m1pf | m2pf | m3pf) | uint(p0pf | p1pf | p2pf | p3pf) << 16,
-            uint(m0pl | m1pl | m2pl | m3pl) | uint(p0pl | p1pl | p2pl | p3pl) << 16,
-            0,
-            0
-        );
-    } else {
-        o_CollisionsTarget = uvec4(0, 0, 0, 0);
-    }
-
-
-    // vec4 output_color = palette[get_color_reg(scan_line, color_reg_index)];
-    // // multiply the light by material color
-    // o_Target = encodeSRGB(output_color);
-    // // o_Target = output_color;
+    o_CollisionsTarget = uvec4(
+        uint(m0pf | m1pf | m2pf | m3pf) | uint(p0pf | p1pf | p2pf | p3pf) << 16,
+        uint(m0pl | m1pl | m2pl | m3pl) | uint(p0pl | p1pl | p2pl | p3pl) << 16,
+        0,
+        0
+    );
 }
