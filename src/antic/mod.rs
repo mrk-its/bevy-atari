@@ -704,6 +704,7 @@ pub fn tick(
             }
         }
     }
+    atari_system.antic.steal_cycles();
 }
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {

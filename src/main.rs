@@ -382,11 +382,11 @@ fn atari_system(
     // );
 
 
-    if !debug_mode && atari_system.antic.scan_line == 248 && atari_system.antic.cycle == 0 {
-        antic_data.clear();
-    }
-
     loop {
+        if atari_system.antic.scan_line == 8 && atari_system.antic.cycle == 0 {
+            antic_data.clear();
+        }
+
         match cpu.program_counter {
             0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
             _ => (),
@@ -398,11 +398,10 @@ fn atari_system(
             &mut *antic_data,
             // &mut *data_texture,
         );
+
         if frame.paused {
             return;
         }
-
-        atari_system.antic.steal_cycles();
 
         cpu.cycle(&mut *atari_system);
 
