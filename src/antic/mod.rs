@@ -1,20 +1,22 @@
-pub mod render;
-
-use crate::render_resources::{AnticLine, AnticLineDescr, AtariPalette};
-use crate::render_resources::{Charset, GTIARegsArray, LineData};
+use crate::render::COLLISIONS_BUFFER;
+use crate::render::{self, CollisionsBufferNode};
+use crate::render_resources::{AnticData, AtariPalette, CustomTexture};
 use crate::system::AtariSystem;
-use bevy::reflect::TypeUuid;
-use bevy::render::pipeline::RenderPipeline;
+use crate::{gtia, render::AnticRendererGraphBuilder};
+use bevy::render::pipeline::PipelineDescriptor;
+use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
-use bevy::{render::pipeline::PipelineDescriptor, sprite::QUAD_HANDLE};
-use emulator_6502::Interface6502;
-use render::AnticRendererGraphBuilder;
+use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
+use emulator_6502::{Interface6502, MOS6502};
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
 
-pub const ANTIC_PIPELINE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595296);
+pub const ANTIC_DATA_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 11338886280454987747);
+
+pub const COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595297);
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -39,7 +41,6 @@ const NTSC_SCAN_LINES: usize = 262;
 
 pub const MAX_SCAN_LINES: usize = PAL_SCAN_LINES;
 pub const SCAN_LINE_CYCLES: usize = 114;
-
 bitflags! {
     #[derive(Default)]
     pub struct DMACTL: u8 {
@@ -199,9 +200,8 @@ pub struct ModeLineDescr {
     pub chbase: u8,
     pub pmbase: u8,
     pub hscrol: u8,
-    pub line_data: LineData,
-    pub charset: Charset,
-    pub gtia_regs_array: GTIARegsArray,
+    pub video_memory_offset: usize,
+    pub charset_memory_offset: usize,
 }
 
 impl ModeLineDescr {
@@ -488,9 +488,8 @@ impl Antic {
             chbase: self.chbase,
             pmbase: self.pmbase,
             hscrol,
-            line_data: LineData::default(),
-            charset: Charset::default(),
-            gtia_regs_array: GTIARegsArray::default(),
+            video_memory_offset: 0,
+            charset_memory_offset: 0,
         }
     }
 
@@ -587,6 +586,16 @@ impl Antic {
     }
 
     #[inline(always)]
+    pub fn do_wsync(&mut self) {
+        if self.cycle < 104 {
+            self.cycle = 104;
+            self.clear_wsync();
+        } else {
+            self.cycle = SCAN_LINE_CYCLES - 1;
+        }
+    }
+
+    #[inline(always)]
     pub fn clear_wsync(&mut self) {
         self.wsync = false
     }
@@ -620,6 +629,84 @@ impl Antic {
     }
 }
 
+pub fn tick(
+    atari_system: &mut AtariSystem,
+    cpu: &mut MOS6502,
+    antic_data: &mut AnticData,
+    // data_texture: &mut Texture,
+) {
+    if atari_system.antic.cycle == 0 {
+        if atari_system.antic.scan_line == 0 {
+            // antic reset
+            atari_system.antic.next_scan_line = 8;
+        }
+        atari_system.scanline_tick();
+
+        if atari_system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
+            if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
+                let b = get_pm_data(atari_system, 0);
+                atari_system.gtia.write(gtia::GRAFM, b);
+            }
+            if atari_system.gtia.gractl.contains(gtia::GRACTL::PLAYER_DMA) {
+                let b = get_pm_data(atari_system, 1);
+                atari_system.gtia.write(gtia::GRAFP0, b);
+                let b = get_pm_data(atari_system, 2);
+                atari_system.gtia.write(gtia::GRAFP1, b);
+                let b = get_pm_data(atari_system, 3);
+                atari_system.gtia.write(gtia::GRAFP2, b);
+                let b = get_pm_data(atari_system, 4);
+                atari_system.gtia.write(gtia::GRAFP3, b);
+            }
+        }
+
+        if atari_system.antic.is_new_mode_line() {
+            if atari_system.antic.dlist_dma() {
+                let mut dlist_data = [0 as u8; 3];
+                let offs = atari_system.antic.dlist_offset(0);
+                atari_system.antic_copy_to_slice(offs, &mut dlist_data);
+                atari_system.antic.set_dlist_data(dlist_data);
+            }
+            atari_system.antic.prepare_mode_line();
+        }
+        atari_system.antic.update_dma_cycles();
+        atari_system.antic.check_nmi();
+        if atari_system.antic.wsync() {
+            atari_system.antic.clear_wsync();
+            atari_system.antic.cycle = 105;
+        }
+    }
+    if atari_system.antic.fire_nmi() {
+        cpu.non_maskable_interrupt_request();
+    }
+    if atari_system.antic.gets_visible() {
+        if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line < 248 {
+            assert!(antic_data.gtia_regs.regs.len() == 240);
+            antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] = atari_system.gtia.regs;
+            if atari_system.antic.scan_line == atari_system.antic.start_scan_line {
+                let mut mode_line = atari_system.antic.create_next_mode_line();
+                let charset_offset = (mode_line.chbase as usize) * 256;
+
+                mode_line.video_memory_offset = antic_data.push_antic_memory(
+                    atari_system,
+                    mode_line.data_offset,
+                    mode_line.n_bytes,
+                );
+
+                // todo: detect charset memory changes
+
+                mode_line.charset_memory_offset = antic_data.push_antic_memory(
+                    atari_system,
+                    charset_offset,
+                    mode_line.charset_size(),
+                );
+
+                antic_data.create_mode_line(&mode_line);
+            }
+        }
+    }
+    atari_system.antic.steal_cycles();
+}
+
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     let pm_hires = system.antic.dmactl.contains(DMACTL::PM_HIRES);
     let offs = if pm_hires {
@@ -636,79 +723,96 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
     system.read(offs as u16)
 }
 
-#[derive(Bundle, Default)]
-pub struct AnticLineBundle {
-    pub mesh: Handle<Mesh>,
-    pub draw: Draw,
-    pub visible: Visible,
-    pub render_pipelines: RenderPipelines,
-    // pub main_pass: MainPass,
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-}
-
-pub fn create_mode_line(commands: &mut Commands, mode_line: ModeLineDescr, y_extra_offset: f32) {
-    commands
-        .spawn(AnticLineBundle {
-            // main_pass: MainPass,
-            mesh: QUAD_HANDLE.typed(),
-            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-                ANTIC_PIPELINE_HANDLE.typed(), //resources.pipeline_handle.clone_weak(),
-            )]),
-            // visible: Visible {
-            //     is_transparent: true,
-            //     is_visible: true,
-            // },
-            transform: Transform::from_translation(Vec3::new(
-                0.0,
-                128.0
-                    - (mode_line.scan_line as f32)
-                    - y_extra_offset
-                    - mode_line.height as f32 / 2.0,
-                0.0,
-            ))
-            .mul_transform(Transform::from_scale(Vec3::new(
-                384.0, // mode_line.width as f32,
-                mode_line.height as f32,
-                1.0,
-            ))),
-            ..Default::default()
-        })
-        .with(AnticLine {
-            // chbase: mode_line.chbase as u32,
-            end_scan_line: mode_line.next_mode_line(),
-            antic_line_descr: AnticLineDescr {
-                mode: mode_line.mode as u32,
-                line_width: mode_line.width as f32,
-                line_height: mode_line.height as f32,
-                line_voffset: mode_line.line_voffset as f32,
-                hscrol: mode_line.hscrol as f32,
-            },
-            gtia_regs_array: mode_line.gtia_regs_array,
-            data: mode_line.line_data,
-            charset: mode_line.charset,
-            start_scan_line: mode_line.scan_line,
-        })
-        .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>());
-}
-
 pub struct AnticPlugin {
     pub texture_size: Vec2,
+    pub enable_collisions: bool,
+    pub collision_agg_height: Option<u32>,
 }
 
-impl Default for AnticPlugin {
-    fn default() -> Self {
-        Self {
-            texture_size: Vec2::new(384.0, 240.0)
+#[derive(Default)]
+struct CollistionsReadState {
+    buffer: Vec<u8>,
+}
+
+fn collisions_read(_world: &mut World, resources: &mut Resources) {
+    let mut state = resources.get_mut::<CollistionsReadState>().unwrap();
+    let render_graph = resources.get_mut::<RenderGraph>().unwrap();
+    let render_resource_context = resources.get_mut::<Box<dyn RenderResourceContext>>();
+    if let Some(render_resource_context) = render_resource_context {
+        let collisions_buffer_node: &CollisionsBufferNode =
+            render_graph.get_node(COLLISIONS_BUFFER).unwrap();
+        if state.buffer.len() != collisions_buffer_node.buffer_info.size {
+            state.buffer = Vec::with_capacity(collisions_buffer_node.buffer_info.size);
+            unsafe {
+                state
+                    .buffer
+                    .set_len(collisions_buffer_node.buffer_info.size);
+            }
+        }
+        if let Some(buffer_id) = collisions_buffer_node.buffer_id {
+            render_resource_context.read_buffer(buffer_id, &mut state.buffer);
+
+            let mut collisions: u64 = 0;
+            let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
+            let data = &data[..data.len() / 8];
+            for (i, v) in data.iter().enumerate() {
+                if (i & 1) == 0 {
+                    collisions |= *v;
+                }
+            }
+
+            if collisions != 0 {
+                let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
+                atari_system.gtia.update_collisions(&collisions);
+            }
         }
     }
 }
 
 impl Plugin for AnticPlugin {
     fn build(&self, app: &mut AppBuilder) {
-        app.add_asset::<AnticLine>().add_asset::<AtariPalette>();
+        app.add_asset::<AnticData>()
+            .add_asset::<AtariPalette>()
+            .add_asset::<CustomTexture>();
+        app.add_system_to_stage(stage::PRE_UPDATE, collisions_read.system());
+        app.add_resource(CollistionsReadState::default());
         let resources = app.resources_mut();
+        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
+        let mut palettes = resources.get_mut::<Assets<AtariPalette>>().unwrap();
+        let mut antic_data = resources.get_mut::<Assets<AnticData>>().unwrap();
+
+        pipelines.set_untracked(
+            COLLISIONS_PIPELINE_HANDLE,
+            render::build_collisions_pipeline(&mut shaders),
+        );
+        palettes.set_untracked(ATARI_PALETTE_HANDLE, AtariPalette::default());
+        antic_data.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
+
         let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
-        render_graph.add_antic_graph(resources, &self.texture_size);
+
+        render_graph.add_system_node(
+            "atari_palette",
+            AssetRenderResourcesNode::<AtariPalette>::new(false),
+        );
+        render_graph.add_system_node(
+            "antic_data",
+            AssetRenderResourcesNode::<AnticData>::new(false),
+        );
+
+        render_graph.add_system_node(
+            "custom_texture",
+            AssetRenderResourcesNode::<CustomTexture>::new(false),
+        );
+        render_graph
+            .add_node_edge("custom_texture", MAIN_PASS)
+            .unwrap();
+        let size = Vec2::new(self.texture_size.x, self.texture_size.y);
+        render_graph.add_antic_graph(
+            resources,
+            &size,
+            self.enable_collisions,
+            self.collision_agg_height,
+        );
     }
 }

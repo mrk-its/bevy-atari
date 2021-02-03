@@ -1,5 +1,5 @@
-use crate::gtia::atari_color;
 use crate::system::AtariSystem;
+use crate::{antic::ModeLineDescr, gtia::atari_color};
 use bevy::asset::Handle;
 use bevy::core::{Byteable, Bytes};
 use bevy::prelude::Color;
@@ -10,7 +10,12 @@ use bevy::render::{
     renderer::{RenderResource, RenderResourceType},
     texture::Texture,
 };
-use std::convert::TryInto;
+use bevy::{
+    math::vec2,
+    prelude::*,
+    render::{mesh::Indices, pipeline::PrimitiveTopology},
+};
+use std::{char, convert::TryInto};
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -20,7 +25,9 @@ pub struct Charset {
 
 impl Default for Charset {
     fn default() -> Self {
-        Self { data: Vec::with_capacity(1024) }
+        Self {
+            data: Vec::with_capacity(1024),
+        }
     }
 }
 
@@ -51,28 +58,28 @@ impl_render_resource_bytes!(Charset);
 
 #[repr(C)]
 #[derive(Clone, Debug)]
-pub struct LineData {
+pub struct VideoMemory {
     pub data: Vec<u8>,
 }
 
-impl LineData {
-    pub fn set_data(&mut self, system: &mut AtariSystem, offs: usize, size: usize) {
-        if size > 0 {
-            unsafe {self.data.set_len(size)}
-            system.antic_copy_to_slice(offs as u16, &mut self.data[..size]);
+impl VideoMemory {
+    pub fn push(&mut self, system: &mut AtariSystem, atari_offs: usize, size: usize) -> usize {
+        let offset = self.data.len();
+        unsafe { self.data.set_len(offset + size) }
+        system.antic_copy_to_slice(atari_offs as u16, &mut self.data[offset..offset + size]);
+        offset
+    }
+}
+
+impl VideoMemory {
+    fn new(capacity: usize) -> Self {
+        Self {
+            data: Vec::with_capacity(capacity),
         }
     }
 }
 
-impl Default for LineData {
-    fn default() -> Self {
-        LineData {
-            data: Vec::with_capacity(48),
-        }
-    }
-}
-
-impl Bytes for LineData {
+impl Bytes for VideoMemory {
     fn write_bytes(&self, buffer: &mut [u8]) {
         self.data.write_bytes(buffer);
     }
@@ -82,10 +89,10 @@ impl Bytes for LineData {
     }
 
     fn byte_capacity(&self) -> usize {
-        48
+        self.data.capacity()
     }
 }
-impl_render_resource_bytes!(LineData);
+impl_render_resource_bytes!(VideoMemory);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -109,9 +116,16 @@ unsafe impl Byteable for Palette {}
 impl_render_resource_bytes!(Palette);
 
 #[repr(C)]
-#[derive(Default, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct GTIARegsArray {
     pub regs: Vec<GTIARegs>,
+}
+
+impl GTIARegsArray {
+    pub fn new(capacity: usize) -> Self {
+        let regs = Vec::with_capacity(capacity);
+        Self { regs }
+    }
 }
 
 #[repr(C)]
@@ -134,7 +148,6 @@ impl_render_resource_bytes!(GTIARegs);
 
 impl Bytes for GTIARegsArray {
     fn write_bytes(&self, buffer: &mut [u8]) {
-        assert!(self.regs.len() <=8 );
         self.regs.write_bytes(buffer);
     }
 
@@ -143,7 +156,7 @@ impl Bytes for GTIARegsArray {
     }
 
     fn byte_capacity(&self) -> usize {
-        std::mem::size_of::<GTIARegs>() * 8
+        std::mem::size_of::<GTIARegs>() * self.regs.capacity()
     }
 }
 impl_render_resource_bytes!(GTIARegsArray);
@@ -156,25 +169,149 @@ pub struct AnticLineDescr {
     pub hscrol: f32,
     pub line_height: f32,
     pub line_voffset: f32,
+    pub scan_line: f32,
 }
 
 unsafe impl Byteable for AnticLineDescr {}
 impl_render_resource_bytes!(AnticLineDescr);
 
 #[derive(RenderResources, TypeUuid, Debug)]
-#[uuid = "1e08866c-0b8a-437e-8bce-37733b25127e"]
-pub struct AnticLine {
-    pub antic_line_descr: AnticLineDescr,
-    pub data: LineData,
-    pub gtia_regs_array: GTIARegsArray,
-    pub charset: Charset,
+#[uuid = "bea612c2-68ed-4432-8d9c-f03ebea97043"]
+pub struct AnticData {
+    pub gtia_regs: GTIARegsArray,
+    // pub video_memory: VideoMemory,
+    // pub charset_memory: VideoMemory,
     #[render_resources(ignore)]
-    pub start_scan_line: usize,
+    pub positions: Vec<[f32; 3]>,
     #[render_resources(ignore)]
-    pub end_scan_line: usize,
+    pub custom: Vec<[f32; 4]>,
+    #[render_resources(ignore)]
+    pub uvs: Vec<[f32; 2]>,
+    #[render_resources(ignore)]
+    pub indices: Vec<u32>,
+    #[render_resources(ignore)]
+    pub texture_data: Vec<u8>,
 }
+
+impl Default for AnticData {
+    fn default() -> Self {
+        bevy::utils::tracing::info!("creating new AnticData!");
+        let mut gtia_regs = GTIARegsArray::new(240);
+        unsafe {
+            gtia_regs.regs.set_len(240);
+        }
+        // let video_memory = VideoMemory::new(240 * 48);
+        // // max 30 lines of text mode so:
+        // let charset_memory = VideoMemory::new(30 * 1024);
+        let texture_data = Vec::with_capacity(30 * 1024 + 240 * 48);
+        Self {
+            gtia_regs,
+            // video_memory,
+            // charset_memory,
+            positions: Default::default(),
+            custom: Default::default(),
+            uvs: Default::default(),
+            indices: Default::default(),
+            texture_data,
+        }
+    }
+}
+
+impl AnticData {
+    pub fn push_antic_memory(
+        &mut self,
+        atari_system: &mut AtariSystem,
+        offset: usize,
+        len: usize,
+    ) -> usize {
+        let dst_offset = self.texture_data.len();
+        assert!(dst_offset + len <= self.texture_data.capacity());
+        unsafe {
+            self.texture_data.set_len(dst_offset + len);
+        }
+        atari_system.antic_copy_to_slice(
+            offset as u16,
+            &mut self.texture_data[dst_offset..dst_offset + len],
+        );
+        dst_offset
+    }
+    pub fn clear(&mut self) {
+        self.positions.clear();
+        self.custom.clear();
+        self.uvs.clear();
+        self.indices.clear();
+        // self.video_memory.data.clear();
+        // self.charset_memory.data.clear();
+        self.texture_data.clear();
+    }
+
+    pub fn create_mesh(&self) -> Mesh {
+        let mut mesh = Mesh::new(PrimitiveTopology::TriangleList);
+        mesh.set_attribute(Mesh::ATTRIBUTE_POSITION, self.positions.clone());
+        mesh.set_attribute("Vertex_Custom", self.custom.clone());
+        mesh.set_attribute(Mesh::ATTRIBUTE_UV_0, self.uvs.clone());
+        mesh.set_indices(Some(Indices::U32(self.indices.clone())));
+        mesh
+    }
+
+    pub fn create_mode_line(&mut self, mode_line: &ModeLineDescr) {
+        let index_offset = self.positions.len() as u32;
+
+        let scan_line_y = mode_line.scan_line as f32 - 8.0;
+
+        let north_west = vec2(-192.0, 120.0 - scan_line_y);
+        let north_east = vec2(192.0, 120.0 - scan_line_y);
+        let south_west = vec2(-192.0, 120.0 - (scan_line_y + mode_line.height as f32));
+        let south_east = vec2(192.0, 120.0 - (scan_line_y + mode_line.height as f32));
+
+        self.positions.push([south_west.x, south_west.y, 0.0]);
+        self.positions.push([north_west.x, north_west.y, 0.0]);
+        self.positions.push([north_east.x, north_east.y, 0.0]);
+        self.positions.push([south_east.x, south_east.y, 0.0]);
+
+        self.uvs.push([0.0, 1.0]);
+        self.uvs.push([0.0, 0.0]);
+        self.uvs.push([1.0, 0.0]);
+        self.uvs.push([1.0, 1.0]);
+
+        let scan_line = mode_line.scan_line as u32 - 8;
+        let height = mode_line.height as u32;
+        let width = mode_line.width as u32 / 2;
+
+        let b0 = (mode_line.mode as u32 | (scan_line << 8) | (height << 16)) as f32;
+        let b1 = (mode_line.hscrol as u32 | ((mode_line.line_voffset as u32) << 8) | (width << 16))
+            as f32;
+        let b2 = mode_line.video_memory_offset as f32;
+        let b3 = mode_line.charset_memory_offset as f32;
+
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+        self.custom.push([b0, b1, b2, b3]);
+
+        self.indices.extend(
+            [
+                index_offset + 0,
+                index_offset + 2,
+                index_offset + 1,
+                index_offset + 0,
+                index_offset + 3,
+                index_offset + 2,
+            ]
+            .iter(),
+        );
+    }
+}
+
 #[derive(RenderResources, Default, TypeUuid, Debug)]
 #[uuid = "f145d910-99c5-4df5-b673-e822b1389222"]
 pub struct AtariPalette {
     pub palette: Palette,
+}
+
+#[derive(Debug, RenderResources, TypeUuid)]
+#[uuid = "dace545e-4bc6-4595-a79d-1124fa694977"]
+pub struct CustomTexture {
+    pub color: Color,
+    pub texture: Option<Handle<Texture>>,
 }
