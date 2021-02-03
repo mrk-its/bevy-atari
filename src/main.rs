@@ -18,10 +18,13 @@ mod render_resources;
 pub mod sio;
 mod system;
 use antic::ANTIC_DATA_HANDLE;
-use bevy::{render::renderer::{RenderContext, RenderResourceContext}, utils::Duration};
 use bevy::{
     core::{Time, Timer},
     render::texture::{Extent3d, TextureDimension, TextureFormat},
+};
+use bevy::{
+    render::renderer::{RenderContext, RenderResourceContext},
+    utils::Duration,
 };
 
 use bevy::{
@@ -194,9 +197,9 @@ fn keyboard_system(
         break;
     }
     autorepeat_disabled.timer.tick(time.delta_seconds());
-    if !handled && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
-        cpu.interrupt_request();
-    }
+    // if !handled && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
+    //     cpu.interrupt_request();
+    // }
 }
 
 struct FPSState(Timer);
@@ -363,6 +366,7 @@ fn atari_system(
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
     mut atari_data_assets: ResMut<Assets<AnticData>>,
+    keyboard: Res<Input<KeyCode>>,
 ) {
     if frame.paused {
         return;
@@ -381,10 +385,13 @@ fn atari_system(
     //     },
     // );
 
-
     loop {
         if atari_system.antic.scan_line == 8 && atari_system.antic.cycle == 0 {
             antic_data.clear();
+        } else if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0)
+            && atari_system.handle_keyboard(&keyboard, &mut *cpu)
+        {
+            cpu.interrupt_request();
         }
 
         match cpu.program_counter {
@@ -580,12 +587,11 @@ fn setup(
     // total: 42240
     // 42240 / (256 * 4 * 4) = 10.3125
 
-
     let texture = Texture::new_fill(
         Extent3d::new(256, 11, 1),
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::Rgba32Uint
+        TextureFormat::Rgba32Uint,
     );
 
     tex.set_untracked(DATA_TEXTURE_HANDLE, texture);
