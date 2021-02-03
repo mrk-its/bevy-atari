@@ -232,7 +232,7 @@
   </script>
 
   <script type="module">
-    import init, { set_joystick, set_binary_data, cmd, reset, set_state } from './wasm.js?v=11'
+    import init, { set_joystick, set_binary_data, cmd, reset, set_state } from './wasm.js'
     async function run() {
       try {
         await init()
@@ -255,6 +255,32 @@
         update_fragment();
         console.log("done");
       })
+
+      var anim_frame = null;
+
+      function gamepadPoll() {
+        var gamepads = navigator.getGamepads();
+        var gamepad = gamepads && gamepads[0];
+        if(gamepad) {
+          let up = gamepad.buttons[12].pressed;
+          let down = gamepad.buttons[13].pressed;
+          let left = gamepad.buttons[14].pressed;
+          let right = gamepad.buttons[15].pressed;
+          let fire = gamepad.buttons[0].pressed || gamepad.buttons[1].pressed || gamepad.buttons[2].pressed | gamepad.buttons[3].pressed;
+          set_joystick(0, up, down, left, right, fire);
+        }
+        anim_frame = requestAnimationFrame(gamepadPoll);
+      }
+      window.addEventListener("gamepadconnected", function(e) {
+        gamepadPoll();
+        console.log("gamepad connected: ", e.gamepad);
+      });
+
+      window.addEventListener("gamepaddisconnected", function(e) {
+        anim_frame && cancelAnimationFrame(anim_frame);
+        console.log("gamepad disconnected");
+      });
+
     }
     run();
 
@@ -280,6 +306,7 @@
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
+      <a href="#" onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
     </div>
     <div class="files">
       <div id="osrom">
