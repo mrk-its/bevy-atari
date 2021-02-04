@@ -776,7 +776,7 @@ fn main() {
 
     let mut frame = FrameState::default();
     // frame.break_point = Some(BreakPoint::IndirectPC(0x2e2));
-    frame.break_point = Some(BreakPoint::PC(0xa000));
+    // frame.break_point = Some(BreakPoint::PC(0xa000));
 
     app.add_resource(State::new(EmulatorState::Idle))
         // .add_resource(ClearColor(gtia::atari_color(0)))

@@ -21,6 +21,10 @@ web = [
   "bevy_webgl2"
 ]
 
+x11 = [
+  "winit/x11"
+]
+
 [dependencies]
 bevy = {version="0.4.0", default-features=false}
 bevy_webgl2 = {version = "0.4.2", default-features=true, optional=true}
