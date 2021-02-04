@@ -19,7 +19,6 @@ bitflags! {
 }
 
 pub struct AtariSystem {
-    portb: PORTB,
     consol: [u8; 2],
     ram: [u8; 0x20000],
     osrom: [u8; 0x4000],
@@ -46,7 +45,6 @@ impl AtariSystem {
         let consol = [0; 2];
 
         AtariSystem {
-            portb: PORTB::from_bits_truncate(0xff),
             consol,
             ram,
             osrom,
@@ -62,10 +60,12 @@ impl AtariSystem {
 
     #[inline(always)]
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
-        if !antic && !self.portb.contains(PORTB::CPU_SELECT_NEG)
-            || antic && !self.portb.contains(PORTB::ANITC_SELECT_NEG)
+        if !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
+            || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG)
         {
-            (addr & 0x3fff) + 0x10000 + (((self.portb & PORTB::BANK_MASK).bits as usize) << 12)
+            (addr & 0x3fff)
+                + 0x10000
+                + (((self.pia.portb_out() & PORTB::BANK_MASK).bits as usize) << 12)
         } else {
             addr
         }
@@ -76,8 +76,8 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x57 => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED)
-                    && !self.portb.contains(PORTB::SELFTEST_DISABLED))
+                if !(self.pia.portb_out().contains(PORTB::OSROM_ENABLED)
+                    && !self.pia.portb_out().contains(PORTB::SELFTEST_DISABLED))
                 {
                     self.ram[self.bank_offset(addr, antic)]
                 } else {
@@ -85,7 +85,7 @@ impl AtariSystem {
                 }
             }
             0xA0..=0xBF => {
-                if !self.portb.contains(PORTB::BASIC_DISABLED) {
+                if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
                     self.basic[addr & 0x1fff]
                 } else {
                     self.ram[addr]
@@ -97,7 +97,7 @@ impl AtariSystem {
             0xD3 => self.pia.read(addr),
             0xD4 => self.antic.read(addr),
             0xC0..=0xFF => {
-                if self.portb.contains(PORTB::OSROM_ENABLED) {
+                if self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
                     self.osrom[addr & 0x3fff]
                 } else {
                     self.ram[addr]
@@ -111,14 +111,14 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x5F => {
-                if !(self.portb.contains(PORTB::OSROM_ENABLED)
-                    && !self.portb.contains(PORTB::SELFTEST_DISABLED))
+                if !(self.pia.portb_out().contains(PORTB::OSROM_ENABLED)
+                    && !self.pia.portb_out().contains(PORTB::SELFTEST_DISABLED))
                 {
                     self.ram[self.bank_offset(addr, antic)] = value
                 }
             }
             0xA0..=0xBF => {
-                if self.portb.contains(PORTB::BASIC_DISABLED) {
+                if self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
                     self.ram[addr] = value
                 }
             }
@@ -126,13 +126,10 @@ impl AtariSystem {
             0xD2 => self.pokey.write(addr, value),
             0xD3 => {
                 self.pia.write(addr, value);
-                if addr & 0xff == 1 {
-                    self.portb = PORTB::from_bits_truncate(value);
-                }
             }
             0xD4 => self.antic.write(addr, value),
             0xC0..=0xFF => {
-                if !self.portb.contains(PORTB::OSROM_ENABLED) {
+                if !self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
                     self.ram[addr] = value
                 }
             }
@@ -179,12 +176,12 @@ impl AtariSystem {
     }
 
     pub fn load_atari800_state(&mut self, atari800_state: &Atari800State) {
-        self.portb = PORTB::from_bits_truncate(atari800_state.memory.portb);
+        self.pia.set_portb_out(atari800_state.memory.portb);
         self.ram[0..0x10000].copy_from_slice(atari800_state.memory.data);
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
         self.basic.copy_from_slice(atari800_state.memory.basic);
-        if self.portb.contains(PORTB::OSROM_ENABLED) {
+        if self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
             self.ram[0xc000..0x10000].copy_from_slice(atari800_state.memory.under_atarixl_os);
         }
 
@@ -331,7 +328,7 @@ impl AtariSystem {
     pub fn set_joystick(&mut self, port: usize, dirs: u8, fire: bool) {
         // info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
         self.gtia.set_trig(port, fire);
-        self.pia.write_port_a(0xf0, dirs ^ 0xf);
+        self.pia.set_port_a_input(0xf0, dirs ^ 0xf);
     }
 
     pub fn scanline_tick(&mut self) {
