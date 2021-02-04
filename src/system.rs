@@ -20,6 +20,7 @@ bitflags! {
 
 pub struct AtariSystem {
     portb: PORTB,
+    consol: [u8; 2],
     ram: [u8; 0x20000],
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
@@ -42,9 +43,11 @@ impl AtariSystem {
         let gtia = Gtia::default();
         let pia = PIA::default();
         let disk_1 = None;
+        let consol = [0; 2];
 
         AtariSystem {
             portb: PORTB::from_bits_truncate(0xff),
+            consol,
             ram,
             osrom,
             basic,
@@ -264,12 +267,17 @@ impl AtariSystem {
         self.gtia.consol_force_mask = if disable_basic { 0x03 } else { 0x07 };
     }
 
+    pub fn update_consol(&mut self, index: usize, value: u8) {
+        self.consol[index] = value;
+        self.gtia.consol = !(self.consol[0] | self.consol[1]) & 7;
+    }
+
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
         let mut irq = false;
         let start = keyboard.pressed(KeyCode::F2);
         let select = keyboard.pressed(KeyCode::F3);
         let option = keyboard.pressed(KeyCode::F4);
-        self.gtia.consol = !((start as u8) | (select as u8) << 1 | (option as u8) << 2) & 0x07;
+        self.update_consol(0, (start as u8) | (select as u8) << 1 | (option as u8) << 2);
 
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
@@ -310,32 +318,20 @@ impl AtariSystem {
         }
         if !is_ctl && joy_changed {
             let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
-            let up = keyboard.pressed(KeyCode::Up);
-            let down = keyboard.pressed(KeyCode::Down);
-            let left = keyboard.pressed(KeyCode::Left);
-            let right = keyboard.pressed(KeyCode::Right);
-            self.set_joystick(0, up, down, left, right, fire);
+            let up = keyboard.pressed(KeyCode::Up) as u8;
+            let down = keyboard.pressed(KeyCode::Down) as u8 * 2;
+            let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
+            let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
+            self.set_joystick(0, up | down | left | right, fire);
             irq = false;
         }
         return irq && self.pokey.irqen.contains(pokey::IRQ::KEY);
     }
-    pub fn set_joystick(
-        &mut self,
-        port: usize,
-        up: bool,
-        down: bool,
-        left: bool,
-        right: bool,
-        fire: bool,
-    ) {
+
+    pub fn set_joystick(&mut self, port: usize, dirs: u8, fire: bool) {
         // info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
         self.gtia.set_trig(port, fire);
-        let up = up as u8;
-        let down = down as u8 * 2;
-        let left = left as u8 * 4;
-        let right = right as u8 * 8;
-        self.pia
-            .write_port_a(0xf0, (up | down | left | right) ^ 0xf);
+        self.pia.write_port_a(0xf0, dirs ^ 0xf);
     }
 
     pub fn scanline_tick(&mut self) {

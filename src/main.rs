@@ -18,13 +18,10 @@ mod render_resources;
 pub mod sio;
 mod system;
 use antic::ANTIC_DATA_HANDLE;
+use bevy::utils::Duration;
 use bevy::{
     core::{Time, Timer},
     render::texture::{Extent3d, TextureDimension, TextureFormat},
-};
-use bevy::{
-    render::renderer::{RenderContext, RenderResourceContext},
-    utils::Duration,
 };
 
 use bevy::{
@@ -43,7 +40,6 @@ use bevy::{
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use rand::distributions::Standard;
 use render_resources::{AnticData, AtariPalette, CustomTexture};
 use system::{
     antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE},
@@ -108,6 +104,7 @@ struct PerfMetrics {
 #[derive(Debug)]
 enum BreakPoint {
     PC(u16),
+    IndirectPC(u16),
     NotPC(u16),
     ScanLine(usize),
 }
@@ -151,10 +148,9 @@ fn keyboard_system(
     mut autorepeat_disabled: Local<AutoRepeatTimer>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
-    mut cpu: ResMut<MOS6502>,
+    cpu: ResMut<MOS6502>,
 ) {
-    let handled = if autorepeat_disabled.timer.finished() {
-        let mut handled = true;
+    if autorepeat_disabled.timer.finished() {
         if keyboard.just_pressed(KeyCode::F7) {
             display_config.fps = !display_config.fps;
         } else if keyboard.just_pressed(KeyCode::F8) {
@@ -178,13 +174,8 @@ fn keyboard_system(
             }
         } else if keyboard.pressed(KeyCode::F12) {
             frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
-        } else {
-            handled = false;
-        };
-        handled
-    } else {
-        false
-    };
+        }
+    }
     for _ in keyboard.get_just_pressed() {
         autorepeat_disabled.timer.set_duration(0.2);
         autorepeat_disabled.timer.set_repeating(false);
@@ -197,9 +188,6 @@ fn keyboard_system(
         break;
     }
     autorepeat_disabled.timer.tick(time.delta_seconds());
-    // if !handled && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
-    //     cpu.interrupt_request();
-    // }
 }
 
 struct FPSState(Timer);
@@ -371,7 +359,7 @@ fn atari_system(
     if frame.paused {
         return;
     }
-    let debug_mode = frame.paused || frame.break_point.is_some();
+    let mut prev_pc = 0;
     let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
     // let data_texture = textures.get_mut(DATA_TEXTURE_HANDLE).unwrap();
 
@@ -429,6 +417,19 @@ fn atari_system(
                         display_config.debug = true;
                     }
                 }
+                Some(BreakPoint::IndirectPC(addr)) => {
+                    let pc =
+                        atari_system.read(addr) as u16 + atari_system.read(addr + 1) as u16 * 256;
+                    if prev_pc != pc {
+                        prev_pc = pc;
+                        info!("run addr: {:x?}", pc);
+                    }
+                    if cpu.program_counter == pc {
+                        // frame.clear_break_point();
+                        frame.paused = true;
+                        display_config.debug = true;
+                    }
+                }
                 _ => (),
             }
         }
@@ -481,14 +482,12 @@ fn events(
                     _ => panic!("invalid state requested"),
                 };
             }
-            js_api::Message::JoyState {
-                port,
-                up,
-                down,
-                left,
-                right,
-                fire,
-            } => atari_system.set_joystick(port, up, down, left, right, fire),
+            js_api::Message::JoyState { port, dirs, fire } => {
+                atari_system.set_joystick(port, dirs, fire)
+            }
+            js_api::Message::SetConsol { state } => {
+                atari_system.update_consol(1, state);
+            }
             js_api::Message::BinaryData { key, data, .. } => match key.as_str() {
                 "basic" => {
                     atari_system.set_basic(data);
@@ -498,7 +497,7 @@ fn events(
                     atari_system.set_osrom(data);
                     atari_system.reset(&mut *cpu, true, true);
                     atari_system.antic = antic::Antic::default();
-                    *frame = FrameState::default();
+                    // *frame = FrameState::default();
                     info!("RESET! {:04x}", cpu.program_counter);
                 }
                 "disk_1" => {
@@ -509,7 +508,7 @@ fn events(
                         let data = gunzip(&data);
                         let a800_state = atari800_state::Atari800State::new(&data);
                         a800_state.reload(&mut *atari_system, &mut *cpu);
-                        *frame = FrameState::default();
+                        // *frame = FrameState::default();
                         state.set_next(EmulatorState::Running).ok();
                         info!("LOADED! {:?}", *state);
                     }
@@ -776,13 +775,15 @@ fn main() {
     system.reset(&mut cpu, true, true);
 
     let mut frame = FrameState::default();
-    frame.break_point = Some(BreakPoint::PC(0x2002));
+    // frame.break_point = Some(BreakPoint::IndirectPC(0x2e2));
+    frame.break_point = Some(BreakPoint::PC(0xa000));
 
     app.add_resource(State::new(EmulatorState::Idle))
         // .add_resource(ClearColor(gtia::atari_color(0)))
         .add_resource(DisplayConfig {
             fps: true,
             debug: false,
+
         })
         .add_resource(system)
         .add_resource(cpu)

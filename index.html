@@ -160,7 +160,7 @@
       if (url) {
         fetch_binary_data("", url).then(update_fragment);
       } else {
-        for(file of event.dataTransfer.files) {
+        for (file of event.dataTransfer.files) {
           handle_file(file);
         }
       }
@@ -181,10 +181,10 @@
     }
 
     function update_status() {
-      for(key of ['disk_1', 'osrom', 'basic']) {
+      for (key of ['disk_1', 'osrom', 'basic']) {
         let fn = localStorage[`${key}_filename`];
         let sel = document.querySelector(`#${key} span`);
-        if(fn) {
+        if (fn) {
           sel.innerText = fn;
         } else {
           sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
@@ -223,7 +223,7 @@
       //   let file = await handle.getFile();
       //   handle_file(file);
       // }
-      for(file of event.target.files) {
+      for (file of event.target.files) {
         console.log(file);
         handle_file(file);
       }
@@ -232,7 +232,7 @@
   </script>
 
   <script type="module">
-    import init, { set_joystick, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
+    import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
     async function run() {
       try {
         await init()
@@ -261,22 +261,27 @@
       function gamepadPoll() {
         var gamepads = navigator.getGamepads();
         var gamepad = gamepads && gamepads[0];
-        if(gamepad) {
-          let up = gamepad.buttons[12].pressed;
-          let down = gamepad.buttons[13].pressed;
-          let left = gamepad.buttons[14].pressed;
-          let right = gamepad.buttons[15].pressed;
-          let fire = gamepad.buttons[0].pressed || gamepad.buttons[1].pressed || gamepad.buttons[2].pressed | gamepad.buttons[3].pressed;
-          set_joystick(0, up, down, left, right, fire);
+        if (gamepad) {
+          let dirs = (
+            gamepad.buttons[12].pressed
+            + gamepad.buttons[13].pressed * 2
+            + gamepad.buttons[14].pressed * 4
+            + gamepad.buttons[15].pressed * 8
+          );
+          let fire = gamepad.buttons[1].pressed;
+          set_joystick(0, dirs, fire);
+          set_consol(
+            gamepad.buttons[0].pressed + gamepad.buttons[2].pressed * 2 + gamepad.buttons[3].pressed * 4
+          )
         }
         anim_frame = requestAnimationFrame(gamepadPoll);
       }
-      window.addEventListener("gamepadconnected", function(e) {
+      window.addEventListener("gamepadconnected", function (e) {
         gamepadPoll();
         console.log("gamepad connected: ", e.gamepad);
       });
 
-      window.addEventListener("gamepaddisconnected", function(e) {
+      window.addEventListener("gamepaddisconnected", function (e) {
         anim_frame && cancelAnimationFrame(anim_frame);
         console.log("gamepad disconnected");
       });
@@ -306,7 +311,8 @@
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
-      <a href="#" onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
+      <a href="#"
+        onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
     </div>
     <div class="files">
       <div id="osrom">

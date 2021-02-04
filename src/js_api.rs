@@ -8,11 +8,11 @@ pub static ARRAY: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]))
 pub enum Message {
     JoyState {
         port: usize,
-        up: bool,
-        down: bool,
-        left: bool,
-        right: bool,
+        dirs: u8,
         fire: bool,
+    },
+    SetConsol {
+        state: u8,
     },
     BinaryData {
         key: String,
@@ -31,16 +31,18 @@ pub enum Message {
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn set_joystick(port: usize, up: bool, down: bool, left: bool, right: bool, fire: bool) {
+pub fn set_joystick(port: usize, dirs: u8, fire: bool) {
+    bevy::utils::tracing::info!("set_joystick: {:?} {:?} {:?}", port, dirs, fire);
     let mut guard = ARRAY.write();
-    guard.push(Message::JoyState {
-        port,
-        left,
-        right,
-        up,
-        down,
-        fire,
-    });
+    guard.push(Message::JoyState { port, dirs, fire });
+}
+
+#[allow(dead_code)]
+#[wasm_bindgen]
+pub fn set_consol(state: u8) {
+    bevy::utils::tracing::info!("set_consol: {:?}", state);
+    let mut guard = ARRAY.write();
+    guard.push(Message::SetConsol { state });
 }
 
 #[allow(dead_code)]

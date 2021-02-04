@@ -15,7 +15,7 @@ use bevy::{
     prelude::*,
     render::{mesh::Indices, pipeline::PrimitiveTopology},
 };
-use std::{char, convert::TryInto};
+use std::convert::TryInto;
 
 #[repr(C)]
 #[derive(Clone, Debug)]
@@ -55,44 +55,6 @@ impl Bytes for Charset {
 }
 
 impl_render_resource_bytes!(Charset);
-
-#[repr(C)]
-#[derive(Clone, Debug)]
-pub struct VideoMemory {
-    pub data: Vec<u8>,
-}
-
-impl VideoMemory {
-    pub fn push(&mut self, system: &mut AtariSystem, atari_offs: usize, size: usize) -> usize {
-        let offset = self.data.len();
-        unsafe { self.data.set_len(offset + size) }
-        system.antic_copy_to_slice(atari_offs as u16, &mut self.data[offset..offset + size]);
-        offset
-    }
-}
-
-impl VideoMemory {
-    fn new(capacity: usize) -> Self {
-        Self {
-            data: Vec::with_capacity(capacity),
-        }
-    }
-}
-
-impl Bytes for VideoMemory {
-    fn write_bytes(&self, buffer: &mut [u8]) {
-        self.data.write_bytes(buffer);
-    }
-
-    fn byte_len(&self) -> usize {
-        self.data.len()
-    }
-
-    fn byte_capacity(&self) -> usize {
-        self.data.capacity()
-    }
-}
-impl_render_resource_bytes!(VideoMemory);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]

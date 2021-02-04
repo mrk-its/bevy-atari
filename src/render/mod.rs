@@ -1,6 +1,10 @@
 use std::borrow::Cow;
 
-use bevy::render::{pipeline::PrimitiveTopology, render_graph::{Node, PassNode}, renderer::{BufferId, BufferInfo, BufferUsage, RenderResourceContext}};
+use bevy::render::{
+    pipeline::PrimitiveTopology,
+    render_graph::{Node, PassNode},
+    renderer::{BufferId, BufferInfo, BufferUsage},
+};
 use bevy::render::{
     render_graph::RenderGraph,
     texture::{Extent3d, TextureFormat},
@@ -108,7 +112,6 @@ impl AnticRendererGraphBuilder for RenderGraph {
         let mut textures = resources.get_mut::<Assets<Texture>>().unwrap();
         let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
         let mut pass_order: Vec<&str> = Vec::new();
-        let render_resource_context = resources.get_mut::<Box<dyn RenderResourceContext>>();
 
         pass_order.push(ANTIC_PASS);
 
