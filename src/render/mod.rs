@@ -97,7 +97,7 @@ pub trait AnticRendererGraphBuilder {
         resources: &Resources,
         texture_size: &Vec2,
         enable_collisions: bool,
-        collision_agg_height: Option<u32>,
+        collision_agg_size: Option<(u32, u32)>,
     ) -> &mut Self;
 }
 
@@ -107,7 +107,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
         resources: &Resources,
         texture_size: &Vec2,
         enable_collisions: bool,
-        collision_agg_height: Option<u32>,
+        collision_agg_size: Option<(u32, u32)>,
     ) -> &mut Self {
         let mut textures = resources.get_mut::<Assets<Texture>>().unwrap();
         let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
@@ -197,7 +197,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
             )
             .unwrap();
 
-            let (index, height) = if let Some(collision_agg_height) = collision_agg_height {
+            let (index, width, height) = if let Some((width, height)) = collision_agg_size {
                 let mut collisions_agg_pass_node =
                     PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
                         color_attachments: vec![RenderPassColorAttachmentDescriptor {
@@ -224,7 +224,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 self.add_node_edge(COLLISIONS_AGG_CAMERA, COLLISIONS_AGG_PASS)
                     .unwrap();
                 let collisions_agg_texture = Texture::new(
-                    Extent3d::new(texture_size.x as u32, collision_agg_height, 1),
+                    Extent3d::new(width as u32, height, 1),
                     TextureDimension::D2,
                     vec![],
                     texture_format,
@@ -244,16 +244,16 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 .unwrap();
                 self.add_node_edge(COLLISIONS_AGG_TEXTURE, COLLISIONS_AGG_PASS)
                     .unwrap();
-                (0, collision_agg_height)
+                (0, width, height)
             } else {
-                (1, texture_size.y as u32)
+                (1, texture_size.x as u32, texture_size.y as u32)
             };
 
             self.add_node(
                 COLLISIONS_BUFFER,
                 CollisionsBufferNode {
                     buffer_info: BufferInfo {
-                        size: texture_size.x as usize * height as usize * 16,
+                        size: width as usize * height as usize * 16,
                         buffer_usage: BufferUsage::COPY_DST | BufferUsage::INDIRECT,
                         mapped_at_creation: false,
                     },

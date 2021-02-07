@@ -726,7 +726,7 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
 pub struct AnticPlugin {
     pub texture_size: Vec2,
     pub enable_collisions: bool,
-    pub collision_agg_height: Option<u32>,
+    pub collision_agg_size: Option<(u32, u32)>,
 }
 
 #[derive(Default)]
@@ -812,7 +812,7 @@ impl Plugin for AnticPlugin {
             resources,
             &size,
             self.enable_collisions,
-            self.collision_agg_height,
+            self.collision_agg_size,
         );
     }
 }

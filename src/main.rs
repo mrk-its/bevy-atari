@@ -67,7 +67,7 @@ pub const TEST_MATERIAL_HANDLE: HandleUntyped =
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
-pub const COLLISION_AGG_HEIGHT: Option<u32> = Some(15);
+pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 15));
 
 #[derive(Default, Bundle)]
 pub struct Parent {
@@ -624,11 +624,26 @@ fn setup(
     );
 
     commands.spawn(entities::create_antic_camera(ANTIC_TEXTURE_SIZE));
-    if let Some(collision_agg_height) = COLLISION_AGG_HEIGHT {
+    if let Some((width, height)) = COLLISION_AGG_SIZE {
         commands.spawn(entities::create_collisions_camera(Vec2::new(
-            ANTIC_TEXTURE_SIZE.x,
-            collision_agg_height as f32,
+            width as f32,
+            height as f32,
         )));
+
+        let mesh = Mesh::from(shape::Quad::new(Vec2::new(width as f32, height as f32)));
+        let mesh_handle = meshes.add(mesh);
+        let bundle = entities::CollisionsAggBundle {
+            mesh: mesh_handle,
+            render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                COLLISIONS_PIPELINE_HANDLE.typed(),
+            )]),
+            texture: COLLISIONS_MATERIAL_HANDLE.typed(),
+            ..Default::default()
+        };
+
+        info!("bundle: {:?}", bundle.render_pipelines);
+        commands.spawn(bundle);
+
     }
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
@@ -639,19 +654,6 @@ fn setup(
         ..Default::default()
     });
 
-    let mesh = Mesh::from(shape::Quad::new(Vec2::new(384.0, 1.0)));
-    let mesh_handle = meshes.add(mesh);
-    let bundle = entities::CollisionsAggBundle {
-        mesh: mesh_handle,
-        render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
-            COLLISIONS_PIPELINE_HANDLE.typed(),
-        )]),
-        texture: COLLISIONS_MATERIAL_HANDLE.typed(),
-        ..Default::default()
-    };
-
-    info!("bundle: {:?}", bundle.render_pipelines);
-    commands.spawn(bundle);
 
     commands
         .spawn(Camera2dBundle {
@@ -766,7 +768,7 @@ fn main() {
     app.add_plugin(antic::AnticPlugin {
         texture_size: ANTIC_TEXTURE_SIZE,
         enable_collisions: true,
-        collision_agg_height: COLLISION_AGG_HEIGHT,
+        collision_agg_size: COLLISION_AGG_SIZE,
     });
     app.add_plugin(FrameTimeDiagnosticsPlugin::default());
 

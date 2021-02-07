@@ -22,7 +22,7 @@ uniform usampler2D CustomTexture_texture;  // set = 1, binding = 2
 // 240 / 15 = 16
 // so we want to aggregate 15 strips 384.0 x 16.0
 
-const int TEXTURE_HEIGHT = 1;
+const int TEXTURE_HEIGHT = 15;
 const int STRIP_HEIGHT = 240 / TEXTURE_HEIGHT;
 
 void main() {
