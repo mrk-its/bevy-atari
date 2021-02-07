@@ -114,6 +114,9 @@ void main() {
     vec4 hposm = get_gtia_hposm_vec4() * 2.0 + hpos_offs;
 
     int color_reg_index = 0; // bg_color
+    int prior = get_gtia_prior();
+    int gtia_mode = prior >> 6;
+    int color_reg = 0;
 
     if(mode == 0x0 || px < 0.0 || px >= line_width) {
 
@@ -121,17 +124,35 @@ void main() {
         float w = px_scrolled / 8.0;
         int n = int(w);
         float frac = w - float(n);
-        int x = 7 - int(frac * 8.0);
 
         int c = get_video_memory(n);
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
         int byte = get_charset_memory(offs);
 
-        int pixel_val = (((byte >> x) & 1) ^ inv);
-
-        color_reg_index = 3 - pixel_val;  // pf2 pf1
-        hires = true;
+        if(gtia_mode == 0) {
+            int bit_offs = 7 - int(frac * 8.0);
+            int pixel_val = (((byte >> bit_offs) & 1) ^ inv);
+            color_reg_index = 3 - pixel_val;  // pf2 pf1
+            hires = true;
+        } else {
+            int bit_offs = 4-int(frac * 2.0) * 4; // nibble offset
+            int value = (byte >> bit_offs) & 0xf;
+            if(gtia_mode == 1) {
+                color_reg = value | get_color_reg(0) & 0xf0;
+            } else if(gtia_mode == 3) {
+                color_reg = value << 4;
+                if(color_reg>0) color_reg |= get_color_reg(0) & 0xf;
+            } else if(gtia_mode == 2) {
+                if(value < 4) {
+                    color_reg_index = value + 1;
+                } else if(value < 8) {
+                    color_reg = get_gtia_colpm(value - 4);
+                } else {
+                    color_reg = get_color_reg(0);
+                }
+            };
+        };
     } else if(mode == 0x04 || mode == 0x05) {
         float w = px_scrolled / 8.0;
         int n = int(w);
@@ -188,19 +209,36 @@ void main() {
         int byte = get_video_memory(n);
         color_reg_index = (byte >> bit_offs) & 3;
     } else if(mode == 0x0f) {
-
         float w = px_scrolled / 8.0;
         int n = int(w); // byte offset
         float frac = w - float(n);
-        int bit_offs = 7-int(frac * 8.0); // bit offset in byte
-
         int byte = get_video_memory(n);
-        int pixel_val = (byte >> bit_offs) & 1;
-        color_reg_index = 3 - pixel_val;
-        hires = true;
+
+        if(gtia_mode == 0) {
+            int bit_offs = 7-int(frac * 8.0); // bit offset in byte
+            int pixel_val = (byte >> bit_offs) & 1;
+            color_reg_index = 3 - pixel_val;
+            hires = true;
+        } else {
+            int bit_offs = 4-int(frac * 2.0) * 4; // nibble offset
+            int value = (byte >> bit_offs) & 0xf;
+            if(gtia_mode == 1) {
+                color_reg = value | get_color_reg(0) & 0xf0;
+            } else if(gtia_mode == 3) {
+                color_reg = value << 4;
+                if(color_reg>0) color_reg |= get_color_reg(0) & 0xf;
+            } else if(gtia_mode == 2) {
+                if(value < 4) {
+                    color_reg_index = value + 1;
+                } else if(value < 8) {
+                    color_reg = get_gtia_colpm(value - 4);
+                } else {
+                    color_reg = get_color_reg(0);
+                }
+            };
+        };
     };
 
-    int prior = get_gtia_prior();
     bool pri0 = (prior & 1) > 0;
     bool pri1 = (prior & 2) > 0;
     bool pri2 = (prior & 4) > 0;
@@ -249,7 +287,6 @@ void main() {
     bool sb = !p01  &&  !p23  &&  !pf01  &&  !pf23;
 
 
-    int color_reg = 0;
     if(sp0) color_reg |= get_gtia_colpm(0);
     if(sp1) color_reg |= get_gtia_colpm(1);
     if(sp2) color_reg |= get_gtia_colpm(2);
@@ -258,7 +295,8 @@ void main() {
     if(sf1) color_reg |= get_color_reg(2);
     if(sf2) color_reg |= get_color_reg(3);
     if(sf3) color_reg |= get_color_reg(4);
-    if(sb) color_reg |= get_color_reg(0);
+    if(sb && gtia_mode == 0) color_reg |= get_color_reg(0);
+
     if(hires && color_reg_index == 2) {
         color_reg = color_reg & 0xf0 | (get_color_reg(2) & 0xf);
     }

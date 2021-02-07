@@ -643,7 +643,6 @@ fn setup(
 
         info!("bundle: {:?}", bundle.render_pipelines);
         commands.spawn(bundle);
-
     }
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
@@ -653,7 +652,6 @@ fn setup(
         material: ATARI_MATERIAL_HANDLE.typed(),
         ..Default::default()
     });
-
 
     commands
         .spawn(Camera2dBundle {
@@ -785,7 +783,6 @@ fn main() {
         .add_resource(DisplayConfig {
             fps: true,
             debug: false,
-
         })
         .add_resource(system)
         .add_resource(cpu)

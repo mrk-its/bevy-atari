@@ -12,15 +12,17 @@ bitflags! {
         const OSROM_ENABLED = 0x01;
         const BASIC_DISABLED = 0x02;
         const SELFTEST_DISABLED = 0x80;
+        const UNUSED = 0x40;
         const ANITC_SELECT_NEG = 0x20;
         const CPU_SELECT_NEG = 0x10;
         const BANK_MASK = 0b1100;
+        const BANK_SELECT_NEG = 0x30;
     }
 }
 
 pub struct AtariSystem {
     consol: [u8; 2],
-    ram: [u8; 0x20000],
+    ram: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
     pub antic: Antic,
@@ -34,7 +36,8 @@ pub struct AtariSystem {
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
-        let ram = [0x0; 0x20000];
+        let mut ram: Vec<u8> = Vec::new();
+        ram.resize_with(320 * 1024, || 0);
         let osrom = [0x00; 0x4000];
         let basic = [0x00; 0x2000];
         let antic = Antic::default();
@@ -63,9 +66,9 @@ impl AtariSystem {
         if !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
             || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG)
         {
-            (addr & 0x3fff)
-                + 0x10000
-                + (((self.pia.portb_out() & PORTB::BANK_MASK).bits as usize) << 12)
+            let portb = self.pia.portb_out().bits;
+            let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
+            (addr & 0x3fff) + 0x10000 + (bank_nr * 16384)
         } else {
             addr
         }
@@ -76,12 +79,14 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x57 => {
-                if !(self.pia.portb_out().contains(PORTB::OSROM_ENABLED)
-                    && !self.pia.portb_out().contains(PORTB::SELFTEST_DISABLED))
+                let portb = self.pia.portb_out();
+                if portb.contains(PORTB::OSROM_ENABLED)
+                    && !portb.contains(PORTB::SELFTEST_DISABLED)
+                    && (portb & PORTB::BANK_SELECT_NEG) == PORTB::BANK_SELECT_NEG
                 {
-                    self.ram[self.bank_offset(addr, antic)]
-                } else {
                     self.osrom[0x1000 + (addr & 0x7ff)]
+                } else {
+                    self.ram[self.bank_offset(addr, antic)]
                 }
             }
             0xA0..=0xBF => {
@@ -111,10 +116,13 @@ impl AtariSystem {
         let addr = addr as usize;
         match addr >> 8 {
             0x50..=0x5F => {
-                if !(self.pia.portb_out().contains(PORTB::OSROM_ENABLED)
-                    && !self.pia.portb_out().contains(PORTB::SELFTEST_DISABLED))
+                let portb = self.pia.portb_out();
+                if !(portb.contains(PORTB::OSROM_ENABLED)
+                    && !portb.contains(PORTB::SELFTEST_DISABLED)
+                    && (portb & PORTB::BANK_SELECT_NEG) == PORTB::BANK_SELECT_NEG)
                 {
-                    self.ram[self.bank_offset(addr, antic)] = value
+                    let offs = self.bank_offset(addr, antic);
+                    self.ram[offs] = value
                 }
             }
             0xA0..=0xBF => {
@@ -133,7 +141,10 @@ impl AtariSystem {
                     self.ram[addr] = value
                 }
             }
-            0x40..=0x7f => self.ram[self.bank_offset(addr, antic)] = value,
+            0x40..=0x7f => {
+                let offs = self.bank_offset(addr, antic);
+                self.ram[offs] = value;
+            }
             _ => self.ram[addr] = value,
         }
     }
