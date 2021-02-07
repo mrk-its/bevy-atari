@@ -17,8 +17,8 @@ mod consts {
 use consts::*;
 
 fn set_sio_status(cpu: &mut MOS6502, atari_system: &mut AtariSystem, status: u8) {
-    cpu.status_register = (cpu.status_register & 0x7f) | (status & 0x80);
-    cpu.y_register = status;
+    cpu.set_status_register((cpu.get_status_register() & 0x7f) | (status & 0x80));
+    cpu.set_y_register(status);
     atari_system.write(0x303, status);
 }
 
@@ -69,8 +69,9 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
     };
     set_sio_status(cpu, atari_system, status);
 
-    let fp = cpu.stack_pointer as u16 + 0x100;
+    let sp = cpu.get_stack_pointer();
+    let fp = sp as u16 + 0x100;
     let pc = atari_system.read(fp + 1) as u16 + 256 * atari_system.read(fp + 2) as u16 + 1;
-    cpu.stack_pointer += 2;
-    cpu.program_counter = pc;
+    cpu.set_stack_pointer(sp.wrapping_add(2));
+    cpu.set_program_counter(pc);
 }

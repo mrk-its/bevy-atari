@@ -27,12 +27,13 @@ x11 = [
 
 [dependencies]
 bevy = {version="0.4.0", default-features=false}
-bevy_webgl2 = {version = "0.4.2", default-features=true, optional=true}
+bevy_webgl2 = {version = "0.4.3", default-features=true, optional=true}
 winit = {version = "0.24.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {path="../emulator_6502", features=["binary_coded_decimal", "illegal_opcodes"]}
 disasm6502 = "0.2"
-rand = {version = "0.7", features = ["small_rng"]}
-wasm-bindgen = "0.2.69"
+rand = {version = "0.8", features = ["small_rng"]}
+getrandom = { version = "0.1", features = ["wasm-bindgen"] }
+wasm-bindgen = "0.2.70"
 once_cell = "1.5.2"
 parking_lot = "0.11.1"
 bitflags = "1.2"

@@ -258,12 +258,12 @@ pub struct Atari800State<'a> {
 impl<'a> Atari800State<'a> {
     pub fn reload(&self, atari_system: &mut crate::system::AtariSystem, cpu: &mut MOS6502) {
         atari_system.load_atari800_state(self);
-        cpu.program_counter = self.cpu.pc;
-        cpu.accumulator = self.cpu.reg_a;
-        cpu.x_register = self.cpu.reg_x;
-        cpu.y_register = self.cpu.reg_y;
-        cpu.status_register = self.cpu.reg_p;
-        cpu.stack_pointer = self.cpu.reg_s;
+        cpu.set_program_counter(self.cpu.pc);
+        cpu.set_accumulator(self.cpu.reg_a);
+        cpu.set_x_register(self.cpu.reg_x);
+        cpu.set_y_register(self.cpu.reg_y);
+        cpu.set_status_register(self.cpu.reg_p);
+        cpu.set_stack_pointer(self.cpu.reg_s);
     }
 
     pub fn new(data: &[u8]) -> Atari800State {

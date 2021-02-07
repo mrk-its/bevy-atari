@@ -166,14 +166,14 @@ fn keyboard_system(
             let next_scan_line = atari_system.antic.get_next_scanline();
             frame.set_breakpoint(BreakPoint::ScanLine(next_scan_line));
         } else if keyboard.pressed(KeyCode::F11) {
-            if atari_system.read(cpu.program_counter) == 0x20 {
+            if atari_system.read(cpu.get_program_counter()) == 0x20 {
                 // JSR
-                frame.set_breakpoint(BreakPoint::PC(cpu.program_counter + 3));
+                frame.set_breakpoint(BreakPoint::PC(cpu.get_program_counter() + 3));
             } else {
-                frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+                frame.set_breakpoint(BreakPoint::NotPC(cpu.get_program_counter()));
             }
         } else if keyboard.pressed(KeyCode::F12) {
-            frame.set_breakpoint(BreakPoint::NotPC(cpu.program_counter));
+            frame.set_breakpoint(BreakPoint::NotPC(cpu.get_program_counter()));
         }
     }
     for _ in keyboard.get_just_pressed() {
@@ -268,11 +268,11 @@ fn debug_overlay_system(
     }
     for mut text in cpu_debug.iter_mut() {
         let mut data = vec![];
-        let f = cpu.status_register;
+        let f = cpu.get_status_register();
         data.extend(atari_text::atascii_to_screen(
             &format!(
                 " A: {:02x}   X: {:02x}     Y: {:02x}   S: {:02x}     F: {}{}-{}{}{}{}{}       {:3} / {:<3}        ",
-                cpu.accumulator, cpu.x_register, cpu.y_register, cpu.stack_pointer,
+                cpu.get_accumulator(), cpu.get_x_register(), cpu.get_y_register(), cpu.get_stack_pointer(),
                 if f & 0x80 > 0 {'N'} else {'-'},
                 if f & 0x40 > 0 {'V'} else {'-'},
                 if f & 0x10 > 0 {'B'} else {'-'},
@@ -285,7 +285,7 @@ fn debug_overlay_system(
             false,
         ));
         data.extend(&[0; 18]);
-        let pc = cpu.program_counter;
+        let pc = cpu.get_program_counter();
         let mut bytes: [u8; 48] = [0; 48];
         atari_system.copy_to_slice(pc, &mut bytes);
         if let Ok(instructions) = disasm6502::from_addr_array(&bytes, pc) {
@@ -382,7 +382,7 @@ fn atari_system(
             cpu.interrupt_request();
         }
 
-        match cpu.program_counter {
+        match cpu.get_program_counter() {
             0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
             _ => (),
         }
@@ -400,19 +400,19 @@ fn atari_system(
 
         cpu.cycle(&mut *atari_system);
 
-        if cpu.remaining_cycles == 0 {
+        if cpu.get_remaining_cycles() == 0 {
             if atari_system.antic.wsync() {
                 atari_system.antic.do_wsync();
             }
             match frame.break_point {
                 Some(BreakPoint::PC(pc)) => {
-                    if cpu.program_counter == pc {
+                    if cpu.get_program_counter() == pc {
                         frame.clear_break_point();
                         display_config.debug = true;
                     }
                 }
                 Some(BreakPoint::NotPC(pc)) => {
-                    if cpu.program_counter != pc {
+                    if cpu.get_program_counter() != pc {
                         frame.clear_break_point();
                         display_config.debug = true;
                     }
@@ -424,7 +424,7 @@ fn atari_system(
                         prev_pc = pc;
                         info!("run addr: {:x?}", pc);
                     }
-                    if cpu.program_counter == pc {
+                    if cpu.get_program_counter() == pc {
                         // frame.clear_break_point();
                         frame.paused = true;
                         display_config.debug = true;
@@ -498,7 +498,7 @@ fn events(
                     atari_system.reset(&mut *cpu, true, true);
                     atari_system.antic = antic::Antic::default();
                     // *frame = FrameState::default();
-                    info!("RESET! {:04x}", cpu.program_counter);
+                    info!("RESET! {:04x}", cpu.get_program_counter());
                 }
                 "disk_1" => {
                     atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
@@ -537,7 +537,7 @@ fn events(
                     }
                     "pc" => {
                         if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                            cpu.program_counter = pc;
+                            cpu.set_program_counter(pc)
                         }
                     }
                     "brk" => {
