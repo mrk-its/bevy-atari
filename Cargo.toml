@@ -29,7 +29,7 @@ x11 = [
 bevy = {version="0.4.0", default-features=false}
 bevy_webgl2 = {version = "0.4.3", default-features=true, optional=true}
 winit = {version = "0.24.0", features = ["web-sys"], default-features = false}
-emulator_6502 = {path="../emulator_6502", features=["binary_coded_decimal", "illegal_opcodes"]}
+emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency"]}
 disasm6502 = "0.2"
 rand = {version = "0.8", features = ["small_rng"]}
 getrandom = { version = "0.1", features = ["wasm-bindgen"] }
