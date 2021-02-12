@@ -137,7 +137,7 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
 }
 
 #[derive(Default)]
-struct AutoRepeatTimer {
+struct KeyboarSystemState {
     timer: Timer,
 }
 
@@ -145,12 +145,13 @@ fn keyboard_system(
     time: Res<Time>,
     mut display_config: ResMut<DisplayConfig>,
     keyboard: Res<Input<KeyCode>>,
-    mut autorepeat_disabled: Local<AutoRepeatTimer>,
+    gamepad_buttons: Res<Input<GamepadButton>>,
+    mut state: Local<KeyboarSystemState>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
     cpu: ResMut<MOS6502>,
 ) {
-    if autorepeat_disabled.timer.finished() {
+    if state.timer.finished() {
         if keyboard.just_pressed(KeyCode::F7) {
             display_config.fps = !display_config.fps;
         } else if keyboard.just_pressed(KeyCode::F8) {
@@ -177,17 +178,34 @@ fn keyboard_system(
         }
     }
     for _ in keyboard.get_just_pressed() {
-        autorepeat_disabled.timer.set_duration(0.2);
-        autorepeat_disabled.timer.set_repeating(false);
-        autorepeat_disabled.timer.reset();
+        state.timer.set_duration(0.2);
+        state.timer.set_repeating(false);
+        state.timer.reset();
         break;
     }
     for _ in keyboard.get_just_released() {
-        autorepeat_disabled.timer.set_duration(0.0);
-        autorepeat_disabled.timer.reset();
+        state.timer.set_duration(0.0);
+        state.timer.reset();
         break;
     }
-    autorepeat_disabled.timer.tick(time.delta_seconds());
+    state.timer.tick(time.delta_seconds());
+
+    let mut consol = 0;
+    for idx in 0..2 {
+        let pad = Gamepad(idx);
+        let dirs = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadUp)) as u8
+            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadDown)) as u8 * 2
+            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadLeft)) as u8 * 4
+            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadRight)) as u8 * 8;
+        let fire = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::East))
+            || gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::LeftTrigger))
+            || gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::RightTrigger));
+        atari_system.set_joystick(idx, dirs, fire);
+        consol |= gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::South)) as u8
+            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::North)) as u8 * 2
+            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::West)) as u8 * 4;
+    }
+    atari_system.update_consol(1, consol);
 }
 
 struct FPSState(Timer);

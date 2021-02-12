@@ -10,6 +10,7 @@ edition = "2018"
 default = [
   "bevy/bevy_winit",
   "bevy/render",
+  "bevy/bevy_gilrs",
   # "bevy/png",
 ]
 
@@ -40,6 +41,8 @@ bitflags = "1.2"
 lru = "0.6"
 anyhow = "1.0"
 flate2 = "1.0"
+gilrs = {version="0.8", features = ["wasm-bindgen"]}
+gilrs-core = {version="0.3"}
 
 [dependencies.web-sys]
 version = "0.3.4"
@@ -61,6 +64,8 @@ features = [
 bevy = {path = "../bevy", default-features=false}
 # bevy_webgl2 = {path = "../bevy_webgl2_mvlabat"}
 bevy_webgl2 = {path = "../bevy_webgl2", default-features=true}
+gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
+gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 
 [profile.dev.package."*"]
 opt-level = 2

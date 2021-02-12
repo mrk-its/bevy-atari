@@ -337,9 +337,13 @@ impl AtariSystem {
     }
 
     pub fn set_joystick(&mut self, port: usize, dirs: u8, fire: bool) {
-        // info!("set_joystick {} {} {} {} {}", up, down, left, right, fire);
+        let (mask, dirs) = if port == 1 {
+            (0x0f, (dirs ^ 0xf) << 4)
+        } else {
+            (0xf0, dirs ^ 0xf)
+        };
         self.gtia.set_trig(port, fire);
-        self.pia.set_port_a_input(0xf0, dirs ^ 0xf);
+        self.pia.set_port_a_input(mask, dirs);
     }
 
     pub fn scanline_tick(&mut self) {
