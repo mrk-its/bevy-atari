@@ -18,20 +18,41 @@ layout(std140) uniform CustomTexture_color {  // set = 1, binding = 1
 
 uniform usampler2D CustomTexture_texture;  // set = 1, binding = 2
 
+
 // collision aggregation texture is 384.0 x 15.0
 // 240 / 15 = 16
 // so we want to aggregate 15 strips 384.0 x 16.0
 
-const int TEXTURE_HEIGHT = 15;
-const int STRIP_HEIGHT = 240 / TEXTURE_HEIGHT;
+// or
+
+// collision aggregation texture is 16.0 x 240.0
+// 384 / 16 = 24
+// so we want to aggregate 16 strips 24.0 x 240.0 px
+
+#define HORIZONTAL_TEXTURE
 
 void main() {
-    int px = int(v_Uv[0] * 384.0);
-    int py = int(v_Uv[1] * float(TEXTURE_HEIGHT)) * STRIP_HEIGHT;
+    uvec4 v = uvec4(0, 0, 0, 0);
 
-    uvec4 x = uvec4(0, 0, 0, 0);
-    for(int y=0; y < STRIP_HEIGHT; y++) {
-        x |= texelFetch(CustomTexture_texture, ivec2(px, py + y), 0);
-    }
-    o_Target = x;
+    #ifdef HORIZONTAL_TEXTURE
+        const int TEXTURE_HEIGHT = 16;
+        const int STRIP_HEIGHT = 240 / TEXTURE_HEIGHT;
+        int px = int(v_Uv[0] * 384.0);
+        int py = int(v_Uv[1] * float(TEXTURE_HEIGHT)) * STRIP_HEIGHT;
+
+        for(int y=0; y < STRIP_HEIGHT; y++) {
+            v |= texelFetch(CustomTexture_texture, ivec2(px, py + y), 0);
+        }
+    #else
+        const int TEXTURE_WIDTH = 16;
+        const int STRIP_WIDTH = 384 / TEXTURE_WIDTH;
+        int px = int(v_Uv[0] * float(TEXTURE_WIDTH)) * STRIP_WIDTH;
+        int py = int(v_Uv[1] * 240.0);
+
+        for(int x=0; x < STRIP_WIDTH; x++) {
+            v |= texelFetch(CustomTexture_texture, ivec2(px + x, py), 0);
+        }
+    #endif
+
+    o_Target = v;
 }

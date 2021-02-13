@@ -642,6 +642,11 @@ pub fn tick(
         }
         atari_system.scanline_tick();
 
+        #[cfg(collision_array)]
+        if atari_system.antic.scan_line >=8 && atari_system.antic.scan_line < 248 {
+            atari_system.gtia.update_collisions_for_scanline(atari_system.antic.scan_line - 8);
+        }
+
         if atari_system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
             if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
                 let b = get_pm_data(atari_system, 0);
@@ -751,19 +756,29 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
         }
         if let Some(buffer_id) = collisions_buffer_node.buffer_id {
             render_resource_context.read_buffer(buffer_id, &mut state.buffer);
-
-            let mut collisions: u64 = 0;
+            let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
             let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
             let data = &data[..data.len() / 8];
-            for (i, v) in data.iter().enumerate() {
-                if (i & 1) == 0 {
-                    collisions |= *v;
+
+            #[cfg(collision_array)]
+            {
+                let len = data.len();
+                let collision_array = &mut atari_system.gtia.collision_array;
+                for (i, v) in data.iter().enumerate() {
+                    if (i & 1) == 0 {
+                        collision_array[i * 240 / len] |= *v;
+                    }
                 }
             }
-
-            if collisions != 0 {
-                let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
-                atari_system.gtia.update_collisions(&collisions);
+            #[cfg(not(collision_array))]
+            {
+                let mut collisions = 0;
+                for (i, v) in data.iter().enumerate() {
+                    if (i & 1) == 0 {
+                        collisions |= *v;
+                    }
+                }
+                atari_system.gtia.update_collisions(collisions)
             }
         }
     }

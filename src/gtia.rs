@@ -72,6 +72,8 @@ bitflags! {
 pub struct Gtia {
     pub scan_line: usize,
     pub regs: GTIARegs,
+    #[cfg(collision_array)]
+    pub collision_array: [u64; 240],
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
     pub gractl: GRACTL,
@@ -85,6 +87,8 @@ impl Default for Gtia {
         Self {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
+            #[cfg(collision_array)]
+            collision_array: [0x0; 240],
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
@@ -133,6 +137,10 @@ impl Gtia {
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
                 self.collisions.iter_mut().for_each(|v| *v = 0);
+                #[cfg(collision_array)]
+                {
+                self.collision_array = [0; 240];
+                }
             }
             _ => (),
         }
@@ -140,7 +148,13 @@ impl Gtia {
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
-    pub fn update_collisions(&mut self, data: &u64) {
+
+    #[cfg(collision_array)]
+    pub fn update_collisions_for_scanline(&mut self, index: usize) {
+        self.update_collisions(self.collision_array[index]);
+    }
+
+    pub fn update_collisions(&mut self, data: u64) {
         // info!(
         //     "update collisions: {:?}, scanline: {:?}",
         //     data, self.scan_line

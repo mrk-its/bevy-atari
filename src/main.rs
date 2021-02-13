@@ -67,7 +67,7 @@ pub const TEST_MATERIAL_HANDLE: HandleUntyped =
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
-pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 15));
+pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 16));
 
 #[derive(Default, Bundle)]
 pub struct Parent {

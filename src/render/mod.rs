@@ -264,7 +264,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
                 LOAD_COLLISIONS_PASS,
                 LoadCollisionsPass {
                     index,
-                    width: texture_size.x as u32,
+                    width,
                     height,
                     texture_format,
                 },
