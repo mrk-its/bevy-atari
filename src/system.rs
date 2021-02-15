@@ -5,6 +5,7 @@ use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
+use crate::multiplexer::Multiplexer;
 
 bitflags! {
     #[derive(Default)]
@@ -21,7 +22,8 @@ bitflags! {
 }
 
 pub struct AtariSystem {
-    consol: [u8; 2],
+    consol: Multiplexer<u8>,
+    joystick: [Multiplexer<u8>; 2],
     ram: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
@@ -45,10 +47,11 @@ impl AtariSystem {
         let gtia = Gtia::default();
         let pia = PIA::default();
         let disk_1 = None;
-        let consol = [0; 2];
-
+        let consol = Multiplexer::new(2);
+        let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
         AtariSystem {
             consol,
+            joystick,
             ram,
             osrom,
             basic,
@@ -277,8 +280,8 @@ impl AtariSystem {
     }
 
     pub fn update_consol(&mut self, index: usize, value: u8) {
-        self.consol[index] = value;
-        self.gtia.consol = !(self.consol[0] | self.consol[1]) & 7;
+        self.consol.set_input(index, value);
+        self.gtia.consol = !self.consol.get_output() & 7;
     }
 
     pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
@@ -331,20 +334,17 @@ impl AtariSystem {
             let down = keyboard.pressed(KeyCode::Down) as u8 * 2;
             let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
             let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
-            self.set_joystick(0, up | down | left | right, fire);
+            self.set_joystick(2, 0, up | down | left | right, fire);
             irq = false;
         }
         return irq && self.pokey.irqen.contains(pokey::IRQ::KEY);
     }
 
-    pub fn set_joystick(&mut self, port: usize, dirs: u8, fire: bool) {
-        let (mask, dirs) = if port == 1 {
-            (0x0f, (dirs ^ 0xf) << 4)
-        } else {
-            (0xf0, dirs ^ 0xf)
-        };
-        self.gtia.set_trig(port, fire);
-        self.pia.set_port_a_input(mask, dirs);
+    pub fn set_joystick(&mut self, input: usize, port: usize, dirs: u8, fire: bool) {
+        self.joystick[port].set_input(input, dirs | (fire as u8) << 4);
+        let ports = [self.joystick[0].get_output(), self.joystick[1].get_output()];
+        self.pia.set_port_a_input(0, (ports[0] & 0xf | (ports[1] & 0xf) << 4) ^ 0xff);
+        self.gtia.set_trig(port, (ports[port] & 0x10) > 0);
     }
 
     pub fn scanline_tick(&mut self) {

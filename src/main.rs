@@ -4,7 +4,7 @@ use std::io::prelude::*;
 pub mod antic;
 mod atari800_state;
 pub mod time_used_plugin;
-
+pub mod multiplexer;
 pub mod atari_text;
 pub mod atr;
 pub mod entities;
@@ -67,10 +67,10 @@ pub const TEST_MATERIAL_HANDLE: HandleUntyped =
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
-#[cfg(feature="collision_array")]
+#[cfg(feature = "collision_array")]
 pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((16, 240));
 
-#[cfg(not(feature="collision_array"))]
+#[cfg(not(feature = "collision_array"))]
 pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 16));
 
 #[derive(Default, Bundle)]
@@ -150,6 +150,7 @@ fn keyboard_system(
     mut display_config: ResMut<DisplayConfig>,
     keyboard: Res<Input<KeyCode>>,
     gamepad_buttons: Res<Input<GamepadButton>>,
+    axis: Res<Axis<GamepadAxis>>,
     mut state: Local<KeyboarSystemState>,
     mut frame: ResMut<FrameState>,
     mut atari_system: ResMut<AtariSystem>,
@@ -195,16 +196,33 @@ fn keyboard_system(
     state.timer.tick(time.delta_seconds());
 
     let mut consol = 0;
+    let axis_threshold = 0.5;
     for idx in 0..2 {
         let pad = Gamepad(idx);
-        let dirs = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadUp)) as u8
-            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadDown)) as u8 * 2
-            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadLeft)) as u8 * 4
-            + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadRight)) as u8 * 8;
+        for event in gamepad_buttons.get_just_pressed() {
+            info!("just pressed: {:?}", event);
+        }
+        let stick_x = axis
+            .get(GamepadAxis(pad, GamepadAxisType::LeftStickX))
+            .unwrap_or_default();
+        let stick_y = axis
+            .get(GamepadAxis(pad, GamepadAxisType::LeftStickY))
+            .unwrap_or_default();
+
+        let up = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadUp))
+            || stick_y >= axis_threshold;
+        let down = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadDown))
+            || stick_y <= -axis_threshold;
+        let left = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadLeft))
+            || stick_x <= -axis_threshold;
+        let right = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::DPadRight))
+            || stick_x >= axis_threshold;
+        let dirs = up as u8 | down as u8 * 2 | left as u8 * 4 | right as u8 * 8;
         let fire = gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::East))
             || gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::LeftTrigger))
             || gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::RightTrigger));
-        atari_system.set_joystick(idx, dirs, fire);
+
+        atari_system.set_joystick(0, idx, dirs, fire);
         consol |= gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::South)) as u8
             + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::North)) as u8 * 2
             + gamepad_buttons.pressed(GamepadButton(pad, GamepadButtonType::West)) as u8 * 4;
@@ -503,7 +521,7 @@ fn events(
                 };
             }
             js_api::Message::JoyState { port, dirs, fire } => {
-                atari_system.set_joystick(port, dirs, fire)
+                atari_system.set_joystick(1, port, dirs, fire)
             }
             js_api::Message::SetConsol { state } => {
                 atari_system.update_consol(1, state);
