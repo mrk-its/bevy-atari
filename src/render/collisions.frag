@@ -29,7 +29,7 @@ uniform usampler2D CustomTexture_texture;  // set = 1, binding = 2
 // 384 / 16 = 24
 // so we want to aggregate 16 strips 24.0 x 240.0 px
 
-#define HORIZONTAL_TEXTURE
+// #define HORIZONTAL_TEXTURE
 
 void main() {
     uvec4 v = uvec4(0, 0, 0, 0);

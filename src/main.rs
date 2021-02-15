@@ -67,6 +67,10 @@ pub const TEST_MATERIAL_HANDLE: HandleUntyped =
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
+#[cfg(feature="collision_array")]
+pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((16, 240));
+
+#[cfg(not(feature="collision_array"))]
 pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 16));
 
 #[derive(Default, Bundle)]
@@ -394,11 +398,12 @@ fn atari_system(
     loop {
         if atari_system.antic.scan_line == 8 && atari_system.antic.cycle == 0 {
             antic_data.clear();
-        } else if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0)
-            && atari_system.handle_keyboard(&keyboard, &mut *cpu)
-        {
-            cpu.interrupt_request();
-        }
+        } else if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
+            atari_system.gtia.collision_update_scanline = 0;
+            if atari_system.handle_keyboard(&keyboard, &mut *cpu) {
+                cpu.interrupt_request();
+            }
+        };
 
         match cpu.get_program_counter() {
             0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
@@ -419,9 +424,7 @@ fn atari_system(
         cpu.cycle(&mut *atari_system);
 
         if cpu.get_remaining_cycles() == 0 {
-            if atari_system.antic.wsync() {
-                atari_system.antic.do_wsync();
-            }
+            antic::post_instr_tick(&mut *atari_system);
             match frame.break_point {
                 Some(BreakPoint::PC(pc)) => {
                     if cpu.get_program_counter() == pc {
@@ -452,7 +455,6 @@ fn atari_system(
             }
         }
         atari_system.antic.inc_cycle();
-        atari_system.gtia.scan_line = atari_system.antic.scan_line;
         if atari_system.antic.cycle == 0 {
             if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
                 if *scan_line == atari_system.antic.scan_line {

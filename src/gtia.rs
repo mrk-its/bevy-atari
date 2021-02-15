@@ -71,8 +71,9 @@ bitflags! {
 
 pub struct Gtia {
     pub scan_line: usize,
+    pub collision_update_scanline: usize,
     pub regs: GTIARegs,
-    #[cfg(collision_array)]
+    #[cfg(feature = "collision_array")]
     pub collision_array: [u64; 240],
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
@@ -87,7 +88,7 @@ impl Default for Gtia {
         Self {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
-            #[cfg(collision_array)]
+            #[cfg(feature = "collision_array")]
             collision_array: [0x0; 240],
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
@@ -95,6 +96,7 @@ impl Default for Gtia {
             consol_mask: 0x7,
             consol_force_mask: 0x7, // force option on start;
             scan_line: 0,
+            collision_update_scanline: 0,
         }
     }
 }
@@ -103,7 +105,11 @@ impl Gtia {
     pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0x1f;
         let value = match addr {
-            0x0..=0xf => self.collisions[addr],
+            0x0..=0xf => {
+                let v = self.collisions[addr];
+                // info!("reading collisions {:x?}: {:x?}, scan_line: {:?}", addr, v, self.scan_line);
+                v
+            }
             CONSOL => self.consol & self.consol_mask & self.consol_force_mask,
             TRIG0..=TRIG3 => self.trig[addr - TRIG0],
             PAL => 0x01, // 0x01 - PAL, 0x0f - NTSC
@@ -144,10 +150,11 @@ impl Gtia {
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
                 self.collisions.iter_mut().for_each(|v| *v = 0);
-                #[cfg(collision_array)]
-                {
-                self.collision_array = [0; 240];
-                }
+                self.collision_update_scanline = self.scan_line;
+                // #[cfg(feature="collision_array")]
+                // {
+                //     self.collision_array = [0; 240];
+                // }
             }
             _ => (),
         }
@@ -156,17 +163,30 @@ impl Gtia {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
 
-    #[cfg(collision_array)]
-    pub fn update_collisions_for_scanline(&mut self, index: usize) {
-        self.update_collisions(self.collision_array[index]);
+    #[cfg(feature = "collision_array")]
+    pub fn update_collisions_for_scanline(&mut self) {
+        // this is called when scan_line is complete
+        if self.scan_line > self.collision_update_scanline
+            && self.scan_line >= 8
+            && self.scan_line < 248 - 2
+        {
+            for i in self.collision_update_scanline.max(8)..self.scan_line {
+                self.update_collisions(self.collision_array[i - 8 + 2]);
+            }
+            self.collision_update_scanline = self.scan_line;
+        }
     }
 
     pub fn update_collisions(&mut self, data: u64) {
-        // info!(
-        //     "update collisions: {:?}, scanline: {:?}",
-        //     data, self.scan_line
-        // );
-
+        // if data > 0 {
+        //     info!(
+        //         "update collisions: {:?}, scanline: {:?}",
+        //         data, self.scan_line
+        //     );
+        // }
+        // if self.scan_line > 216 {
+        //     return
+        // }
         let data0 = data & 0xffff;
         let data1 = (data >> 16) & 0xffff;
         let data2 = (data >> 32) & 0xffff;

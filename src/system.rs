@@ -68,6 +68,7 @@ impl AtariSystem {
         {
             let portb = self.pia.portb_out().bits;
             let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
+            // let bank_nr = (portb & 0b1100) as usize >> 2;
             (addr & 0x3fff) + 0x10000 + (bank_nr * 16384)
         } else {
             addr

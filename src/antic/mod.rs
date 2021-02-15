@@ -642,11 +642,6 @@ pub fn tick(
         }
         atari_system.scanline_tick();
 
-        #[cfg(collision_array)]
-        if atari_system.antic.scan_line >=8 && atari_system.antic.scan_line < 248 {
-            atari_system.gtia.update_collisions_for_scanline(atari_system.antic.scan_line - 8);
-        }
-
         if atari_system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
             if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
                 let b = get_pm_data(atari_system, 0);
@@ -686,6 +681,7 @@ pub fn tick(
     if atari_system.antic.gets_visible() {
         if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line < 248 {
             assert!(antic_data.gtia_regs.regs.len() == 240);
+
             antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] = atari_system.gtia.regs;
             if atari_system.antic.scan_line == atari_system.antic.start_scan_line {
                 let mut mode_line = atari_system.antic.create_next_mode_line();
@@ -710,6 +706,18 @@ pub fn tick(
         }
     }
     atari_system.antic.steal_cycles();
+}
+
+pub fn post_instr_tick(atari_system: &mut AtariSystem) {
+    let antic = &mut atari_system.antic;
+    if antic.wsync() {
+        antic.do_wsync();
+    }
+    atari_system.gtia.scan_line = antic.scan_line - (antic.scan_line > 0 && antic.cycle < 114) as usize;
+    #[cfg(feature = "collision_array")]
+    atari_system
+        .gtia
+        .update_collisions_for_scanline();
 }
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
@@ -760,17 +768,18 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
             let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
             let data = &data[..data.len() / 8];
 
-            #[cfg(collision_array)]
+            #[cfg(feature = "collision_array")]
             {
                 let len = data.len();
                 let collision_array = &mut atari_system.gtia.collision_array;
+                *collision_array = [0; 240];
                 for (i, v) in data.iter().enumerate() {
                     if (i & 1) == 0 {
                         collision_array[i * 240 / len] |= *v;
                     }
                 }
             }
-            #[cfg(not(collision_array))]
+            #[cfg(not(feature = "collision_array"))]
             {
                 let mut collisions = 0;
                 for (i, v) in data.iter().enumerate() {
