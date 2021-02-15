@@ -131,7 +131,14 @@ impl Gtia {
             HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value as u32,
             HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value as u32,
             SIZEP0..=SIZEP3 => self.regs.player_size[addr - SIZEP0] = _size_pm(value),
-            SIZEM => self.regs.sizem = _size_pm(value) / 4,
+            SIZEM => {
+                self.regs.missile_size = [
+                    _size_pm(value) / 4,
+                    _size_pm(value >> 2) / 4,
+                    _size_pm(value >> 4) / 4,
+                    _size_pm(value >> 6) / 4,
+                ]
+            }
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
             CONSOL => self.consol_mask = 0x7 & !value,
             HITCLR => {

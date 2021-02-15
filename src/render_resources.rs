@@ -98,6 +98,7 @@ pub struct GTIARegs {
     pub hposp: [u32; 4],
     pub hposm: [u32; 4],
     pub player_size: [u32; 4],
+    pub missile_size: [u32; 4],
     pub grafp: [u32; 4],
     pub prior: u32,
     pub sizem: u32,

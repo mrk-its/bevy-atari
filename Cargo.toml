@@ -11,8 +11,11 @@ default = [
   "bevy/bevy_winit",
   "bevy/render",
   "bevy/bevy_gilrs",
+  "collision_array",
   # "bevy/png",
 ]
+
+collision_array = []
 
 native = [
   "bevy/bevy_wgpu",

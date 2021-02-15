@@ -20,8 +20,9 @@ struct GTIA {
     ivec4 hposp;
     ivec4 hposm;
     ivec4 player_size;
+    ivec4 missile_size;
     ivec4 grafp;
-    ivec4 prior;  // [prior, sizem, grafm, unused]
+    ivec4 prior;  // [prior, unused, grafm, unused]
 };
 
 layout(std140) uniform AtariPalette_palette { // set=1 binding = 0
@@ -46,7 +47,7 @@ uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
 #define get_gtia_hposp_vec4() vec4(gtia_regs[scan_line].hposp)
 #define get_gtia_hposm_vec4() vec4(gtia_regs[scan_line].hposm)
 #define get_gtia_player_size_vec4() vec4(gtia_regs[scan_line].player_size)
-#define get_gtia_missile_size() gtia_regs[scan_line].prior[1]
+#define get_gtia_missile_size_vec4() vec4(gtia_regs[scan_line].missile_size)
 #define get_gtia_grafp_ivec4() gtia_regs[scan_line].grafp
 #define get_gtia_grafm() gtia_regs[scan_line].prior[2]
 
@@ -80,9 +81,9 @@ vec4 get_player_pixels(vec4 px, int scan_line, vec4 hpos) {
 const ivec4 missile_shift = ivec4(0, 2, 4, 6);
 
 vec4 get_missile_pixels(vec4 px, int scan_line, vec4 hpos) {
-    float sizem = float(get_gtia_missile_size());
-    vec4 cond = vec4(greaterThanEqual(px, hpos)) * vec4(lessThan(px, hpos + sizem));
-    ivec4 bit = ivec4(1) - ivec4((px - hpos) / sizem * 2.0);
+    vec4 msize = get_gtia_missile_size_vec4();
+    vec4 cond = vec4(greaterThanEqual(px, hpos)) * vec4(lessThan(px, hpos + msize));
+    ivec4 bit = ivec4(mix(vec4(1.9999), vec4(0.0), (px - hpos) / msize));
     ivec4 byte = ivec4(get_gtia_grafm()) >> missile_shift;
     return mix(vec4(0.0), vec4(greaterThan((byte >> bit) & 1, ivec4(0))), cond);
 }
@@ -258,11 +259,13 @@ void main() {
 
     bool p5 = (prior & 0x10) > 0;
 
-    bvec4 p = bvec4(get_player_pixels(vpx, scan_line, hposp) + float(!p5) * m);
-    bool p0 = p[0];
-    bool p1 = p[1];
-    bool p2 = p[2];
-    bool p3 = p[3];
+    vec4 p = get_player_pixels(vpx, scan_line, hposp);
+
+    bvec4 _p = bvec4(p + float(!p5) * m);
+    bool p0 = _p[0];
+    bool p1 = _p[1];
+    bool p2 = _p[2];
+    bool p3 = _p[3];
 
     bool pf0 = color_reg_index == 1;
     bool pf1 = !hires && color_reg_index == 2;
@@ -300,9 +303,16 @@ void main() {
     if(hires && color_reg_index == 2) {
         color_reg = color_reg & 0xf0 | (get_color_reg(2) & 0xf);
     }
+
     o_ColorTarget = encodeColor(palette[color_reg]);
+    // if(p3) o_ColorTarget = encodeColor(vec4(1.0, 0.0, 0.0, 1.0));
 
     // TODO - do not check collisions on HBLANK
+
+    p0 = bool(p[0]);
+    p1 = bool(p[1]);
+    p2 = bool(p[2]);
+    p3 = bool(p[3]);
 
     int pf_bits = (pf0 ? 1 : 0) | (pf1 ? 2 : 0) | (pf2 ? 4 : 0) | (pf3 ? 8 : 0);
 
