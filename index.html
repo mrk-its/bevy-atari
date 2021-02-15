@@ -2,6 +2,7 @@
 
 <head>
   <meta charset="utf-8" />
+  <title>Good Enough Atari Emulator</title>
   <style>
     body {
       background: linear-gradient(135deg,
@@ -180,12 +181,18 @@
       document.location.hash = '#' + encodeURIComponent(hash);
     }
 
+    function set_title(text) {
+      let title = document.querySelector("title");
+      if(title) title.innerText = text;
+    }
+
     function update_status() {
       for (key of ['disk_1', 'osrom', 'basic']) {
         let fn = localStorage[`${key}_filename`];
         let sel = document.querySelector(`#${key} span`);
         if (fn) {
           sel.innerText = fn;
+          if(key == 'disk_1') set_title(fn);
         } else {
           sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
         }
