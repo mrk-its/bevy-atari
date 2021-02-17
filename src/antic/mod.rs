@@ -713,7 +713,7 @@ pub fn post_instr_tick(atari_system: &mut AtariSystem) {
     if antic.wsync() {
         antic.do_wsync();
     }
-    atari_system.gtia.scan_line = antic.scan_line - (antic.scan_line > 0 && antic.cycle < 114) as usize;
+    atari_system.gtia.scan_line = antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
     #[cfg(feature = "collision_array")]
     atari_system
         .gtia

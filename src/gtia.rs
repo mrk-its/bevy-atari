@@ -150,11 +150,14 @@ impl Gtia {
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
                 self.collisions.iter_mut().for_each(|v| *v = 0);
-                self.collision_update_scanline = self.scan_line;
-                // #[cfg(feature="collision_array")]
-                // {
-                //     self.collision_array = [0; 240];
-                // }
+                // self.scan_line is set by antic to completed (displayed) scanline
+                // set collision_update_scanline to next scanline
+                // so we will do next collision update when next scanline is complete
+                self.collision_update_scanline = self.scan_line + 1;
+                // RiverRaid: Activision logo ends on 237 line and generates collisions
+                // clear is done like below:
+                // B76D: STA WSYNC - # end of scanline 237
+                // B779: STA HITCLR
             }
             _ => (),
         }
@@ -168,10 +171,10 @@ impl Gtia {
         // this is called when scan_line is complete
         if self.scan_line > self.collision_update_scanline
             && self.scan_line >= 8
-            && self.scan_line < 248 - 2
+            && self.scan_line < 248
         {
             for i in self.collision_update_scanline.max(8)..self.scan_line {
-                self.update_collisions(self.collision_array[i - 8 + 2]);
+                self.update_collisions(self.collision_array[i - 8]);
             }
             self.collision_update_scanline = self.scan_line;
         }
