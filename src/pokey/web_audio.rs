@@ -300,6 +300,7 @@ impl AudioBackend {
             }
             let freq = if freq <= 22050.0 { freq } else { 0.0 };
             self.oscillator[channel].frequency().set_value(freq);
+            self.noise_descr[channel] = None;
         } else {
             self.set_noise_source(channel, audctl, ctl, divider, clock_divider, freq);
         }
