@@ -199,9 +199,6 @@ fn keyboard_system(
     let axis_threshold = 0.5;
     for idx in 0..2 {
         let pad = Gamepad(idx);
-        for event in gamepad_buttons.get_just_pressed() {
-            info!("just pressed: {:?}", event);
-        }
         let stick_x = axis
             .get(GamepadAxis(pad, GamepadAxisType::LeftStickX))
             .unwrap_or_default();

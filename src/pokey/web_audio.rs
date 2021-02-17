@@ -154,7 +154,7 @@ impl AudioBackend {
                 // 1 second is `sample_rate` of samples playing with `sample_rate`, so:
                 let n_samples = (sample_rate as f32 * SAMPLE_DUR) as u32;
 
-                info!(
+                trace!(
                     "create new audio buffer for {:x?} total: {}, n_samples: {} mult: {}",
                     noise_descr,
                     self.noise_buffer_cache.len(),
