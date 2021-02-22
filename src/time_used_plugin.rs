@@ -28,11 +28,11 @@ impl TimeUsedPlugin {
 
 impl Plugin for TimeUsedPlugin {
     fn build(&self, app: &mut bevy::app::AppBuilder) {
-        app.add_stage_before(stage::FIRST, "very_first", SystemStage::serial())
-            .add_stage_after(stage::LAST, "very_last", SystemStage::serial())
+        app.add_stage_before(CoreStage::First, "very_first", SystemStage::single_threaded())
+            .add_stage_after(CoreStage::Last, "very_last", SystemStage::single_threaded())
             .add_system_to_stage("very_first", Self::time_used_start.system())
             .add_system_to_stage("very_last", Self::time_used_end.system())
             .add_startup_system(Self::setup_system.system())
-            .add_resource(TimeUsed::default());
+            .init_resource::<TimeUsed>();
     }
 }

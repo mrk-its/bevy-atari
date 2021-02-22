@@ -41,6 +41,13 @@ layout(std140) uniform StandardMaterial_albedo { // set = 4, binding = 0
 uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
 //#endif
 
+layout(std140) uniform CustomTexture_color {  // set = 5, binding = 0
+    vec4 color;
+};
+
+uniform sampler2D CustomTexture_texture;  // set = 5, binding = 1
+
+
 #define get_color_reg(k) gtia_regs[scan_line].color_regs[k>>2][k&3]
 #define get_gtia_colpm(k) gtia_regs[scan_line].colpm[k]
 #define get_gtia_prior() gtia_regs[scan_line].prior[0]
@@ -299,6 +306,19 @@ void main() {
     if(sf2) color_reg |= get_color_reg(3);
     if(sf3) color_reg |= get_color_reg(4);
     if(sb && gtia_mode == 0) color_reg |= get_color_reg(0);
+    if(sb && gtia_mode == 0) {
+        if(px >= 0.0 && px < line_width && Albedo[0] >= 0.0 && scan_line < 152) {
+            int bg_w = 384;
+            float bg_offs = Albedo[0] - 0.01;
+            vec4 bg1 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 8.0) % bg_w, 2 * 240 + 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.04, 0.04, 0.04, 1.0);
+            vec4 bg2 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 4.0) % bg_w, 240 + 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.1, 0.1, 0.1, 1.0);
+            vec4 bg3 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 2.0) % bg_w, 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.4, 0.4, 0.4, 1.0);
+            vec4 bg4 = mix(bg1, bg2, bg2[3]);
+            vec4 bg5 = mix(bg4, bg3, bg3[3]);
+            o_ColorTarget = encodeColor(bg5);
+            return;
+        }
+    }
 
     if(hires && color_reg_index == 2) {
         color_reg = color_reg & 0xf0 | (get_color_reg(2) & 0xf);

@@ -48,10 +48,6 @@ impl Bytes for Charset {
     fn byte_len(&self) -> usize {
         self.data.len()
     }
-
-    fn byte_capacity(&self) -> usize {
-        1024
-    }
 }
 
 impl_render_resource_bytes!(Charset);
@@ -116,10 +112,6 @@ impl Bytes for GTIARegsArray {
 
     fn byte_len(&self) -> usize {
         std::mem::size_of::<GTIARegs>() * self.regs.len()
-    }
-
-    fn byte_capacity(&self) -> usize {
-        std::mem::size_of::<GTIARegs>() * self.regs.capacity()
     }
 }
 impl_render_resource_bytes!(GTIARegsArray);

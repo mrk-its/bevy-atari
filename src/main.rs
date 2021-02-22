@@ -3,13 +3,12 @@ extern crate bitflags;
 use std::io::prelude::*;
 pub mod antic;
 mod atari800_state;
-pub mod time_used_plugin;
-pub mod multiplexer;
 pub mod atari_text;
 pub mod atr;
 pub mod entities;
 pub mod gtia;
 mod js_api;
+pub mod multiplexer;
 mod palette;
 pub mod pia;
 pub mod pokey;
@@ -17,23 +16,21 @@ pub mod render;
 mod render_resources;
 pub mod sio;
 mod system;
+pub mod time_used_plugin;
 use antic::ANTIC_DATA_HANDLE;
 use bevy::utils::Duration;
 use bevy::{
     core::{Time, Timer},
     render::texture::{Extent3d, TextureDimension, TextureFormat},
 };
-
+use bevy::render::entity::OrthographicCameraBundle;
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     reflect::TypeUuid,
 };
 use bevy::{
     prelude::*,
-    render::{
-        entity::Camera2dBundle,
-        pipeline::{PipelineDescriptor, RenderPipeline},
-    },
+    render::pipeline::{PipelineDescriptor, RenderPipeline},
 };
 use bevy::{
     render::{mesh::shape, render_graph::base::MainPass},
@@ -67,11 +64,7 @@ pub const TEST_MATERIAL_HANDLE: HandleUntyped =
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
 
-#[cfg(feature = "collision_array")]
 pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((16, 240));
-
-#[cfg(not(feature = "collision_array"))]
-pub const COLLISION_AGG_SIZE: Option<(u32, u32)> = Some((384, 16));
 
 #[derive(Default, Bundle)]
 pub struct Parent {
@@ -377,12 +370,29 @@ fn debug_overlay_system(
 pub struct AnticFrame;
 
 fn post_running(
+    mut atari_system: ResMut<AtariSystem>,
     mut atari_data_assets: ResMut<Assets<AnticData>>,
     mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
     let mesh = antic_data.create_mesh();
     meshes.set(ANTIC_MESH_HANDLE, mesh);
+
+    let x_offs = if atari_system.readw(0x230) == 0x1348 {
+        let a0 = atari_system.read(0xa0);
+        let a3 = atari_system.read(0xa3);
+        let a6 = atari_system.read(0xa6);
+        a0 as f32 * 16.0 * 16.0 + a3 as f32 * 16.0 + 32.0 - 2.0 * a6 as f32
+    } else {
+        -1.0
+    };
+    let y_offs = atari_system.read(0xaa) as f32;
+    let material = StandardMaterial {
+        albedo: Color::rgb_linear(x_offs, y_offs, 0.0),
+        ..Default::default()
+    };
+    materials.set(TEST_MATERIAL_HANDLE, material);
 }
 
 fn atari_system(
@@ -581,6 +591,17 @@ fn events(
                             info!("breakpoint set on pc={:04x}", pc);
                         }
                     }
+                    "trainer_init" => {
+                        atari_system.trainer_init();
+                    }
+                    "trainer_changed" => {
+                        let cnt = atari_system.trainer_changed(true);
+                        info!("matched: {}", cnt);
+                    }
+                    "trainer_unchanged" => {
+                        let cnt = atari_system.trainer_changed(false);
+                        info!("matched: {}", cnt);
+                    }
                     _ => (),
                 }
             }
@@ -595,7 +616,7 @@ fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
     }
 }
 
-const ANTIC_TEXTURE_SIZE: Vec2 = Vec2 { x: 384.0, y: 240.0 };
+const ANTIC_TEXTURE_SIZE: (f32, f32) = (384.0, 240.0);
 
 fn setup(
     commands: &mut Commands,
@@ -605,6 +626,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut tex: ResMut<Assets<Texture>>,
+    mut asset_server: ResMut<AssetServer>,
 ) {
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
     materials.set(
@@ -612,7 +634,7 @@ fn setup(
         StandardMaterial {
             albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
             albedo_texture: None,
-            shaded: false,
+            unlit: true,
         },
     );
 
@@ -635,8 +657,7 @@ fn setup(
         StandardMaterial {
             albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
             albedo_texture: Some(DATA_TEXTURE_HANDLE.typed()),
-            shaded: false,
-            ..Default::default()
+            unlit: true,
         },
     );
 
@@ -645,7 +666,7 @@ fn setup(
         StandardMaterial {
             // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
             albedo_texture: Some(render::ANTIC_TEXTURE_HANDLE.typed()),
-            shaded: false,
+            unlit: true,
             ..Default::default()
         },
     );
@@ -658,7 +679,10 @@ fn setup(
         },
     );
 
-    commands.spawn(entities::create_antic_camera(ANTIC_TEXTURE_SIZE));
+    commands.spawn(entities::create_antic_camera(Vec2::new(
+        ANTIC_TEXTURE_SIZE.0,
+        ANTIC_TEXTURE_SIZE.1,
+    )));
     if let Some((width, height)) = COLLISION_AGG_SIZE {
         commands.spawn(entities::create_collisions_camera(Vec2::new(
             width as f32,
@@ -680,7 +704,10 @@ fn setup(
         commands.spawn(bundle);
     }
 
-    let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(ANTIC_TEXTURE_SIZE)));
+    let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(
+        ANTIC_TEXTURE_SIZE.0,
+        ANTIC_TEXTURE_SIZE.1,
+    ))));
 
     commands.spawn(PbrBundle {
         mesh: mesh_handle,
@@ -688,15 +715,10 @@ fn setup(
         ..Default::default()
     });
 
+    let mut camera_bundle = OrthographicCameraBundle::new_2d();
+    camera_bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
     commands
-        .spawn(Camera2dBundle {
-            transform: Transform {
-                translation: Vec3::new(0.0, 0.0, 0.0),
-                scale: Vec3::new(0.5, 0.5, 1.0),
-                ..Default::default()
-            },
-            ..Default::default()
-        })
+        .spawn(camera_bundle)
         .with(MainCamera);
 
     commands
@@ -738,7 +760,7 @@ fn setup(
         StandardMaterial {
             albedo: Color::BEIGE,
             albedo_texture: None,
-            shaded: false,
+            unlit: true,
         },
     );
 
@@ -751,14 +773,21 @@ fn setup(
     bundle.render_pipelines =
         RenderPipelines::from_pipelines(vec![RenderPipeline::new(pipeline_handle)]);
 
+    let bg_material_handle = textures.add(CustomTexture {
+        color: Color::rgba_linear(0.0, 0.0,0.0, 1.0),
+        texture: Some(asset_server.load("jungle-bg-1.png")),
+    });
+
+
     commands
         .spawn(bundle)
         .with(AnticFrame)
         .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>())
         .with(ANTIC_DATA_HANDLE.typed::<AnticData>())
-        .with(TEST_MATERIAL_HANDLE.typed::<StandardMaterial>());
-
+        .with(TEST_MATERIAL_HANDLE.typed::<StandardMaterial>())
+        .with(bg_material_handle);
     commands.remove_one::<MainPass>(commands.current_entity().unwrap());
+
 
     // commands
     //     .spawn(PbrBundle {
@@ -778,10 +807,10 @@ fn setup(
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
-    app.add_resource(WindowDescriptor {
+    app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: ANTIC_TEXTURE_SIZE.x * 2.0,
-        height: ANTIC_TEXTURE_SIZE.y * 2.0,
+        width: ANTIC_TEXTURE_SIZE.0 * 2.0,
+        height: ANTIC_TEXTURE_SIZE.1 * 2.0,
         resizable: false,
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
@@ -790,7 +819,7 @@ fn main() {
         ..Default::default()
     });
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    app.add_resource(WinitConfig {
+    app.insert_resource(WinitConfig {
         force_fps: Some(50.0),
         return_from_run: false,
     });
@@ -799,7 +828,7 @@ fn main() {
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_plugin(atari_text::AtartTextPlugin::default());
     app.add_plugin(antic::AnticPlugin {
-        texture_size: ANTIC_TEXTURE_SIZE,
+        texture_size: Vec2::new(ANTIC_TEXTURE_SIZE.0, ANTIC_TEXTURE_SIZE.1),
         enable_collisions: true,
         collision_agg_size: COLLISION_AGG_SIZE,
     });
@@ -810,21 +839,21 @@ fn main() {
     system.reset(&mut cpu, true, true);
 
     let mut frame = FrameState::default();
-    // frame.break_point = Some(BreakPoint::IndirectPC(0x2e2));
-    // frame.break_point = Some(BreakPoint::PC(0xa000));
+    // frame.break_point = Some(BreakPoint::IndirectPC(0x2e0));
+    // frame.break_point = Some(BreakPoint::PC(0x7100));
 
-    app.add_resource(State::new(EmulatorState::Idle))
-        // .add_resource(ClearColor(gtia::atari_color(0)))
-        .add_resource(DisplayConfig {
+    app.insert_resource(State::new(EmulatorState::Idle))
+        .insert_resource(ClearColor(gtia::atari_color(0)))
+        .insert_resource(DisplayConfig {
             fps: true,
             debug: false,
         })
-        .add_resource(system)
-        .add_resource(cpu)
-        .add_resource(frame)
+        .insert_resource(system)
+        .insert_resource(cpu)
+        .insert_resource(frame)
         .add_startup_system(setup.system())
         .add_stage_after(
-            stage::UPDATE,
+            CoreStage::Update,
             "running",
             StateStage::<EmulatorState>::default(),
         )
@@ -834,13 +863,13 @@ fn main() {
             StateStage::<EmulatorState>::default(),
         )
         .add_stage_after(
-            stage::UPDATE,
+            CoreStage::Update,
             "idle_update",
             StateStage::<EmulatorState>::default(),
         )
-        .add_system_to_stage("pre_update", keyboard_system.system())
+        .add_system_to_stage(CoreStage::PreUpdate, keyboard_system.system())
         // .add_system_to_stage("pre_update", reload_system.system())
-        .add_system_to_stage("post_update", debug_overlay_system.system())
+        .add_system_to_stage(CoreStage::PostUpdate, debug_overlay_system.system())
         .on_state_update("running", EmulatorState::Running, atari_system.system())
         .on_state_update(
             "post_running",

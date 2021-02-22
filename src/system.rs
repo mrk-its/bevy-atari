@@ -25,6 +25,8 @@ pub struct AtariSystem {
     consol: Multiplexer<u8>,
     joystick: [Multiplexer<u8>; 2],
     ram: Vec<u8>,
+    ram_copy: Vec<u8>,
+    ram_mask: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
     pub antic: Antic,
@@ -53,6 +55,8 @@ impl AtariSystem {
             consol,
             joystick,
             ram,
+            ram_copy: Vec::new(),
+            ram_mask: Vec::new(),
             osrom,
             basic,
             antic,
@@ -64,14 +68,36 @@ impl AtariSystem {
         }
     }
 
+    pub fn trainer_init(&mut self) {
+        self.ram_copy = self.ram.clone();
+        self.ram_mask = Vec::new();
+        self.ram_mask.resize_with(self.ram.len(), || 0xff);
+    }
+
+    pub fn trainer_changed(&mut self, changed: bool) -> usize {
+        let mut cnt = 0;
+        for (i, c) in self.ram.iter().enumerate() {
+            if self.ram_mask[i] == 0xff && (changed && *c == self.ram_copy[i] || !changed && *c != self.ram_copy[i]) {
+                self.ram_mask[i] = 0;
+            }
+            if self.ram_mask[i] == 0xff {
+                cnt += 1;
+                info!("addr: {:04x?}", i);
+            }
+        }
+        self.ram_copy = self.ram.clone();
+        cnt
+    }
+
+
     #[inline(always)]
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
         if !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
             || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG)
         {
             let portb = self.pia.portb_out().bits;
-            let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
-            // let bank_nr = (portb & 0b1100) as usize >> 2;
+            // let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
+            let bank_nr = (portb & 0b1100) as usize >> 2;
             (addr & 0x3fff) + 0x10000 + (bank_nr * 16384)
         } else {
             addr

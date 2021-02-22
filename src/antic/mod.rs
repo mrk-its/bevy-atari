@@ -3,7 +3,7 @@ use crate::render::{self, CollisionsBufferNode};
 use crate::render_resources::{AnticData, AtariPalette, CustomTexture};
 use crate::system::AtariSystem;
 use crate::{gtia, render::AnticRendererGraphBuilder};
-use bevy::render::pipeline::PipelineDescriptor;
+use bevy::{render::pipeline::PipelineDescriptor, sprite::collide_aabb};
 use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
@@ -713,11 +713,9 @@ pub fn post_instr_tick(atari_system: &mut AtariSystem) {
     if antic.wsync() {
         antic.do_wsync();
     }
-    atari_system.gtia.scan_line = antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
-    #[cfg(feature = "collision_array")]
-    atari_system
-        .gtia
-        .update_collisions_for_scanline();
+    atari_system.gtia.scan_line =
+        antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
+    atari_system.gtia.update_collisions_for_scanline();
 }
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
@@ -763,32 +761,29 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
             }
         }
         if let Some(buffer_id) = collisions_buffer_node.buffer_id {
-            render_resource_context.read_buffer(buffer_id, &mut state.buffer);
-            let mut atari_system = resources.get_mut::<crate::AtariSystem>().unwrap();
-            let data = unsafe { std::mem::transmute::<&mut [u8], &mut [u64]>(&mut state.buffer) };
-            let data = &data[..data.len() / 8];
-
-            #[cfg(feature = "collision_array")]
-            {
-                let len = data.len();
-                let collision_array = &mut atari_system.gtia.collision_array;
-                *collision_array = [0; 240];
-                for (i, v) in data.iter().enumerate() {
-                    if (i & 1) == 0 {
-                        collision_array[i * 240 / len] |= *v;
+            let atari_system = resources.get::<crate::AtariSystem>().unwrap();
+            render_resource_context.read_mapped_buffer(
+                buffer_id,
+                0..(state.buffer.len() as u64),
+                & |data, _| {
+                    let data = unsafe { std::mem::transmute::<&[u8], &[u64]>(&data) };
+                    // collision texture is RG texture, but we read it in RGBA format (4 * u32)
+                    // where only RG components are set. That's why we skip every second u64
+                    let len = data.len() / 8;
+                    let data = &data[..len];
+                    let collision_array = &mut *atari_system.gtia.collision_array.write();
+                    let width = len / 240 / 2;
+                    let mut index = 0;
+                    for i in 0..240 {
+                        let mut agg = 0;
+                        for _ in 0..width {
+                            agg |= data[index];
+                            index += 2;
+                        }
+                        collision_array[i] = agg;
                     }
                 }
-            }
-            #[cfg(not(feature = "collision_array"))]
-            {
-                let mut collisions = 0;
-                for (i, v) in data.iter().enumerate() {
-                    if (i & 1) == 0 {
-                        collisions |= *v;
-                    }
-                }
-                atari_system.gtia.update_collisions(collisions)
-            }
+            );
         }
     }
 }
@@ -798,8 +793,8 @@ impl Plugin for AnticPlugin {
         app.add_asset::<AnticData>()
             .add_asset::<AtariPalette>()
             .add_asset::<CustomTexture>();
-        app.add_system_to_stage(stage::PRE_UPDATE, collisions_read.system());
-        app.add_resource(CollistionsReadState::default());
+        app.add_system_to_stage(CoreStage::PreUpdate, collisions_read.exclusive_system());
+        app.init_resource::<CollistionsReadState>();
         let resources = app.resources_mut();
         let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
         let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();

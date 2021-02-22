@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use parking_lot::RwLock;
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIARegs;
 use bevy::prelude::*;
@@ -73,8 +75,7 @@ pub struct Gtia {
     pub scan_line: usize,
     pub collision_update_scanline: usize,
     pub regs: GTIARegs,
-    #[cfg(feature = "collision_array")]
-    pub collision_array: [u64; 240],
+    pub collision_array: Arc<RwLock<[u64; 240]>>,
     collisions: [u8; 0x16], // R
     trig: [u8; 4],          // R
     pub gractl: GRACTL,
@@ -88,8 +89,7 @@ impl Default for Gtia {
         Self {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
-            #[cfg(feature = "collision_array")]
-            collision_array: [0x0; 240],
+            collision_array: Arc::new(RwLock::new([0x0; 240])),
             trig: [0xff, 0xff, 0xff, 0],
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
@@ -166,15 +166,15 @@ impl Gtia {
         self.trig[n] = if is_pressed { 0 } else { 0xff };
     }
 
-    #[cfg(feature = "collision_array")]
     pub fn update_collisions_for_scanline(&mut self) {
         // this is called when scan_line is complete
         if self.scan_line > self.collision_update_scanline
             && self.scan_line >= 8
             && self.scan_line < 248
         {
+            let collision_array = *self.collision_array.write();
             for i in self.collision_update_scanline.max(8)..self.scan_line {
-                self.update_collisions(self.collision_array[i - 8]);
+                self.update_collisions(collision_array[i - 8]);
             }
             self.collision_update_scanline = self.scan_line;
         }

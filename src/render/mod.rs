@@ -60,11 +60,9 @@ pub fn build_antic2_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
     });
 
-    if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
-        descr.cull_mode = CullMode::None;
-    }
+    pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.name = Some("ANTIC2".to_string());
-    pipeline_descr.depth_stencil_state = None;
+    pipeline_descr.depth_stencil = None;
     pipeline_descr
 }
 
@@ -80,13 +78,8 @@ pub fn build_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescri
         ))),
     });
     pipeline_descr.name = Some("COLLISIONS".to_string());
-
-    if let Some(descr) = pipeline_descr.rasterization_state.as_mut() {
-        descr.cull_mode = CullMode::None;
-    }
-
-    pipeline_descr.depth_stencil_state = None;
-    pipeline_descr.primitive_topology = PrimitiveTopology::PointList;
+    pipeline_descr.primitive.cull_mode = CullMode::None;
+    pipeline_descr.depth_stencil = None;
     info!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
 }
@@ -267,6 +260,7 @@ impl AnticRendererGraphBuilder for RenderGraph {
                     width,
                     height,
                     texture_format,
+                    texture_handle: COLLISIONS_AGG_TEXTURE_HANDLE.typed(),
                 },
             );
             self.add_node_edge(COLLISIONS_BUFFER, LOAD_COLLISIONS_PASS)
@@ -372,6 +366,7 @@ pub struct LoadCollisionsPass {
     width: u32,
     height: u32,
     texture_format: TextureFormat,
+    texture_handle: Handle<Texture>,
 }
 
 impl Node for LoadCollisionsPass {
@@ -383,17 +378,22 @@ impl Node for LoadCollisionsPass {
         input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
     ) {
+        let render_resource_context = render_context.resources_mut();
         let buffer_id = input.get("buffer").unwrap().get_buffer().unwrap();
-
-        render_context.read_pixels(
-            self.index,
-            self.texture_format,
-            0,
-            0,
-            self.width,
-            self.height,
-            buffer_id,
-        );
+        if let Some(texture_id) = render_resource_context
+            .get_asset_resource_untyped(self.texture_handle.clone_weak_untyped(), 0)
+            .and_then(|x| x.get_texture())
+        {
+            render_context.copy_texture_to_buffer(
+                texture_id,
+                [0, 0, 0],
+                0,
+                buffer_id,
+                0,
+                0,
+                Extent3d::new(self.width, self.height, 0),
+            );
+        }
     }
 
     fn input(&self) -> &[ResourceSlotInfo] {

@@ -1,6 +1,7 @@
 use bevy::{
     prelude::*,
     render::{
+        entity::OrthographicCameraBundle,
         camera::{Camera, CameraProjection},
         render_graph::base::MainPass,
     },
@@ -49,19 +50,11 @@ pub struct AnticLineBundle {
     pub global_transform: GlobalTransform,
 }
 
-pub fn create_2d_camera(name: &str, width: f32, height: f32) -> Camera2dBundle {
-    let mut camera_bundle = Camera2dBundle {
-        camera: Camera {
-            name: Some(name.to_string()),
-            window: WindowId::new(),
-            ..Default::default()
-        },
-        transform: Transform {
-            scale: Vec3::new(1.0, -1.0, 1.0),
-            ..Default::default()
-        },
-        ..Default::default()
-    };
+pub fn create_2d_camera(name: &str, width: f32, height: f32) -> OrthographicCameraBundle {
+    let mut camera_bundle = OrthographicCameraBundle::new_2d();
+    camera_bundle.camera.name = Some(name.to_string());
+    camera_bundle.camera.window = WindowId::new();
+    camera_bundle.transform.scale = Vec3::new(1.0, -1.0, 1.0);
 
     let camera_projection = &mut camera_bundle.orthographic_projection;
     camera_projection.update(width, height);
@@ -70,10 +63,10 @@ pub fn create_2d_camera(name: &str, width: f32, height: f32) -> Camera2dBundle {
     camera_bundle
 }
 
-pub fn create_antic_camera(size: Vec2) -> Camera2dBundle {
+pub fn create_antic_camera(size: Vec2) -> OrthographicCameraBundle {
     create_2d_camera(render::ANTIC_CAMERA, size.x, size.y)
 }
 
-pub fn create_collisions_camera(size: Vec2) -> Camera2dBundle {
+pub fn create_collisions_camera(size: Vec2) -> OrthographicCameraBundle {
     create_2d_camera(render::COLLISIONS_AGG_CAMERA, size.x, size.y)
 }

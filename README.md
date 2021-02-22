@@ -1,7 +1,7 @@
 # bevy-atari - Good Enough Atari XL/XE Emulator
 
 ## Features
-* It is build with Bevy Game Engine and Bevy Webgl2 plugin, compiles to WASM and works in the browser (native builds for Linux / Windows / Mac / Android / iPhone are planned too)
+* It is build with great [Bevy Game Engine](https://github.com/bevyengine/bevy) and [Bevy WebGL2 plugin](https://github.com/mrk-its/bevy_webgl2), so it compiles to WASM and works in the browser (native builds for Linux / Windows / Mac / Android / iPhone are planned too)
 * uses WebGl2 for rendering and emulates ANTIC / GTIA on GPU, reducing CPU usage.
 * POKEY emulation using WebAudio API
 * GamePad support with Gamepad API
