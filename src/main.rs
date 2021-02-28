@@ -18,12 +18,12 @@ pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use antic::ANTIC_DATA_HANDLE;
+use bevy::render::entity::OrthographicCameraBundle;
 use bevy::utils::Duration;
 use bevy::{
     core::{Time, Timer},
     render::texture::{Extent3d, TextureDimension, TextureFormat},
 };
-use bevy::render::entity::OrthographicCameraBundle;
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     reflect::TypeUuid,
@@ -717,9 +717,7 @@ fn setup(
 
     let mut camera_bundle = OrthographicCameraBundle::new_2d();
     camera_bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
-    commands
-        .spawn(camera_bundle)
-        .with(MainCamera);
+    commands.spawn(camera_bundle).with(MainCamera);
 
     commands
         .spawn(Parent {
@@ -764,10 +762,7 @@ fn setup(
         .with_children(|commands| {
             commands
                 .spawn(PbrBundle {
-                    mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(
-                        384.0,
-                        240.0,
-                    )))),
+                    mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(384.0, 240.0)))),
                     render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                         DEBUG_COLLISIONS_PIPELINE_HANDLE.typed(),
                     )]),
@@ -780,7 +775,6 @@ fn setup(
                 })
                 .with(DebugComponent);
         });
-
 
     materials.set_untracked(
         ANTIC_MATERIAL_HANDLE,
@@ -801,10 +795,9 @@ fn setup(
         RenderPipelines::from_pipelines(vec![RenderPipeline::new(pipeline_handle)]);
 
     let bg_material_handle = textures.add(CustomTexture {
-        color: Color::rgba_linear(0.0, 0.0,0.0, 1.0),
+        color: Color::rgba_linear(0.0, 0.0, 0.0, 1.0),
         texture: Some(asset_server.load("jungle-bg-1.png")),
     });
-
 
     commands
         .spawn(bundle)
@@ -814,7 +807,6 @@ fn setup(
         .with(TEST_MATERIAL_HANDLE.typed::<StandardMaterial>())
         .with(bg_material_handle);
     commands.remove_one::<MainPass>(commands.current_entity().unwrap());
-
 
     // commands
     //     .spawn(PbrBundle {

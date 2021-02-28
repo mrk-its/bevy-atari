@@ -1,11 +1,11 @@
 use crate::atr::ATR;
+use crate::multiplexer::Multiplexer;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
-use crate::multiplexer::Multiplexer;
 
 bitflags! {
     #[derive(Default)]
@@ -77,7 +77,9 @@ impl AtariSystem {
     pub fn trainer_changed(&mut self, changed: bool) -> usize {
         let mut cnt = 0;
         for (i, c) in self.ram.iter().enumerate() {
-            if self.ram_mask[i] == 0xff && (changed && *c == self.ram_copy[i] || !changed && *c != self.ram_copy[i]) {
+            if self.ram_mask[i] == 0xff
+                && (changed && *c == self.ram_copy[i] || !changed && *c != self.ram_copy[i])
+            {
                 self.ram_mask[i] = 0;
             }
             if self.ram_mask[i] == 0xff {
@@ -88,7 +90,6 @@ impl AtariSystem {
         self.ram_copy = self.ram.clone();
         cnt
     }
-
 
     #[inline(always)]
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
@@ -369,7 +370,8 @@ impl AtariSystem {
     pub fn set_joystick(&mut self, input: usize, port: usize, dirs: u8, fire: bool) {
         self.joystick[port].set_input(input, dirs | (fire as u8) << 4);
         let ports = [self.joystick[0].get_output(), self.joystick[1].get_output()];
-        self.pia.set_port_a_input(0, (ports[0] & 0xf | (ports[1] & 0xf) << 4) ^ 0xff);
+        self.pia
+            .set_port_a_input(0, (ports[0] & 0xf | (ports[1] & 0xf) << 4) ^ 0xff);
         self.gtia.set_trig(port, (ports[port] & 0x10) > 0);
     }
 

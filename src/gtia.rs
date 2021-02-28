@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use parking_lot::RwLock;
 use crate::palette::default::PALETTE;
 use crate::render_resources::GTIARegs;
 use bevy::prelude::*;
+use parking_lot::RwLock;
+use std::sync::Arc;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;

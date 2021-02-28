@@ -3,10 +3,10 @@ use crate::render::{self, CollisionsBufferNode};
 use crate::render_resources::{AnticData, AtariPalette, CustomTexture};
 use crate::system::AtariSystem;
 use crate::{gtia, render::AnticRendererGraphBuilder};
-use bevy::{render::pipeline::PipelineDescriptor, sprite::collide_aabb};
 use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
+use bevy::{render::pipeline::PipelineDescriptor, sprite::collide_aabb};
 use emulator_6502::{Interface6502, MOS6502};
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
@@ -768,7 +768,7 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
             render_resource_context.read_mapped_buffer(
                 buffer_id,
                 0..(state.buffer.len() as u64),
-                & |data, _| {
+                &|data, _| {
                     let data = unsafe { std::mem::transmute::<&[u8], &[u64]>(&data) };
                     // collision texture is RG texture, but we read it in RGBA format (4 * u32)
                     // where only RG components are set. That's why we skip every second u64
@@ -785,7 +785,7 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
                         }
                         collision_array[i] = agg;
                     }
-                }
+                },
             );
         }
     }

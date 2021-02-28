@@ -1,8 +1,8 @@
 use bevy::{
     prelude::*,
     render::{
-        entity::OrthographicCameraBundle,
         camera::{Camera, CameraProjection},
+        entity::OrthographicCameraBundle,
         render_graph::base::MainPass,
     },
     window::WindowId,
