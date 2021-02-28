@@ -60,6 +60,7 @@ pub fn build_antic2_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor
         fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
     });
 
+    pipeline_descr.color_target_states = Vec::new();
     pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.name = Some("ANTIC2".to_string());
     pipeline_descr.depth_stencil = None;
@@ -77,7 +78,27 @@ pub fn build_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescri
             COLLISIONS_FRAGMENT_SHADER,
         ))),
     });
+    pipeline_descr.color_target_states = Vec::new();
     pipeline_descr.name = Some("COLLISIONS".to_string());
+    pipeline_descr.primitive.cull_mode = CullMode::None;
+    pipeline_descr.depth_stencil = None;
+    info!("created pipeline: {:?}", pipeline_descr);
+    pipeline_descr
+}
+
+pub fn build_debug_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor {
+    let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
+        vertex: shaders.add(Shader::from_glsl(
+            ShaderStage::Vertex,
+            COLLISIONS_VERTEX_SHADER,
+        )),
+        fragment: Some(shaders.add(Shader::from_glsl(
+            ShaderStage::Fragment,
+            include_str!("debug_collisions.frag"),
+        ))),
+    });
+    pipeline_descr.color_target_states = Vec::new();
+    pipeline_descr.name = Some("DEBUG_COLLISIONS".to_string());
     pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.depth_stencil = None;
     info!("created pipeline: {:?}", pipeline_descr);

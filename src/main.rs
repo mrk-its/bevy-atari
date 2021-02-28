@@ -39,7 +39,7 @@ use bevy::{
 use emulator_6502::{Interface6502, MOS6502};
 use render_resources::{AnticData, AtariPalette, CustomTexture};
 use system::{
-    antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE},
+    antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE, DEBUG_COLLISIONS_PIPELINE_HANDLE},
     AtariSystem,
 };
 use time_used_plugin::TimeUsedPlugin;
@@ -755,6 +755,33 @@ fn setup(
                 .with(GtiaDebug)
                 .with(DebugComponent);
         });
+
+    commands
+        .spawn(Parent {
+            transform: Transform::from_translation(Vec3::new(0.0, -240.0, 0.0)),
+            ..Default::default()
+        })
+        .with_children(|commands| {
+            commands
+                .spawn(PbrBundle {
+                    mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(
+                        384.0,
+                        240.0,
+                    )))),
+                    render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
+                        DEBUG_COLLISIONS_PIPELINE_HANDLE.typed(),
+                    )]),
+                    material: materials.add(StandardMaterial {
+                        albedo: Color::rgba(0.0, 0.5, 0.0, 1.0),
+                        albedo_texture: Some(render::COLLISIONS_TEXTURE_HANDLE.typed()),
+                        unlit: true,
+                    }),
+                    ..Default::default()
+                })
+                .with(DebugComponent);
+        });
+
+
     materials.set_untracked(
         ANTIC_MATERIAL_HANDLE,
         StandardMaterial {

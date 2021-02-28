@@ -18,6 +18,9 @@ pub const ANTIC_DATA_HANDLE: HandleUntyped =
 pub const COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595297);
 
+pub const DEBUG_COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
+    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 12701505191960931865);
+
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
     pub const CHACTL: usize = 0x01;
@@ -804,6 +807,10 @@ impl Plugin for AnticPlugin {
         pipelines.set_untracked(
             COLLISIONS_PIPELINE_HANDLE,
             render::build_collisions_pipeline(&mut shaders),
+        );
+        pipelines.set_untracked(
+            DEBUG_COLLISIONS_PIPELINE_HANDLE,
+            render::build_debug_collisions_pipeline(&mut shaders),
         );
         palettes.set_untracked(ATARI_PALETTE_HANDLE, AtariPalette::default());
         antic_data.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
