@@ -1,8 +1,10 @@
-mod web_audio;
+const ALT_BACKEND: bool = true;
+#[path = "null_audio.rs"]
+mod audio;
 pub use bevy::prelude::*;
+use audio::AudioBackend;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
-use web_audio::AudioBackend;
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -101,7 +103,37 @@ impl Pokey {
 
     const IDLE_DELAY: usize = 2;
 
-    pub fn scanline_tick(&mut self) {
+    pub fn send_regs(&mut self) {
+        use wasm_bindgen::{JsCast, JsValue};
+        if ALT_BACKEND {
+            let regs = [
+                self.audctl.bits(),
+                self.ctl[0].bits(),
+                self.ctl[1].bits(),
+                self.ctl[2].bits(),
+                self.ctl[3].bits(),
+                self.freq[0],
+                self.freq[1],
+                self.freq[2],
+                self.freq[3],
+            ]
+            .iter()
+            .map(|x| JsValue::from_f64(*x as f64))
+            .collect::<js_sys::Array>();
+            let regs = JsValue::from(regs);
+
+            let window = web_sys::window().expect("no global `window` exists");
+            let port = unsafe {
+                js_sys::Reflect::get(&window, &"pokey_port".into())
+                    .expect("no pokey_port exists")
+                    .dyn_into::<web_sys::MessagePort>().expect("cannot cast to MessagePort")
+            };
+            port.post_message(&regs).expect("cannot post_message");
+            // info!("pokey regs: {:?} {:?}", regs, port);
+        }
+    }
+
+    pub fn scanline_tick(&mut self, scanline: usize) {
         for channel in 0..4 {
             if self.delay[channel] == 0 {
                 continue;
@@ -109,6 +141,7 @@ impl Pokey {
             self.delay[channel] -= 1;
             if self.delay[channel] == 0 {
                 self.setup_channel(channel);
+                self.send_regs();
             }
         }
     }

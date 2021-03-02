@@ -375,8 +375,8 @@ impl AtariSystem {
         self.gtia.set_trig(port, (ports[port] & 0x10) > 0);
     }
 
-    pub fn scanline_tick(&mut self) {
-        self.pokey.scanline_tick();
+    pub fn scanline_tick(&mut self, scanline: usize) {
+        self.pokey.scanline_tick(scanline);
         self.ticks += 1;
         if self.ticks == 15600 {
             // ~1sek

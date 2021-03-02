@@ -1,0 +1,75 @@
+<html>
+
+<head>
+    <title>GoodEnough POKEY Emulator, v2</title>
+    <script>
+        async function init() {
+            const audioContext = new AudioContext()
+            await audioContext.audioWorklet.addModule('pokey.js')
+            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+            pokeyNode.connect(audioContext.destination)
+            window.pokey_port = pokeyNode.port
+            window.audio_context = audioContext
+        }
+        init()
+        function send_regs(reg) {
+            window.audio_context.resume();
+            function reg(name) {
+                let input = document.querySelector("#" + name);
+                let value = parseInt(input.value, 16) || 0;
+                if (value < 0) value = 0;
+                if (value > 255) value = 255;
+                var hex = value.toString(16);
+                if (hex.length < 2) {
+                    hex = "0" + hex;
+                }
+                input.value = hex;
+                return value
+            }
+            window.pokey_port.postMessage(
+                [reg("audctl"), reg("audc1"), reg("audc2"), reg("audc3"), reg("audc4"), reg("audf1"), reg("audf2"), reg("audf3"), reg("audf4")]
+            )
+        }
+    </script>
+    <style>
+        input {
+            width: 3em
+        }
+    </style>
+</head>
+
+<body>
+    <table>
+        <tr>
+            <td>AUDCTL</td>
+            <td><input onchange="send_regs()" id="audctl" value="00" /></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>AUDC</td>
+            <td>AUDF</td>
+        </tr>
+        <tr>
+            <td>channel 1</td>
+            <td><input onchange="send_regs()" id="audc1" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf1" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 2</td>
+            <td><input onchange="send_regs()" id="audc2" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf2" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 3</td>
+            <td><input onchange="send_regs()" id="audc3" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf3" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 4</td>
+            <td><input onchange="send_regs()" id="audc4" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf4" value="00" /></td>
+        </tr>
+    </table>
+</body>
+
+</html>

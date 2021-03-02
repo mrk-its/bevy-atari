@@ -643,7 +643,7 @@ pub fn tick(
             // antic reset
             atari_system.antic.next_scan_line = 8;
         }
-        atari_system.scanline_tick();
+        atari_system.scanline_tick(atari_system.antic.scan_line);
 
         if atari_system.antic.dmactl.contains(DMACTL::PLAYER_DMA) {
             if atari_system.gtia.gractl.contains(gtia::GRACTL::MISSILE_DMA) {
