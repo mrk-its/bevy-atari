@@ -241,6 +241,16 @@
   <script type="module">
     import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
     async function run() {
+      const audioContext = new AudioContext({
+        sampleRate: 48000,
+        latencyHint:'playback'
+      });
+      console.log("sampleRate: ", audioContext.sampleRate);
+      await audioContext.audioWorklet.addModule('pokey/pokey.js')
+      const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+      pokeyNode.connect(audioContext.destination)
+      window.pokey_port = pokeyNode.port
+      window.audio_context = audioContext
       try {
         await init()
       } catch (e) {
@@ -289,6 +299,7 @@
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a href="#"
         onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
+      <a href="#" onclick="window.audio_context.resume()">enable audio</a>
     </div>
     <div class="files">
       <div id="osrom">

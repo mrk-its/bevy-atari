@@ -242,6 +242,7 @@ dependencies = [
  "getrandom 0.1.16",
  "gilrs",
  "gilrs-core",
+ "js-sys",
  "lru",
  "once_cell",
  "parking_lot",
