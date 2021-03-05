@@ -101,7 +101,7 @@ class POKEY extends AudioWorkletProcessor {
     //   console.log("hipass2 c1", this.audc[1], "f1", this.audf[1], "c3", this.audc[3], "f3", this.audf[3], this.audctl);
     // }
 
-    output.forEach(channel => {
+    output.slice(0, 1).forEach(channel => {
       for (let i = 0; i < channel.length; i++) {
         for (let j=0; j < 37; j++) {
           this.clock_cnt -= 1;
