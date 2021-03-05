@@ -2,6 +2,7 @@
 
 <head>
   <meta charset="utf-8" />
+  <title>Good Enough Atari Emulator</title>
   <style>
     body {
       background: linear-gradient(135deg,
@@ -160,7 +161,7 @@
       if (url) {
         fetch_binary_data("", url).then(update_fragment);
       } else {
-        for(file of event.dataTransfer.files) {
+        for (file of event.dataTransfer.files) {
           handle_file(file);
         }
       }
@@ -180,12 +181,18 @@
       document.location.hash = '#' + encodeURIComponent(hash);
     }
 
+    function set_title(text) {
+      let title = document.querySelector("title");
+      if(title) title.innerText = text;
+    }
+
     function update_status() {
-      for(key of ['disk_1', 'osrom', 'basic']) {
+      for (key of ['disk_1', 'osrom', 'basic']) {
         let fn = localStorage[`${key}_filename`];
         let sel = document.querySelector(`#${key} span`);
-        if(fn) {
+        if (fn) {
           sel.innerText = fn;
+          if(key == 'disk_1') set_title(fn);
         } else {
           sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
         }
@@ -223,7 +230,7 @@
       //   let file = await handle.getFile();
       //   handle_file(file);
       // }
-      for(file of event.target.files) {
+      for (file of event.target.files) {
         console.log(file);
         handle_file(file);
       }
@@ -232,8 +239,18 @@
   </script>
 
   <script type="module">
-    import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './wasm.js'
+    import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
     async function run() {
+      const audioContext = new AudioContext({
+        sampleRate: 48000,
+        latencyHint:'playback'
+      });
+      console.log("sampleRate: ", audioContext.sampleRate);
+      await audioContext.audioWorklet.addModule('pokey/pokey.js')
+      const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+      pokeyNode.connect(audioContext.destination)
+      window.pokey_port = pokeyNode.port
+      window.audio_context = audioContext
       try {
         await init()
       } catch (e) {
@@ -255,37 +272,6 @@
         update_fragment();
         console.log("done");
       })
-
-      var anim_frame = null;
-
-      function gamepadPoll() {
-        var gamepads = navigator.getGamepads();
-        var gamepad = gamepads && gamepads[0];
-        if(gamepad) {
-          let dirs = (
-            gamepad.buttons[12].pressed
-            + gamepad.buttons[13].pressed * 2
-            + gamepad.buttons[14].pressed * 4
-            + gamepad.buttons[15].pressed * 8
-          );
-          let fire = gamepad.buttons[1].pressed;
-          set_joystick(0, dirs, fire);
-          set_consol(
-            gamepad.buttons[0] + gamepad.buttons[2] * 2 + gamepad.buttons[3] * 4
-          )
-        }
-        anim_frame = requestAnimationFrame(gamepadPoll);
-      }
-      window.addEventListener("gamepadconnected", function(e) {
-        gamepadPoll();
-        console.log("gamepad connected: ", e.gamepad);
-      });
-
-      window.addEventListener("gamepaddisconnected", function(e) {
-        anim_frame && cancelAnimationFrame(anim_frame);
-        console.log("gamepad disconnected");
-      });
-
     }
     run();
 
@@ -302,16 +288,18 @@
 </head>
 
 
-<body onhashchange="on_hash_change();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
+<body onhashchange="on_hash_change();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()" onclick="window.audio_context.resume();">
   <div id="canvas-container">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <div class="buttons">
-      <button onclick="reset(false, false); blur()">Restart (Warm)</button>
-      <button onclick="reset(true, false); blur()">Restart (Cold)</button>
-      <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
+      <button onclick="reset(false, false); blur(); window.audio_context.resume();">Restart (Warm)</button>
+      <button onclick="reset(true, false); blur(); window.audio_context.resume();">Restart (Cold)</button>
+      <button onclick="reset(true, true); blur(); window.audio_context.resume();">Restart (Cold, Disable Basic)</button>
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
-      <a href="#" onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
+      <a href="#"
+        onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c); window.audio_context.resume();">fullscreen</a>
+      <a href="#" onclick="window.audio_context.resume()">enable audio</a>
     </div>
     <div class="files">
       <div id="osrom">

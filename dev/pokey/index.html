@@ -1,0 +1,92 @@
+<html>
+
+<head>
+    <title>GoodEnough POKEY Emulator, v2</title>
+    <script>
+        const reg_names =  ["audctl", "audc1", "audc2", "audc3", "audc4", "audf1", "audf2", "audf3", "audf4"];
+
+        async function init() {
+            const audioContext = new AudioContext({
+                sampleRate: 48000,
+                latencyHint:'playback'
+            })
+            await audioContext.audioWorklet.addModule('pokey.js')
+            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+            pokeyNode.connect(audioContext.destination)
+            window.pokey_port = pokeyNode.port
+            window.audio_context = audioContext
+            hash_to_pokey()
+        }
+        function get_reg(name) {
+            let input = document.querySelector("#" + name);
+            let value = parseInt(input.value, 16) || 0;
+            if (value < 0) value = 0;
+            if (value > 255) value = 255;
+            var hex = value.toString(16);
+            if (hex.length < 2) {
+                hex = "0" + hex;
+            }
+            input.value = hex;
+            return hex
+        }
+        function set_reg(name, value) {
+            let input = document.querySelector("#" + name);
+            input.value = value
+        }
+        function send_regs(reg) {
+            window.audio_context.resume();
+            document.location.hash = '#' + reg_names.map(get_reg).join("|")
+        }
+        function hash_to_pokey() {
+            let regs = document.location.hash.substring(1).split("|")
+            if(regs && regs.length == 9) {
+                regs.map((v, i) => {
+                set_reg(reg_names[i], v);
+                })
+                window.pokey_port.postMessage(regs.map((v) => parseInt(v, 16)));
+            }
+        }
+    </script>
+    <style>
+        input {
+            width: 3em
+        }
+    </style>
+</head>
+
+<body onhashchange="hash_to_pokey()" onload="init()">
+    <table>
+        <tr>
+            <td>AUDCTL</td>
+            <td><input onchange="send_regs()" id="audctl" value="00" /></td>
+        </tr>
+        <tr>
+            <td></td>
+            <td>AUDC</td>
+            <td>AUDF</td>
+        </tr>
+        <tr>
+            <td>channel 1</td>
+            <td><input onchange="send_regs()" id="audc1" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf1" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 2</td>
+            <td><input onchange="send_regs()" id="audc2" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf2" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 3</td>
+            <td><input onchange="send_regs()" id="audc3" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf3" value="00" /></td>
+        </tr>
+        <tr>
+            <td>channel 4</td>
+            <td><input onchange="send_regs()" id="audc4" value="00" /></td>
+            <td><input onchange="send_regs()" id="audf4" value="00" /></td>
+        </tr>
+    </table>
+    <button onclick="window.audio_context.resume()">enable audio</button>
+</body>
+
+</html>
