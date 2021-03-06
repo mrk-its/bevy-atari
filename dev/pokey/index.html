@@ -3,29 +3,14 @@
 <head>
     <title>GoodEnough POKEY Emulator, v2</title>
     <script>
-        const reg_names =  ["audctl", "audc1", "audc2", "audc3", "audc4", "audf1", "audf2", "audf3", "audf4"];
+        const reg_names =  ["audc1", "audf1", "audc2", "audf2", "audc3", "audf3", "audc4", "audf4", "audctl"];
 
-        async function init() {
-            const audioContext = new AudioContext({
-                sampleRate: 48000,
-                latencyHint:'playback'
-            })
-            await audioContext.audioWorklet.addModule('pokey.js')
-            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+        function createAnalyser(audioContext) {
             var analyser = audioContext.createAnalyser();
             analyser.fftSize = 2048;
             var bufferLength = analyser.frequencyBinCount;
             var dataArray = new Uint8Array(bufferLength);
             var freqArray = new Uint8Array(bufferLength);
-
-            analyser.connect(audioContext.destination);
-            console.log("fft_size: ", analyser.fftSize);
-            // pokeyNode.connect(audioContext.destination)
-            pokeyNode.connect(analyser);
-            window.pokey_port = pokeyNode.port
-            window.audio_context = audioContext
-            hash_to_pokey()
-            analyser.getByteTimeDomainData(dataArray);
 
             var scopeCanvas = document.getElementById("oscilloscope");
             var scopeCanvasCtx = scopeCanvas.getContext("2d");
@@ -75,6 +60,7 @@
                 }
                 scopeCanvasCtx.stroke();
             }
+
             function drawSpectrum() {
 
                 requestAnimationFrame(drawSpectrum);
@@ -85,13 +71,34 @@
                 spectrumCanvasCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
                 spectrumCanvasCtx.fillStyle = "rgb(200, 0, 0)";
                 for (var i = 0; i < bufferLength; i++) {
-                    if(freqArray[i])
-                        spectrumCanvasCtx.fillRect(i, spectrumCanvas.height-freqArray[i], 1, spectrumCanvas.height);
+                    if(freqArray[i]) {
+                        spectrumCanvasCtx.fillRect(i, spectrumCanvas.height- spectrumCanvas.height * freqArray[i] / 256, 1, spectrumCanvas.height);
+                    }
                 }
             }
 
             drawScope();
             drawSpectrum();
+
+            return analyser
+        }
+
+        async function init() {
+            const audioContext = new AudioContext({
+                sampleRate: 48000,
+                latencyHint:'playback'
+            })
+            await audioContext.audioWorklet.addModule('pokey.js')
+            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+            analyser = createAnalyser(audioContext);
+            analyser.connect(audioContext.destination);
+            // pokeyNode.connect(audioContext.destination)
+            pokeyNode.connect(analyser);
+            window.pokey_port = pokeyNode.port
+            window.audio_context = audioContext
+            hash_to_pokey()
+
+
         }
         function get_reg(name) {
             let input = document.querySelector("#" + name);
@@ -111,10 +118,10 @@
         }
         function send_regs(reg) {
             window.audio_context.resume();
-            document.location.hash = '#' + reg_names.map(get_reg).join("|")
+            document.location.hash = '#' + reg_names.map(get_reg).join("_");
         }
         function hash_to_pokey() {
-            let regs = document.location.hash.substring(1).split("|")
+            let regs = document.location.hash.substring(1).split("_")
             if(regs && regs.length == 9) {
                 regs.map((v, i) => {
                 set_reg(reg_names[i], v);
@@ -167,11 +174,11 @@
     </table>
     <button onclick="window.audio_context.resume()">enable audio</button>
     <br/>
-    <canvas id="oscilloscope" width="1024" height="512">
+    <canvas id="oscilloscope" width="1024" height="256">
 
     </canvas>
 
-    <canvas id="spectrum" width="1024" height="256">
+    <canvas id="spectrum" width="1024" height="128">
 
     </canvas>
 </body>

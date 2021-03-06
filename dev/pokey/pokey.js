@@ -13,10 +13,10 @@ class POKEY extends AudioWorkletProcessor {
   constructor() {
     super();
     this.port.onmessage = (e) => {
-      this.audctl = e.data[0]
+      this.audctl = e.data[8]
       for(var i=0; i<4; i++) {
-        this.audc[i] = e.data[1 + i];
-        this.audf[i] = e.data[1 + 4 + i];
+        this.audf[i] = e.data[i * 2];
+        this.audc[i] = e.data[i * 2 + 1];
       }
     }
     this.filter = new FIRFilter(FIR_37_to_1);
@@ -130,6 +130,8 @@ class POKEY extends AudioWorkletProcessor {
               this.cnt[0] -= 1;
               if(this.cnt[0] < 0) {
                 this.cnt[0] = 255;
+                this.square_output[0] = (~this.square_output[0]) & 1
+                this.output[0] = this.get_output(0)
                 this.cnt[1] -= 1;
                 if(this.cnt[1] < 0) {
                   this.reload_linked(0);
@@ -158,6 +160,8 @@ class POKEY extends AudioWorkletProcessor {
               this.cnt[2] -= 1;
               if(this.cnt[2] < 0) {
                 this.cnt[2] = 255;
+                this.square_output[2] = (~this.square_output[2]) & 1
+                this.output[2] = this.get_output(2)
                 this.cnt[3] -= 1;
                 if(this.cnt[3] < 0) {
                   this.reload_linked(2);
