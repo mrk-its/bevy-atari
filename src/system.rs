@@ -326,7 +326,6 @@ impl AtariSystem {
             if *ev == KeyCode::F5 {
                 self.reset(cpu, false, false);
             }
-            self.pokey.resume();
             if map_joy {
                 joy_changed = joy_changed
                     || *ev == KeyCode::LShift
@@ -382,6 +381,10 @@ impl AtariSystem {
             // ~1sek
             self.gtia.consol_force_mask = 0x07;
         }
+    }
+    pub fn inc_cycle(&mut self) {
+        self.antic.inc_cycle();
+        self.pokey.total_cycles = self.antic.total_cycles;
     }
 }
 

@@ -25,6 +25,11 @@
       width: 768px;
     }
 
+    #analyser-container {
+      margin: 0px auto;
+      width: 1024px;
+    }
+
     .files>div {
       padding: 1em;
       margin: 1em;
@@ -240,6 +245,7 @@
 
   <script type="module">
     import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
+    import {createAnalyser} from './pokey/analyser.js'
     async function run() {
       const audioContext = new AudioContext({
         sampleRate: 48000,
@@ -248,7 +254,11 @@
       console.log("sampleRate: ", audioContext.sampleRate);
       await audioContext.audioWorklet.addModule('pokey/pokey.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
-      pokeyNode.connect(audioContext.destination)
+      var analyser = createAnalyser(audioContext);
+      analyser.connect(audioContext.destination);
+      pokeyNode.connect(analyser);
+      //pokeyNode.connect(audioContext.destination)
+
       window.pokey_port = pokeyNode.port
       window.audio_context = audioContext
       try {
@@ -288,7 +298,7 @@
 </head>
 
 
-<body onhashchange="on_hash_change();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
+<body onhashchange="on_hash_change();" onclick="window.audio_context.resume();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
   <div id="canvas-container">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <div class="buttons">
@@ -299,7 +309,6 @@
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a href="#"
         onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
-      <a href="#" onclick="window.audio_context.resume()">enable audio</a>
     </div>
     <div class="files">
       <div id="osrom">
@@ -315,6 +324,15 @@
         <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
       </div>
     </div>
+  </div>
+  <div id="analyser-container">
+    <canvas id="oscilloscope" width="1024" height="256">
+
+    </canvas>
+
+    <canvas id="spectrum" width="1024" height="128">
+
+    </canvas>
   </div>
 </body>
 

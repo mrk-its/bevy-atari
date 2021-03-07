@@ -1,13 +1,11 @@
+const CPU_CYCLES_PER_SEC = 312 * 114 * 50;
 // const POKEY_FREQ = 312 * 114 * 50;
 // const POKEY_FREQ = 44100 * 40;
 // const OUT_FREQ = 44100;
-const POKEY_FREQ = 48000 * 37;
-const OUT_FREQ = 48000;
-const T = POKEY_FREQ * OUT_FREQ;
 
-const div1 = 128
-const T15 = 114
-const T64 = 28
+const OUT_FREQ = 48000;
+const M = 37;
+const POKEY_FREQ = 48000 * M;
 
 class POKEY extends AudioWorkletProcessor {
   constructor() {
@@ -18,12 +16,15 @@ class POKEY extends AudioWorkletProcessor {
         this.audf[i] = e.data[i * 2];
         this.audc[i] = e.data[i * 2 + 1];
       }
+      console.log(e.data[9] / CPU_CYCLES_PER_SEC - this.total_cycles / OUT_FREQ);
     }
     this.filter = new FIRFilter(FIR_37_to_1);
     this.out_t = 0;
     this.pokey_t = 0;
     this.clock_cnt = 0;
     this.clock_period = 28;
+
+    this.total_cycles = 0;
 
     this.audctl = 0;
 
@@ -103,7 +104,7 @@ class POKEY extends AudioWorkletProcessor {
 
     output.slice(0, 1).forEach(channel => {
       for (let i = 0; i < channel.length; i++) {
-        for (let j=0; j < 37; j++) {
+        for (let j=0; j < M; j++) {
           this.clock_cnt -= 1;
           let clock_underflow = this.clock_cnt < 0;
           if(clock_underflow) {
@@ -177,16 +178,16 @@ class POKEY extends AudioWorkletProcessor {
           this.cycle_cnt += 1;
           this.filter.add_sample(
 
-            0.25 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
-            + 0.25 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
-            + 0.25 * (2 * this.output[2] - 1) * (link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
-            + 0.25 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
+            0.2 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
+            + 0.2 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
+            + 0.2 * (2 * this.output[2] - 1) * (link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
+            + 0.2 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
           );
         }
         channel[i] = this.filter.get();
       }
     })
-    // console.log("audio frame", this.out_t / T, this.pokey_t / T);
+    this.total_cycles += 128;
     return true
   }
 }

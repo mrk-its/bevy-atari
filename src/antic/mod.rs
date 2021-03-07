@@ -107,6 +107,7 @@ pub struct Antic {
     pub dlist: u16,
     nmireq: bool,
     pub cycle: usize,
+    pub total_cycles: usize,
     visible_cycle: usize,
     dma_cycles: usize,
     pub scan_line: usize,
@@ -287,6 +288,7 @@ impl Antic {
 
     #[inline(always)]
     pub fn inc_cycle(&mut self) {
+        self.total_cycles += 1;
         self.cycle = (self.cycle + 1) % SCAN_LINE_CYCLES;
         if self.cycle == 0 {
             self.scan_line = (self.scan_line + 1) % MAX_SCAN_LINES;
@@ -396,6 +398,7 @@ impl Antic {
     pub fn steal_cycles(&mut self) {
         if self.cycle == self.visible_cycle {
             self.cycle += self.dma_cycles;
+            self.total_cycles += self.dma_cycles;
         }
     }
 

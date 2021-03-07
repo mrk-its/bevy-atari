@@ -479,7 +479,7 @@ fn atari_system(
                 _ => (),
             }
         }
-        atari_system.antic.inc_cycle();
+        atari_system.inc_cycle();
         if atari_system.antic.cycle == 0 {
             if let Some(BreakPoint::ScanLine(scan_line)) = &frame.break_point {
                 if *scan_line == atari_system.antic.scan_line {
@@ -490,6 +490,7 @@ fn atari_system(
                 }
             }
             if atari_system.antic.scan_line == 248 {
+                atari_system.pokey.send_regs();
                 break;
             }
         }

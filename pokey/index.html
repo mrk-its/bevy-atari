@@ -2,8 +2,9 @@
 
 <head>
     <title>GoodEnough POKEY Emulator, v2</title>
-    <script>
-        const reg_names =  ["audctl", "audc1", "audc2", "audc3", "audc4", "audf1", "audf2", "audf3", "audf4"];
+    <script type="module">
+        import {createAnalyser} from './analyser.js'
+        const reg_names =  ["audf1", "audc1", "audf2", "audc2", "audf3", "audc3", "audf4", "audc4", "audctl"];
 
         async function init() {
             const audioContext = new AudioContext({
@@ -12,7 +13,10 @@
             })
             await audioContext.audioWorklet.addModule('pokey.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
-            pokeyNode.connect(audioContext.destination)
+            var analyser = createAnalyser(audioContext);
+            analyser.connect(audioContext.destination);
+            // pokeyNode.connect(audioContext.destination)
+            pokeyNode.connect(analyser);
             window.pokey_port = pokeyNode.port
             window.audio_context = audioContext
             hash_to_pokey()
@@ -35,10 +39,10 @@
         }
         function send_regs(reg) {
             window.audio_context.resume();
-            document.location.hash = '#' + reg_names.map(get_reg).join("|")
+            document.location.hash = '#' + reg_names.map(get_reg).join("_");
         }
         function hash_to_pokey() {
-            let regs = document.location.hash.substring(1).split("|")
+            let regs = document.location.hash.substring(1).split("_")
             if(regs && regs.length == 9) {
                 regs.map((v, i) => {
                 set_reg(reg_names[i], v);
@@ -46,15 +50,21 @@
                 window.pokey_port.postMessage(regs.map((v) => parseInt(v, 16)));
             }
         }
-    </script>
+        window.send_regs = send_regs;
+        window.hash_to_pokey = hash_to_pokey;
+        init();
+        </script>
     <style>
         input {
             width: 3em
         }
+        canvas {
+            margin: 1em;
+        }
     </style>
 </head>
 
-<body onhashchange="hash_to_pokey()" onload="init()">
+<body onhashchange="hash_to_pokey()">
     <table>
         <tr>
             <td>AUDCTL</td>
@@ -87,6 +97,14 @@
         </tr>
     </table>
     <button onclick="window.audio_context.resume()">enable audio</button>
+    <br/>
+    <canvas id="oscilloscope" width="1024" height="256">
+
+    </canvas>
+
+    <canvas id="spectrum" width="1024" height="128">
+
+    </canvas>
 </body>
 
 </html>

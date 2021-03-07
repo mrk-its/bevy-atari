@@ -1,13 +1,10 @@
-const ALT_BACKEND: bool = true;
-#[path = "null_audio.rs"]
-mod audio;
 pub use bevy::prelude::*;
-use audio::AudioBackend;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
+const SKCTL: usize = 0x0f;
 const SKSTAT: usize = 0x0f;
 const IRQST: usize = 0x0e;
 const IRQEN: usize = 0x0e;
@@ -53,8 +50,6 @@ bitflags! {
 }
 
 pub struct Pokey {
-    delay: [usize; 4],
-    clock_divider: [u32; 4],
     freq: [u8; 4],
     ctl: [AUDC; 4],
     audctl: AUDCTL,
@@ -62,8 +57,8 @@ pub struct Pokey {
     skstat: u8,
     irqst: u8,
     pub irqen: IRQ,
-    backend: AudioBackend,
     rng: SmallRng,
+    pub total_cycles: usize,
 }
 
 impl Default for Pokey {
@@ -71,16 +66,14 @@ impl Default for Pokey {
         let rng = SmallRng::from_seed([0; 16]);
         Self {
             rng,
-            delay: [0; 4],
             ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
-            clock_divider: [DIVIDER_64K; 4],
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
             irqen: IRQ::from_bits_truncate(0xff),
-            backend: AudioBackend::new().unwrap(),
             audctl: AUDCTL::from_bits_truncate(0),
+            total_cycles: 0,
         }
     }
 }
@@ -105,127 +98,46 @@ impl Pokey {
 
     pub fn send_regs(&mut self) {
         use wasm_bindgen::{JsCast, JsValue};
-        if ALT_BACKEND {
-            let regs = [
-                self.audctl.bits(),
-                self.ctl[0].bits(),
-                self.ctl[1].bits(),
-                self.ctl[2].bits(),
-                self.ctl[3].bits(),
-                self.freq[0],
-                self.freq[1],
-                self.freq[2],
-                self.freq[3],
-            ]
-            .iter()
-            .map(|x| JsValue::from_f64(*x as f64))
-            .collect::<js_sys::Array>();
-            let regs = JsValue::from(regs);
+        let regs = [
+            self.freq[0] as f64,
+            self.ctl[0].bits() as f64,
+            self.freq[1] as f64,
+            self.ctl[1].bits() as f64,
+            self.freq[2] as f64,
+            self.ctl[2].bits() as f64,
+            self.freq[3] as f64,
+            self.ctl[3].bits() as f64,
+            self.audctl.bits() as f64,
+            self.total_cycles as f64,
+        ]
+        .iter()
+        .map(|x| JsValue::from_f64(*x))
+        .collect::<js_sys::Array>();
+        let regs = JsValue::from(regs);
 
-            let window = web_sys::window().expect("no global `window` exists");
-            let port = unsafe {
-                js_sys::Reflect::get(&window, &"pokey_port".into())
-                    .expect("no pokey_port exists")
-                    .dyn_into::<web_sys::MessagePort>().expect("cannot cast to MessagePort")
-            };
-            port.post_message(&regs).expect("cannot post_message");
-            // info!("pokey regs: {:?} {:?}", regs, port);
-        }
+        let window = web_sys::window().expect("no global `window` exists");
+        let port = unsafe {
+            js_sys::Reflect::get(&window, &"pokey_port".into())
+                .expect("no pokey_port exists")
+                .dyn_into::<web_sys::MessagePort>().expect("cannot cast to MessagePort")
+        };
+        port.post_message(&regs).expect("cannot post_message");
+        // info!("pokey regs: {:?} {:?}", regs, port);
     }
 
     pub fn scanline_tick(&mut self, scanline: usize) {
-        for channel in 0..4 {
-            if self.delay[channel] == 0 {
-                continue;
-            }
-            self.delay[channel] -= 1;
-            if self.delay[channel] == 0 {
-                self.setup_channel(channel);
-                self.send_regs();
-            }
-        }
-    }
-
-    pub fn setup_channel(&mut self, channel: usize) {
-        let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
-        let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
-        let (divider, clock_divider) = if channel == 1 && is_linked_01
-            || channel == 3 && is_linked_23
-        {
-            let divider = 7 + (self.freq[channel - 1] as u32) + (self.freq[channel] as u32) * 256;
-            let clock_divider = self.clock_divider[channel - 1];
-            (divider, clock_divider)
-        } else {
-            let divider = 1 + (self.freq[channel] as u32);
-            let clock_divider = self.clock_divider[channel];
-            (divider, clock_divider)
-        };
-        assert!(clock_divider > 0);
-        assert!(divider > 0);
-        let freq = CLOCK_177 / clock_divider as f32 / divider as f32 / 2.0;
-
-        self.backend.setup_channel(
-            channel,
-            self.audctl,
-            self.ctl[channel],
-            divider,
-            clock_divider,
-            freq,
-        );
-        let gain = 0.25 * (self.ctl[channel] & AUDC::VOL_MASK).bits as f32 / 15.0;
-        self.backend.set_gain(channel, gain);
-        let is_linked = is_linked_01 && channel == 1 || is_linked_23 && channel == 3;
-        if is_linked {
-            self.backend.set_gain(channel - 1, 0.0);
-        }
-        // warn!(
-        //     "setup channel {}, linked: {}, divider: {:04x}, freq: {}Hz",
-        //     channel, is_linked, divider, freq
-        // );
-    }
-
-    pub fn reset_idle(&mut self, channel: usize) {
-        let linked_channel = channel & 0x2; // 0 or 2
-        if linked_channel == 0 && self.audctl.contains(AUDCTL::CH12_LINKED_CNT)
-            || linked_channel == 2 && self.audctl.contains(AUDCTL::CH34_LINKED_CNT)
-        {
-            self.delay[linked_channel + 1] = Pokey::IDLE_DELAY;
-        } else {
-            self.delay[channel] = Pokey::IDLE_DELAY;
-        }
     }
 
     pub fn update_freq(&mut self, channel: usize, value: u8) {
-        self.reset_idle(channel);
         self.freq[channel] = value;
-        // warn!("FREQ: channel: {} value: {:02x}", channel, value);
     }
-    // ch34 linked, ch3 fast clock
-    // freq: e605, 586.15686Hz
-    // ctl: ch3: c7
-    // ctl: ch2: 00
+
+    pub fn update_audctl(&mut self, value: u8) {
+        self.audctl = AUDCTL::from_bits_truncate(value);
+    }
 
     pub fn update_ctl(&mut self, channel: usize, value: u8) {
-        self.reset_idle(channel);
         self.ctl[channel] = AUDC::from_bits_truncate(value);
-        // info!("update_ctl channel: {}, value: {:02x}, {:?}", channel, value, self.ctl[channel]);
-        // warn!("CTL: channel: {} value: {:02x}", channel, value);
-
-        // let is_linked_01 = self.audctl.contains(AUDCTL::CH12_LINKED_CNT);
-        // let is_linked_23 = self.audctl.contains(AUDCTL::CH34_LINKED_CNT);
-
-        // let gain = 0.5 * (value & 0xf) as f32 / 15.0;
-
-        // if is_linked_01 && channel == 1 || is_linked_23 && channel == 3 {
-        //     self.backend
-        //         .set_noise(channel, value & 0x20 == 0, self.audctl, value);
-        //     self.backend.set_gain(channel, gain);
-        //     self.backend.set_gain(channel - 1, 0.0);
-        // } else {
-        //     self.backend
-        //         .set_noise(channel, value & 0x20 == 0, self.audctl, value);
-        //     self.backend.set_gain(channel, gain);
-        // }
     }
 
     pub fn write(&mut self, addr: usize, value: u8) {
@@ -239,41 +151,18 @@ impl Pokey {
                 self.update_ctl(channel, value);
             }
             8 => {
-                self.audctl = AUDCTL::from_bits_truncate(value);
-                if self.audctl.contains(AUDCTL::CH1_HIGH_PASS)
-                    || self.audctl.contains(AUDCTL::CH1_HIGH_PASS)
-                {
-                    warn!("channel: {}, {:?}", channel, self.audctl);
-                }
-                let slow_clock = if self.audctl.contains(AUDCTL::CLOCK_15) {
-                    DIVIDER_15K
-                } else {
-                    DIVIDER_64K
-                };
-                self.clock_divider[0] = if self.audctl.contains(AUDCTL::CH1_FAST_CLOCK) {
-                    1
-                } else {
-                    slow_clock
-                };
-                self.clock_divider[1] = slow_clock;
-                self.clock_divider[2] = if self.audctl.contains(AUDCTL::CH3_FAST_CLOCK) {
-                    1
-                } else {
-                    slow_clock
-                };
-                self.clock_divider[3] = slow_clock;
-                // warn!("AUDCTL: {:?}", self.audctl);
-                for i in 0..4 {
-                    self.reset_idle(i)
+                self.update_audctl(value);
+            }
+            SKCTL => {
+                if value & 3 == 0 {
+                    // info!("POKEY reset!");
                 }
             }
             IRQEN => self.irqen = IRQ::from_bits_truncate(value),
             _ => (),
         }
     }
-    pub fn resume(&mut self) {
-        self.backend.resume()
-    }
+
     pub fn key_press(
         &mut self,
         event: &KeyCode,
