@@ -25,6 +25,11 @@
       width: 768px;
     }
 
+    #analyser-container {
+      margin: 0px auto;
+      width: 1024px;
+    }
+
     .files>div {
       padding: 1em;
       margin: 1em;
@@ -240,6 +245,38 @@
 
   <script type="module">
     import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
+    import {createAnalyser} from './pokey/analyser.js'
+    import {bytesToBase64} from './pokey/base64.js'
+
+    window.concat_arrays = function(arrays) {
+      let totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
+      let result = new Uint8Array(totalLength);
+      let length = 0;
+      for(let array of arrays) {
+            result.set(array, length);
+            length += array.length;
+      }
+      return result;
+    }
+    window.rec_start_stop = function() {
+      console.log(window.rec_buffers.len)
+      if(window.rec_buffers.length > 0) {
+        window.pokey_port.postMessage('rec_stop');
+        this.innerText = 'Rec';
+      } else {
+        window.pokey_port.postMessage('rec_start');
+        this.innerText='Stop';
+      }
+    }
+    function time_str(t) {
+      let minutes = Math.floor(t / 60);
+      let seconds = Math.floor(t - minutes * 60);
+      let millis = t - minutes * 60 - seconds;
+      return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}.${Math.round(millis * 1000)}`
+    }
+    const FRAMES_PER_SEC = 50;
+    const BUF_SIZE = FRAMES_PER_SEC * 9;
+
     async function run() {
       const audioContext = new AudioContext({
         sampleRate: 48000,
@@ -248,7 +285,29 @@
       console.log("sampleRate: ", audioContext.sampleRate);
       await audioContext.audioWorklet.addModule('pokey/pokey.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
-      pokeyNode.connect(audioContext.destination)
+      var analyser = createAnalyser(audioContext);
+      analyser.connect(audioContext.destination);
+      pokeyNode.connect(analyser);
+      //pokeyNode.connect(audioContext.destination)
+      window.rec_buffers = [];
+      pokeyNode.port.onmessage = (msg) => {
+        window.rec_buffers.push(msg.data);
+        console.log("recording", window.rec_buffers.length);
+        if(msg.data.length < BUF_SIZE) {
+          let t = ((window.rec_buffers.length - 1) * BUF_SIZE + msg.data.length) / BUF_SIZE;
+          let header = `SAP\r\nTYPE R\r\nTIME ${time_str(t)}\r\nFASTPLAY ${FRAMES_PER_SEC == 50 ? 312 : 262}\r\n\r\n`
+          let enc = new TextEncoder();
+          let header_data = enc.encode(header);
+          window.rec_buffers.splice(0, 0, header_data);
+          let sap_data = concat_arrays(window.rec_buffers);
+          window.rec_buffers = [];
+          let data_url = 'data:audio/x-sap;charset=urf-8;base64,' + bytesToBase64(sap_data);
+          let link = document.createElement("a");
+          link.href = data_url
+          link.download = "file.sap"
+          link.click();
+        }
+      }
       window.pokey_port = pokeyNode.port
       window.audio_context = audioContext
       try {
@@ -288,18 +347,17 @@
 </head>
 
 
-<body onhashchange="on_hash_change();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()" onclick="window.audio_context.resume();">
+<body onhashchange="on_hash_change();" onclick="window.audio_context.resume();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
   <div id="canvas-container">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <div class="buttons">
-      <button onclick="reset(false, false); blur(); window.audio_context.resume();">Restart (Warm)</button>
-      <button onclick="reset(true, false); blur(); window.audio_context.resume();">Restart (Cold)</button>
-      <button onclick="reset(true, true); blur(); window.audio_context.resume();">Restart (Cold, Disable Basic)</button>
+      <button onclick="reset(false, false); blur()">Restart (Warm)</button>
+      <button onclick="reset(true, false); blur()">Restart (Cold)</button>
+      <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a href="#"
-        onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c); window.audio_context.resume();">fullscreen</a>
-      <a href="#" onclick="window.audio_context.resume()">enable audio</a>
+        onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
     </div>
     <div class="files">
       <div id="osrom">
@@ -315,6 +373,12 @@
         <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
       </div>
     </div>
+  </div>
+  <div id="analyser-container">
+    <canvas id="oscilloscope" width="1024" height="256">
+
+    </canvas>
+    <button onclick="rec_start_stop.apply(this)">Rec</button>
   </div>
 </body>
 

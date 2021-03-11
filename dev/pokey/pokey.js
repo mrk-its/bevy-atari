@@ -7,16 +7,36 @@ const OUT_FREQ = 48000;
 const M = 37;
 const POKEY_FREQ = 48000 * M;
 
+const REC_BUF_SIZE = 9 * 50;
+
 class POKEY extends AudioWorkletProcessor {
   constructor() {
     super();
+    this.recorded = null;
     this.port.onmessage = (e) => {
-      this.audctl = e.data[8]
-      for(var i=0; i<4; i++) {
-        this.audf[i] = e.data[i * 2];
-        this.audc[i] = e.data[i * 2 + 1];
+      if(e.data == "rec_start") {
+        this.recorded = new Uint8Array(REC_BUF_SIZE);
+        this.rec_ptr = 0;
+        console.log("rec started");
+      } else if(e.data == "rec_stop") {
+        this.port.postMessage(this.recorded.slice(0, this.rec_ptr));
+        this.recorded = null;
+      } else {
+        if(this.recorded != null) {
+          for(var i=0; i<9; i++) {
+            this.recorded[this.rec_ptr + i] = e.data[i];
+          }
+          this.rec_ptr = (this.rec_ptr + 9) % this.recorded.length;
+          if(this.rec_ptr == 0) {
+            this.port.postMessage(this.recorded);
+          }
+        }
+        this.audctl = e.data[8]
+        for(var i=0; i<4; i++) {
+          this.audf[i] = e.data[i * 2];
+          this.audc[i] = e.data[i * 2 + 1];
+        }
       }
-      console.log(e.data[9] / CPU_CYCLES_PER_SEC - this.total_cycles / OUT_FREQ);
     }
     this.filter = new FIRFilter(FIR_37_to_1);
     this.out_t = 0;

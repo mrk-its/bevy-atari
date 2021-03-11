@@ -8,11 +8,14 @@ function createAnalyser(audioContext) {
     var scopeCanvas = document.getElementById("oscilloscope");
     var scopeCanvasCtx = scopeCanvas.getContext("2d");
 
-    var spectrumCanvas = document.getElementById("spectrum");
-    var spectrumCanvasCtx = spectrumCanvas.getContext("2d");
+    // var spectrumCanvas = document.getElementById("spectrum");
+    // var spectrumCanvasCtx = spectrumCanvas.getContext("2d");
 
-    function drawScope() {
-        requestAnimationFrame(drawScope);
+    var spectrumCanvas = scopeCanvas;
+    var spectrumCanvasCtx = scopeCanvasCtx;
+
+    function draw() {
+        requestAnimationFrame(draw);
 
         // setTimeout(drawScope, 500);
 
@@ -20,6 +23,17 @@ function createAnalyser(audioContext) {
 
         scopeCanvasCtx.fillStyle = "rgb(0, 0, 0)";
         scopeCanvasCtx.fillRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+
+        // spectrumCanvasCtx.fillStyle = "rgb(0, 0, 0)";
+        // spectrumCanvasCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
+        spectrumCanvasCtx.fillStyle = "rgb(64, 64, 64)";
+        for (var i = 0; i < bufferLength; i++) {
+            if(freqArray[i]) {
+                spectrumCanvasCtx.fillRect(i, spectrumCanvas.height- spectrumCanvas.height * freqArray[i] / 256, 1, spectrumCanvas.height);
+            }
+        }
+
+
 
         scopeCanvasCtx.lineWidth = 2;
         scopeCanvasCtx.strokeStyle = "rgb(0, 200, 0)";
@@ -52,26 +66,12 @@ function createAnalyser(audioContext) {
             scopeCanvasCtx.lineTo(scopeCanvas.width, scopeCanvas.height / 2);
         }
         scopeCanvasCtx.stroke();
-    }
-
-    function drawSpectrum() {
-
-        requestAnimationFrame(drawSpectrum);
 
         analyser.getByteFrequencyData(freqArray);
 
-        spectrumCanvasCtx.fillStyle = "rgb(0, 0, 0)";
-        spectrumCanvasCtx.fillRect(0, 0, spectrumCanvas.width, spectrumCanvas.height);
-        spectrumCanvasCtx.fillStyle = "rgb(200, 0, 0)";
-        for (var i = 0; i < bufferLength; i++) {
-            if(freqArray[i]) {
-                spectrumCanvasCtx.fillRect(i, spectrumCanvas.height- spectrumCanvas.height * freqArray[i] / 256, 1, spectrumCanvas.height);
-            }
-        }
     }
 
-    drawScope();
-    drawSpectrum();
+    draw();
 
     return analyser
 }
