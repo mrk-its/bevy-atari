@@ -8,11 +8,17 @@
         import { SAPPlayer} from './sap.js'
         const reg_names = ["audf1", "audc1", "audf2", "audc2", "audf3", "audc3", "audf4", "audc4", "audctl"];
 
-        async function init() {
+        async function initAudio(latencyHint) {
+            let v = parseFloat(latencyHint);
+            if(v>=0) latencyHint = v;
+            if(window.audio_context) {
+                window.audio_context.close();
+            }
             const audioContext = new AudioContext({
                 sampleRate: 48000,
-                latencyHint: 'playback'
+                latencyHint,
             })
+            $("#latency").text(audioContext.baseLatency)
             await audioContext.audioWorklet.addModule('pokey.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
             var analyser = createAnalyser(audioContext);
@@ -89,8 +95,9 @@
         window.send_regs = send_regs;
         window.hash_to_pokey = hash_to_pokey;
 
-        init();
-
+        let latencyHint = $('#latencyHint');
+        latencyHint.change((v) => initAudio(latencyHint.val())).change();
+        $('#ua').text(window.navigator.userAgent);
         $('#pokey_regs input').change(send_regs);
         $('body').click(() => {
             window.audio_context.resume();
@@ -204,6 +211,9 @@
         <input type="range" style="width: 100%" class="seek" />
         <label class="position-info"></label>
     </div>
+    latency hint: <input id="latencyHint" value="playback" />
+    <p>Latency: <span id="latency"></span></p>
+    <p>UserAgent: <span id="ua"></span></p>
 </body>
 
 </html>
