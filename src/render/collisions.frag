@@ -8,7 +8,7 @@ in vec2 v_Uv;
 
 out uvec4 o_Target;
 
-layout(std140) uniform Camera {
+layout(std140) uniform CameraViewProj {  // set = 0, binding = 0
     mat4 ViewProj;
 };
 

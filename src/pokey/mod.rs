@@ -94,7 +94,7 @@ impl Pokey {
         value
     }
 
-    const IDLE_DELAY: usize = 2;
+    // const IDLE_DELAY: usize = 2;
 
     pub fn send_regs(&mut self) {
         use wasm_bindgen::{JsCast, JsValue};
@@ -108,7 +108,7 @@ impl Pokey {
             self.freq[3] as f64,
             self.ctl[3].bits() as f64,
             self.audctl.bits() as f64,
-            self.total_cycles as f64,
+            (self.total_cycles as f64) / (312.0 * 114.0 * 50.0) + 5.0,
         ]
         .iter()
         .map(|x| JsValue::from_f64(*x))
@@ -116,6 +116,7 @@ impl Pokey {
         let regs = JsValue::from(regs);
 
         let window = web_sys::window().expect("no global `window` exists");
+        #[allow(unused_unsafe)]
         let port = unsafe {
             js_sys::Reflect::get(&window, &"pokey_port".into())
                 .expect("no pokey_port exists")
@@ -125,7 +126,7 @@ impl Pokey {
         // info!("pokey regs: {:?} {:?}", regs, port);
     }
 
-    pub fn scanline_tick(&mut self, scanline: usize) {
+    pub fn scanline_tick(&mut self, _scanline: usize) {
     }
 
     pub fn update_freq(&mut self, channel: usize, value: u8) {

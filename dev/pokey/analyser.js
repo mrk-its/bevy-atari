@@ -15,10 +15,6 @@ function createAnalyser(audioContext) {
     var spectrumCanvasCtx = scopeCanvasCtx;
 
     function draw() {
-        requestAnimationFrame(draw);
-
-        // setTimeout(drawScope, 500);
-
         analyser.getByteTimeDomainData(dataArray);
 
         scopeCanvasCtx.fillStyle = "rgb(0, 0, 0)";
@@ -70,10 +66,6 @@ function createAnalyser(audioContext) {
         analyser.getByteFrequencyData(freqArray);
 
     }
-
-    draw();
-
-    return analyser
 }
 
 export {createAnalyser}

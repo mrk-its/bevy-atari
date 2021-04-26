@@ -10,7 +10,7 @@ flat in vec4 v_Custom;
 layout(location = 0) out vec4 o_ColorTarget;
 layout(location = 1) out uvec4 o_CollisionsTarget;
 
-layout(std140) uniform Camera {
+layout(std140) uniform CameraViewProj {  // set = 0, binding = 0
     mat4 ViewProj;
 };
 
@@ -33,20 +33,7 @@ layout(std140) uniform AnticData_gtia_regs { // set=3 binding = 0
     GTIA gtia_regs[240];
 };
 
-layout(std140) uniform StandardMaterial_albedo { // set = 4, binding = 0
-    vec4 Albedo;
-};
-
-//#ifdef STANDARDMATERIAL_ALBEDO_TEXTURE
-uniform usampler2D StandardMaterial_albedo_texture;  // set = 4, binding = 1
-//#endif
-
-layout(std140) uniform CustomTexture_color {  // set = 5, binding = 0
-    vec4 color;
-};
-
-uniform sampler2D CustomTexture_texture;  // set = 5, binding = 1
-
+uniform usampler2D SimpleMaterial_base_color_texture;  // set = 4, binding = 0
 
 #define get_color_reg(k) gtia_regs[scan_line].color_regs[k>>2][k&3]
 #define get_gtia_colpm(k) gtia_regs[scan_line].colpm[k]
@@ -61,7 +48,7 @@ uniform sampler2D CustomTexture_texture;  // set = 5, binding = 1
 
 #define uint_byte(i, k) int((i >> (8 * k)) & uint(0xff))
 
-#define get_texture_byte(offset) ((int(texelFetch(StandardMaterial_albedo_texture, ivec2(((offset)>>4) & 0xff, (offset >> 12)), 0)[(offset >> 2) & 3]) >> (((offset) & 3) * 8)) & 0xff)
+#define get_texture_byte(offset) ((int(texelFetch(SimpleMaterial_base_color_texture, ivec2(((offset)>>4) & 0xff, (offset >> 12)), 0)[(offset >> 2) & 3]) >> (((offset) & 3) * 8)) & 0xff)
 #define get_charset_memory(offset) get_texture_byte(charset_memory_offset + offset)
 #define get_video_memory(offset) get_texture_byte(video_memory_offset + offset)
 
@@ -171,7 +158,6 @@ void main() {
         int inv = c >> 7;
         int offs = (c & 0x7f) * 8 + y;
         int byte = get_charset_memory(offs);
-
         color_reg_index = (byte >> x) & 3;
         if(inv != 0 && color_reg_index == 3) {
             color_reg_index = 4;
@@ -306,19 +292,6 @@ void main() {
     if(sf2) color_reg |= get_color_reg(3);
     if(sf3) color_reg |= get_color_reg(4);
     if(sb && gtia_mode == 0) color_reg |= get_color_reg(0);
-    if(sb && gtia_mode == 0) {
-        if(px >= 0.0 && px < line_width && Albedo[0] >= 0.0 && scan_line < 152) {
-            int bg_w = 384;
-            float bg_offs = Albedo[0] - 0.01;
-            vec4 bg1 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 8.0) % bg_w, 2 * 240 + 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.04, 0.04, 0.04, 1.0);
-            vec4 bg2 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 4.0) % bg_w, 240 + 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.1, 0.1, 0.1, 1.0);
-            vec4 bg3 = texelFetch(CustomTexture_texture, ivec2(int(x + bg_offs / 2.0) % bg_w, 24 + int(float(scan_line) * (216.0 - 24.0) / 154.0)), 0) * vec4(0.4, 0.4, 0.4, 1.0);
-            vec4 bg4 = mix(bg1, bg2, bg2[3]);
-            vec4 bg5 = mix(bg4, bg3, bg3[3]);
-            o_ColorTarget = encodeColor(bg5);
-            return;
-        }
-    }
 
     if(hires && color_reg_index == 2) {
         color_reg = color_reg & 0xf0 | (get_color_reg(2) & 0xf);

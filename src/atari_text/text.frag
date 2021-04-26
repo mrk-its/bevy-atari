@@ -63,4 +63,5 @@ void main() {
     } else {
         o_Target = encodeColor(bg_color);
     }
+    o_Target = vec4(1.0, 0.0, 0.0, 1.0);
 }

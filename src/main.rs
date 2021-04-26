@@ -18,7 +18,7 @@ pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use antic::ANTIC_DATA_HANDLE;
-use bevy::render::entity::OrthographicCameraBundle;
+use bevy::{log::{Level, LogSettings}, render::entity::OrthographicCameraBundle};
 use bevy::utils::Duration;
 use bevy::{
     core::{Time, Timer},
@@ -32,12 +32,13 @@ use bevy::{
     prelude::*,
     render::pipeline::{PipelineDescriptor, RenderPipeline},
 };
+#[allow(unused_imports)]
 use bevy::{
     render::{mesh::shape, render_graph::base::MainPass},
     winit::WinitConfig,
 };
 use emulator_6502::{Interface6502, MOS6502};
-use render_resources::{AnticData, AtariPalette, CustomTexture};
+use render_resources::{AnticData, AtariPalette, CustomTexture, SimpleMaterial};
 use system::{
     antic::{ATARI_PALETTE_HANDLE, COLLISIONS_PIPELINE_HANDLE, DEBUG_COLLISIONS_PIPELINE_HANDLE},
     AtariSystem,
@@ -59,7 +60,7 @@ pub const ANTIC_MATERIAL_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 18422387557214033949);
 
 pub const TEST_MATERIAL_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(StandardMaterial::TYPE_UUID, 18422387557214033950);
+    HandleUntyped::weak_from_u64(SimpleMaterial::TYPE_UUID, 18422387557214033950);
 
 pub const DATA_TEXTURE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(Texture::TYPE_UUID, 18422387557214033951);
@@ -86,7 +87,7 @@ pub struct AnticDebug;
 pub struct GtiaDebug;
 pub struct FPS;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum EmulatorState {
     Idle,
     Running,
@@ -98,6 +99,7 @@ struct PerfMetrics {
     cpu_cycle_cnt: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 enum BreakPoint {
     PC(u16),
@@ -176,17 +178,17 @@ fn keyboard_system(
         }
     }
     for _ in keyboard.get_just_pressed() {
-        state.timer.set_duration(0.2);
+        state.timer.set_duration(Duration::from_secs_f32(0.2));
         state.timer.set_repeating(false);
         state.timer.reset();
         break;
     }
     for _ in keyboard.get_just_released() {
-        state.timer.set_duration(0.0);
+        state.timer.set_duration(Duration::default());
         state.timer.reset();
         break;
     }
-    state.timer.tick(time.delta_seconds());
+    state.timer.tick(time.delta());
 
     let mut consol = 0;
     let axis_threshold = 0.5;
@@ -234,7 +236,7 @@ fn update_fps(
     mut fps_query: Query<&mut atari_text::TextArea, With<FPS>>,
     diagnostics: Res<Diagnostics>,
 ) {
-    if state.0.tick(time.delta_seconds()).finished() {
+    if state.0.tick(time.delta()).finished() {
         for mut fps in fps_query.iter_mut() {
             if let Some(ft) = diagnostics.get(FrameTimeDiagnosticsPlugin::FRAME_TIME) {
                 if let Some(t) = diagnostics.get(TimeUsedPlugin::TIME_USED) {
@@ -255,30 +257,32 @@ pub struct DisplayState {
 fn update_display_config(
     mut state: Local<DisplayState>,
     config: ResMut<DisplayConfig>,
-    mut fps_query: Query<&mut Visible, With<FPS>>,
-    mut debug_query: Query<&mut Visible, With<DebugComponent>>,
-    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    mut q: QuerySet<(
+        Query<&mut Visible, With<FPS>>,
+        Query<&mut Visible, With<DebugComponent>>,
+        Query<&mut Transform, With<MainCamera>>,
+    )>,
 ) {
+    for mut camera_transform in q.q2_mut().iter_mut() {
+        *camera_transform = if !config.debug {
+            Transform {
+                scale: Vec3::new(0.5, 0.5, 1.0),
+                ..Default::default()
+            }
+        } else {
+            Transform {
+                scale: Vec3::new(1.0, 1.0, 1.0),
+                translation: Vec3::new(384.0 / 2.0, -240.0 / 2.0, 0.0),
+                ..Default::default()
+            }
+        }
+    }
     if *config != state.last {
-        for mut v in fps_query.iter_mut() {
+        for mut v in q.q0_mut().iter_mut() {
             v.is_visible = config.fps;
         }
-        for mut v in debug_query.iter_mut() {
+        for mut v in q.q1_mut().iter_mut() {
             v.is_visible = config.debug;
-        }
-        for mut camera_transform in camera_query.iter_mut() {
-            *camera_transform = if !config.debug {
-                Transform {
-                    scale: Vec3::new(0.5, 0.5, 1.0),
-                    ..Default::default()
-                }
-            } else {
-                Transform {
-                    scale: Vec3::new(1.0, 1.0, 1.0),
-                    translation: Vec3::new(384.0 / 2.0, -240.0 / 2.0, 0.0),
-                    ..Default::default()
-                }
-            }
         }
         state.last = *config;
     }
@@ -379,20 +383,20 @@ fn post_running(
     let mesh = antic_data.create_mesh();
     meshes.set(ANTIC_MESH_HANDLE, mesh);
 
-    let x_offs = if atari_system.readw(0x230) == 0x1348 {
-        let a0 = atari_system.read(0xa0);
-        let a3 = atari_system.read(0xa3);
-        let a6 = atari_system.read(0xa6);
-        a0 as f32 * 16.0 * 16.0 + a3 as f32 * 16.0 + 32.0 - 2.0 * a6 as f32
-    } else {
-        -1.0
-    };
-    let y_offs = atari_system.read(0xaa) as f32;
-    let material = StandardMaterial {
-        albedo: Color::rgb_linear(x_offs, y_offs, 0.0),
-        ..Default::default()
-    };
-    materials.set(TEST_MATERIAL_HANDLE, material);
+    // let x_offs = if atari_system.readw(0x230) == 0x1348 {
+    //     let a0 = atari_system.read(0xa0);
+    //     let a3 = atari_system.read(0xa3);
+    //     let a6 = atari_system.read(0xa6);
+    //     a0 as f32 * 16.0 * 16.0 + a3 as f32 * 16.0 + 32.0 - 2.0 * a6 as f32
+    // } else {
+    //     -1.0
+    // };
+    // let y_offs = atari_system.read(0xaa) as f32;
+    // let material = StandardMaterial {
+    //     albedo: Color::rgb_linear(x_offs, y_offs, 0.0),
+    //     ..Default::default()
+    // };
+    // materials.set(TEST_MATERIAL_HANDLE, material);
 }
 
 fn atari_system(
@@ -517,13 +521,13 @@ fn events(
                 disable_basic,
             } => {
                 atari_system.reset(&mut *cpu, cold, disable_basic);
-                state.set_next(EmulatorState::Running).ok();
+                state.set(EmulatorState::Running).ok();
             }
             js_api::Message::SetState(new_state) => {
                 match new_state.as_ref() {
-                    "running" => info!("{:?}", state.set_next(EmulatorState::Running)),
+                    "running" => info!("{:?}", state.set(EmulatorState::Running)),
                     "idle" => {
-                        state.set_next(EmulatorState::Idle).ok();
+                        state.set(EmulatorState::Idle).ok();
                     }
                     _ => panic!("invalid state requested"),
                 };
@@ -555,7 +559,7 @@ fn events(
                         let a800_state = atari800_state::Atari800State::new(&data);
                         a800_state.reload(&mut *atari_system, &mut *cpu);
                         // *frame = FrameState::default();
-                        state.set_next(EmulatorState::Running).ok();
+                        state.set(EmulatorState::Running).ok();
                         info!("LOADED! {:?}", *state);
                     }
                 }
@@ -620,23 +624,20 @@ fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
 const ANTIC_TEXTURE_SIZE: (f32, f32) = (384.0, 240.0);
 
 fn setup(
-    commands: &mut Commands,
+    mut commands: Commands,
     mut pipelines: ResMut<Assets<PipelineDescriptor>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut materials: ResMut<Assets<SimpleMaterial>>,
+    mut standard_materials: ResMut<Assets<StandardMaterial>>,
     mut textures: ResMut<Assets<CustomTexture>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut shaders: ResMut<Assets<Shader>>,
     mut tex: ResMut<Assets<Texture>>,
-    mut asset_server: ResMut<AssetServer>,
 ) {
+    debug!("here!");
     // let texture_handle = asset_server.load("bevy_logo_dark_big.png");
-    materials.set(
+    standard_materials.set_untracked(
         RED_MATERIAL_HANDLE,
-        StandardMaterial {
-            albedo: Color::rgba(1.0, 0.0, 0.0, 1.0),
-            albedo_texture: None,
-            unlit: true,
-        },
+        Color::rgba(1.0, 0.0, 0.0, 1.0).into(),
     );
 
     // 30 * 1024 - max charset memory
@@ -647,7 +648,7 @@ fn setup(
     let texture = Texture::new_fill(
         Extent3d::new(256, 11, 1),
         TextureDimension::D2,
-        &[0, 0, 0, 0],
+        &[0; 16],
         TextureFormat::Rgba32Uint,
     );
 
@@ -655,18 +656,16 @@ fn setup(
 
     materials.set_untracked(
         TEST_MATERIAL_HANDLE,
-        StandardMaterial {
-            albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
-            albedo_texture: Some(DATA_TEXTURE_HANDLE.typed()),
-            unlit: true,
+        SimpleMaterial {
+            base_color: Color::rgba(0.2, 0.2, 0.2, 0.5),
+            base_color_texture: Some(DATA_TEXTURE_HANDLE.typed()),
         },
     );
 
-    materials.set_untracked(
+    standard_materials.set_untracked(
         ATARI_MATERIAL_HANDLE,
         StandardMaterial {
-            // albedo: Color::rgba(0.2, 0.2, 0.2, 0.5),
-            albedo_texture: Some(render::ANTIC_TEXTURE_HANDLE.typed()),
+            base_color_texture: Some(render::ANTIC_TEXTURE_HANDLE.typed()),
             unlit: true,
             ..Default::default()
         },
@@ -680,12 +679,12 @@ fn setup(
         },
     );
 
-    commands.spawn(entities::create_antic_camera(Vec2::new(
+    commands.spawn_bundle(entities::create_antic_camera(Vec2::new(
         ANTIC_TEXTURE_SIZE.0,
         ANTIC_TEXTURE_SIZE.1,
     )));
     if let Some((width, height)) = COLLISION_AGG_SIZE {
-        commands.spawn(entities::create_collisions_camera(Vec2::new(
+        commands.spawn_bundle(entities::create_collisions_camera(Vec2::new(
             width as f32,
             height as f32,
         )));
@@ -702,7 +701,7 @@ fn setup(
         };
 
         info!("bundle: {:?}", bundle.render_pipelines);
-        commands.spawn(bundle);
+        commands.spawn_bundle(bundle);
     }
 
     let mesh_handle = meshes.add(Mesh::from(shape::Quad::new(Vec2::new(
@@ -710,18 +709,36 @@ fn setup(
         ANTIC_TEXTURE_SIZE.1,
     ))));
 
-    commands.spawn(PbrBundle {
+    commands.spawn_bundle(PbrBundle {
         mesh: mesh_handle,
         material: ATARI_MATERIAL_HANDLE.typed(),
         ..Default::default()
     });
 
+    // commands.spawn_bundle(PbrBundle {
+    //     mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(
+    //         50.0,
+    //         50.0,
+    //     )))),
+    //     material: RED_MATERIAL_HANDLE.typed(),
+    //     transform: Transform::from_translation(Vec3::new(0.0, 0.0, 1.0)),
+    //     ..Default::default()
+    // });
+
+
     let mut camera_bundle = OrthographicCameraBundle::new_2d();
     camera_bundle.transform.scale = Vec3::new(0.5, 0.5, 1.0);
-    commands.spawn(camera_bundle).with(MainCamera);
+    commands.spawn_bundle(camera_bundle).insert(MainCamera);
+
+    // commands.spawn_bundle(PerspectiveCameraBundle {
+    //     transform: Transform::from_xyz(-2.0, 2.5, 5.0).looking_at(Vec3::default(), Vec3::Y),
+    //     ..Default::default()
+    // });
+
 
     commands
-        .spawn(Parent {
+        .spawn()
+        .insert(Parent {
             transform: Transform {
                 translation: Vec3::new(-384.0 / 2.0, 240.0 / 2.0, 0.0),
                 scale: Vec3::new(1.0, 1.0, 1.0),
@@ -731,102 +748,76 @@ fn setup(
         })
         .with_children(|commands| {
             commands
-                .spawn(atari_text::TextAreaBundle::new(10, 1, 0, 0))
-                .with(FPS);
+                .spawn_bundle(atari_text::TextAreaBundle::new(10, 1, 0, 0))
+                .insert(FPS);
         });
 
     commands
-        .spawn(Parent {
+        .spawn()
+        .insert(Parent {
             transform: Transform::from_translation(Vec3::new(384.0 / 2.0, 240.0 / 2.0, 0.0)),
             ..Default::default()
         })
         .with_children(|commands| {
             commands
-                .spawn(atari_text::TextAreaBundle::new(18, 20, 0, 0))
-                .with(CPUDebug)
-                .with(DebugComponent);
+                .spawn_bundle(atari_text::TextAreaBundle::new(18, 20, 0, 0))
+                .insert(CPUDebug)
+                .insert(DebugComponent);
             commands
-                .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 1, 0))
-                .with(AnticDebug)
-                .with(DebugComponent);
+                .spawn_bundle(atari_text::TextAreaBundle::new(12, 20, 18 + 1, 0))
+                .insert(AnticDebug)
+                .insert(DebugComponent);
             commands
-                .spawn(atari_text::TextAreaBundle::new(12, 20, 18 + 12 + 2, 0))
-                .with(GtiaDebug)
-                .with(DebugComponent);
+                .spawn_bundle(atari_text::TextAreaBundle::new(12, 20, 18 + 12 + 2, 0))
+                .insert(GtiaDebug)
+                .insert(DebugComponent);
         });
 
     commands
-        .spawn(Parent {
+        .spawn()
+        .insert(Parent {
             transform: Transform::from_translation(Vec3::new(0.0, -240.0, 0.0)),
             ..Default::default()
         })
         .with_children(|commands| {
             commands
-                .spawn(PbrBundle {
+                .spawn_bundle(MeshBundle {
                     mesh: meshes.add(Mesh::from(shape::Quad::new(Vec2::new(384.0, 240.0)))),
                     render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(
                         DEBUG_COLLISIONS_PIPELINE_HANDLE.typed(),
                     )]),
-                    material: materials.add(StandardMaterial {
-                        albedo: Color::rgba(0.0, 0.5, 0.0, 1.0),
-                        albedo_texture: Some(render::COLLISIONS_TEXTURE_HANDLE.typed()),
-                        unlit: true,
-                    }),
                     ..Default::default()
                 })
-                .with(DebugComponent);
+                .insert(materials.add(SimpleMaterial {
+                    base_color: Color::rgba(0.0, 0.5, 0.0, 1.0),
+                    base_color_texture: Some(render::COLLISIONS_TEXTURE_HANDLE.typed()),
+                }))
+                .insert(DebugComponent);
         });
 
-    materials.set_untracked(
-        ANTIC_MATERIAL_HANDLE,
-        StandardMaterial {
-            albedo: Color::BEIGE,
-            albedo_texture: None,
-            unlit: true,
-        },
-    );
-
-    let pipeline_handle = pipelines.add(render::build_antic2_pipeline(&mut *shaders));
-
-    let mut bundle = MeshBundle {
+    let bundle = MeshBundle {
         mesh: ANTIC_MESH_HANDLE.typed(),
+        render_pipelines: RenderPipelines::from_pipelines(vec![RenderPipeline::new(pipelines.add(render::build_antic2_pipeline(&mut *shaders)))]),
         ..Default::default()
     };
-    bundle.render_pipelines =
-        RenderPipelines::from_pipelines(vec![RenderPipeline::new(pipeline_handle)]);
-
-    let bg_material_handle = textures.add(CustomTexture {
-        color: Color::rgba_linear(0.0, 0.0, 0.0, 1.0),
-        texture: Some(asset_server.load("jungle-bg-1.png")),
-    });
 
     commands
-        .spawn(bundle)
-        .with(AnticFrame)
-        .with(ATARI_PALETTE_HANDLE.typed::<AtariPalette>())
-        .with(ANTIC_DATA_HANDLE.typed::<AnticData>())
-        .with(TEST_MATERIAL_HANDLE.typed::<StandardMaterial>())
-        .with(bg_material_handle);
-    commands.remove_one::<MainPass>(commands.current_entity().unwrap());
+        .spawn_bundle(bundle)
+        .insert(AnticFrame)
+        .insert(ATARI_PALETTE_HANDLE.typed::<AtariPalette>())
+        .insert(ANTIC_DATA_HANDLE.typed::<AnticData>())
+        .insert(TEST_MATERIAL_HANDLE.typed::<SimpleMaterial>())
+        .remove::<MainPass>();
 
-    // commands
-    //     .spawn(PbrBundle {
-    //         mesh: QUAD_HANDLE.typed(),
-    //         material: RED_MATERIAL_HANDLE.typed(),
-    //         visible: Visible {
-    //             is_visible: false,
-    //             is_transparent: false,
-    //         },
-    //         ..Default::default()
-    //     })
-    //     .with(DebugComponent)
-    //     .with(ScanLine);
-
-    // Setup our world
 }
 /// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
+    app.insert_resource(LogSettings {
+        level: Level::DEBUG,
+        ..Default::default()
+    });
+    app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
         width: ANTIC_TEXTURE_SIZE.0 * 2.0,
@@ -838,15 +829,17 @@ fn main() {
         vsync: true,
         ..Default::default()
     });
+
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    app.insert_resource(WinitConfig {
-        force_fps: Some(50.0),
-        return_from_run: false,
-    });
+    // app.insert_resource(WinitConfig {
+    //     force_fps: Some(50.0),
+    //     return_from_run: false,
+    // });
     app.add_plugins(DefaultPlugins);
-    #[cfg(target_arch = "wasm32")]
     app.add_plugin(bevy_webgl2::WebGL2Plugin);
     app.add_plugin(atari_text::AtartTextPlugin::default());
+    app.add_asset::<SimpleMaterial>();
+    app.add_asset::<CustomTexture>();
     app.add_plugin(antic::AnticPlugin {
         texture_size: Vec2::new(ANTIC_TEXTURE_SIZE.0, ANTIC_TEXTURE_SIZE.1),
         enable_collisions: true,
@@ -858,45 +851,29 @@ fn main() {
     let mut cpu = MOS6502::default();
     system.reset(&mut cpu, true, true);
 
-    let mut frame = FrameState::default();
+    let frame = FrameState::default();
     // frame.break_point = Some(BreakPoint::IndirectPC(0x2e0));
     // frame.break_point = Some(BreakPoint::PC(0x7100));
 
-    app.insert_resource(State::new(EmulatorState::Idle))
-        .insert_resource(ClearColor(gtia::atari_color(0)))
+    app.insert_resource(ClearColor(gtia::atari_color(0)))
         .insert_resource(DisplayConfig {
-            fps: true,
+            fps: false,
             debug: false,
         })
         .insert_resource(system)
         .insert_resource(cpu)
         .insert_resource(frame)
         .add_startup_system(setup.system())
-        .add_stage_after(
-            CoreStage::Update,
-            "running",
-            StateStage::<EmulatorState>::default(),
-        )
-        .add_stage_after(
-            "running",
-            "post_running",
-            StateStage::<EmulatorState>::default(),
-        )
-        .add_stage_after(
-            CoreStage::Update,
-            "idle_update",
-            StateStage::<EmulatorState>::default(),
-        )
+        .add_state(EmulatorState::Idle)
         .add_system_to_stage(CoreStage::PreUpdate, keyboard_system.system())
         // .add_system_to_stage("pre_update", reload_system.system())
-        .add_system_to_stage(CoreStage::PostUpdate, debug_overlay_system.system())
-        .on_state_update("running", EmulatorState::Running, atari_system.system())
-        .on_state_update(
-            "post_running",
-            EmulatorState::Running,
-            post_running.system(),
+        // .add_system_to_stage(CoreStage::PostUpdate, debug_overlay_system.system())
+        .add_system_set(
+            SystemSet::on_update(EmulatorState::Running)
+                .with_system(atari_system.system().label("run_atari"))
+                .with_system(post_running.system().after("run_atari"))
+                .with_system(update_fps.system())
         )
-        .on_state_update("running", EmulatorState::Running, update_fps.system())
         .add_system(update_display_config.system())
         // .on_state_update("running", EmulatorState::Running, animation.system())
         .add_system(events.system())

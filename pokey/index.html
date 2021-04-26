@@ -9,11 +9,8 @@
         const reg_names = ["audf1", "audc1", "audf2", "audc2", "audf3", "audc3", "audf4", "audc4", "audctl"];
 
         async function initAudio(latencyHint) {
-            let v = parseFloat(latencyHint);
-            if(v>=0) latencyHint = v;
-            if(window.audio_context) {
-                window.audio_context.close();
-            }
+            var latencyHint = parseFloat(localStorage.latencyHint);
+            if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "playback";
             const audioContext = new AudioContext({
                 sampleRate: 48000,
                 latencyHint,
@@ -22,11 +19,20 @@
             await audioContext.audioWorklet.addModule('pokey.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
             var analyser = createAnalyser(audioContext);
-            analyser.connect(audioContext.destination);
+            analyser.node.connect(audioContext.destination);
             // pokeyNode.connect(audioContext.destination)
-            pokeyNode.connect(analyser);
+            pokeyNode.connect(analyser.node);
             window.pokey_port = pokeyNode.port
             window.audio_context = audioContext
+
+            init_ui();
+
+            let tick = () => {
+                sapPlayer.tick();
+                analyser.draw();
+                requestAnimationFrame(tick);
+            }
+            tick();
             hash_to_pokey()
         }
         function hex2(value) {
@@ -67,7 +73,9 @@
                 regs.map((v, i) => {
                     set_reg(reg_names[i], v);
                 })
-                window.pokey_port.postMessage(regs.map((v) => parseInt(v, 16)));
+                let msg = regs.map((v) => parseInt(v, 16));
+                msg.push(window.audio_context.currentTime + 1.0);
+                window.pokey_port.postMessage(msg);
             }
         }
 
@@ -91,57 +99,79 @@
                     window.sapPlayer.load(buffer)
                 });
         }
+
+        function init_ui() {
+            $("#latency-hint").change(e => {
+                localStorage['latencyHint'] = e.target.value;
+            }).val(localStorage['latencyHint'] || 'playback');
+            $('#ua').text(window.navigator.userAgent);
+            $('#pokey_regs input').change(send_regs);
+            $('body').click(() => {
+                window.audio_context.resume();
+            })
+            $('input[type=file]').change(handle_local_file);
+            $(window).bind("hashchange", hash_to_pokey);
+
+            $('html').on("dragover", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+
+            $('html').on("dragleave", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+            });
+
+            $('html').on("drop", function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                let url = event.originalEvent.dataTransfer.getData("text/plain");
+                if (url) {
+                    document.location.hash = '#' + url;
+                    return;
+                }
+                if (event.originalEvent.dataTransfer.files) {
+                    // Use DataTransferItemList interface to access the file(s)
+                    for (var i = 0; i < event.originalEvent.dataTransfer.files.length; i++) {
+                        // If dropped items aren't files, reject them
+                        const file = event.originalEvent.dataTransfer.files[i];
+                        handle_file(file)
+                        document.location.hash='#'
+                    }
+                }
+            });
+            let seek = $('#player .seek').bind('input', event => sapPlayer.seek(event.target.value));
+            let position_info = $('#player .position-info');
+
+            $('#player .play').click(() => sapPlayer.play());
+            $('#player .pause').click(() => sapPlayer.pause());
+            $('#player .stop').click(() => sapPlayer.stop());
+            $('#player .prev').click(() => sapPlayer.prev());
+            $('#player .next').click(() => sapPlayer.next());
+
+            $(window).bind("sap_player", event => {
+                let data = event.originalEvent.data;
+                if(data.pokey_regs) {
+                    let regs = Array.from(data.pokey_regs);
+                    regs.slice(0, 9).map(hex2).map((v, i) => {
+                        set_reg(reg_names[i], v);
+                    })
+                    if(data.state == "paused") {
+                        regs_to_hash(regs);
+                    }
+                }
+                seek[0].max = data.frame_cnt > 0 ? data.frame_cnt - 1 : 0;
+                seek.val(data.current_frame);
+                position_info.text(`${data.current_frame} / ${data.frame_cnt}`)
+            });
+        }
+
         window.sapPlayer = new SAPPlayer();
         window.send_regs = send_regs;
         window.hash_to_pokey = hash_to_pokey;
 
-        let latencyHint = $('#latencyHint');
-        latencyHint.change((v) => initAudio(latencyHint.val())).change();
-        $('#ua').text(window.navigator.userAgent);
-        $('#pokey_regs input').change(send_regs);
-        $('body').click(() => {
-            window.audio_context.resume();
-        })
-        $('input[type=file]').change(handle_local_file);
-        $(window).bind("hashchange", hash_to_pokey);
+        initAudio("playback");
 
-        $('html').on("dragover", function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        });
-
-        $('html').on("dragleave", function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-        });
-
-        $('html').on("drop", function (event) {
-            event.preventDefault();
-            event.stopPropagation();
-            let url = event.originalEvent.dataTransfer.getData("text/plain");
-            if (url) {
-                document.location.hash = '#' + url;
-                return;
-            }
-            if (event.originalEvent.dataTransfer.files) {
-                // Use DataTransferItemList interface to access the file(s)
-                for (var i = 0; i < event.originalEvent.dataTransfer.files.length; i++) {
-                    // If dropped items aren't files, reject them
-                    const file = event.originalEvent.dataTransfer.files[i];
-                    handle_file(file)
-                    document.location.hash='#'
-                }
-            }
-        });
-        $(window).bind("pokey_regs", event => {
-            let regs = Array.from(event.originalEvent.regs);
-            regs.map(hex2).map((v, i) => {
-                set_reg(reg_names[i], v);
-            })
-            if(sapPlayer.isPaused()) {
-                regs_to_hash(regs);
-            }
-        });
         // document.addEventListener('visibilitychange', function() {
         //     if (document.hidden) {
         //         window.audio_context.suspend();
@@ -204,14 +234,14 @@
         </canvas>
         <input type="file" />
         <button class="prev">&lt;&lt;</button>
-        <button class="play">Play</button>
-        <button class="pause">Pause</button>
+        <button class="play">play</button>
+        <button class="pause">pause</button>
         <button class="stop">stop</button>
         <button class="next">&gt;&gt;</button>
-        <input type="range" style="width: 100%" class="seek" />
         <label class="position-info"></label>
+        <input type="range" style="width: 100%" class="seek" max="0", value="0" />
     </div>
-    latency hint: <input id="latencyHint" value="playback" />
+    latency hint: <input id="latency-hint" value="playback" />
     <p>Latency: <span id="latency"></span></p>
     <p>UserAgent: <span id="ua"></span></p>
 </body>

@@ -278,36 +278,48 @@
     const BUF_SIZE = FRAMES_PER_SEC * 9;
 
     async function run() {
+      var latencyHint = parseFloat(localStorage.latencyHint);
+      if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "playback";
+
       const audioContext = new AudioContext({
         sampleRate: 48000,
-        latencyHint:'playback'
+        latencyHint: latencyHint,
       });
       console.log("sampleRate: ", audioContext.sampleRate);
       await audioContext.audioWorklet.addModule('pokey/pokey.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
-      var analyser = createAnalyser(audioContext);
-      analyser.connect(audioContext.destination);
-      pokeyNode.connect(analyser);
-      //pokeyNode.connect(audioContext.destination)
-      window.rec_buffers = [];
-      pokeyNode.port.onmessage = (msg) => {
-        window.rec_buffers.push(msg.data);
-        console.log("recording", window.rec_buffers.length);
-        if(msg.data.length < BUF_SIZE) {
-          let t = ((window.rec_buffers.length - 1) * BUF_SIZE + msg.data.length) / BUF_SIZE;
-          let header = `SAP\r\nTYPE R\r\nTIME ${time_str(t)}\r\nFASTPLAY ${FRAMES_PER_SEC == 50 ? 312 : 262}\r\n\r\n`
-          let enc = new TextEncoder();
-          let header_data = enc.encode(header);
-          window.rec_buffers.splice(0, 0, header_data);
-          let sap_data = concat_arrays(window.rec_buffers);
-          window.rec_buffers = [];
-          let data_url = 'data:audio/x-sap;charset=urf-8;base64,' + bytesToBase64(sap_data);
-          let link = document.createElement("a");
-          link.href = data_url
-          link.download = "file.sap"
-          link.click();
+      if(false) {
+        var analyser = createAnalyser(audioContext);
+        analyser.node.connect(audioContext.destination);
+        pokeyNode.connect(analyser.node);
+        function tick() {
+          requestAnimationFrame(tick);
+          analyser.draw();
         }
+        tick();
+      } else {
+        pokeyNode.connect(audioContext.destination)
       }
+
+      // window.rec_buffers = [];
+      // pokeyNode.port.onmessage = (msg) => {
+      //   window.rec_buffers.push(msg.data);
+      //   console.log("recording", window.rec_buffers.length);
+      //   if(msg.data.length < BUF_SIZE) {
+      //     let t = ((window.rec_buffers.length - 1) * BUF_SIZE + msg.data.length) / BUF_SIZE;
+      //     let header = `SAP\r\nTYPE R\r\nTIME ${time_str(t)}\r\nFASTPLAY ${FRAMES_PER_SEC == 50 ? 312 : 262}\r\n\r\n`
+      //     let enc = new TextEncoder();
+      //     let header_data = enc.encode(header);
+      //     window.rec_buffers.splice(0, 0, header_data);
+      //     let sap_data = concat_arrays(window.rec_buffers);
+      //     window.rec_buffers = [];
+      //     let data_url = 'data:audio/x-sap;charset=urf-8;base64,' + bytesToBase64(sap_data);
+      //     let link = document.createElement("a");
+      //     link.href = data_url
+      //     link.download = "file.sap"
+      //     link.click();
+      //   }
+      // }
       window.pokey_port = pokeyNode.port
       window.audio_context = audioContext
       try {
@@ -375,10 +387,10 @@
     </div>
   </div>
   <div id="analyser-container">
-    <canvas id="oscilloscope" width="1024" height="256">
+    <!-- <canvas id="oscilloscope" width="1024" height="256">
 
-    </canvas>
-    <button onclick="rec_start_stop.apply(this)">Rec</button>
+    </canvas> -->
+    <!-- <button onclick="rec_start_stop.apply(this)">Rec</button> -->
   </div>
 </body>
 

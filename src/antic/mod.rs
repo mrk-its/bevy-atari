@@ -1,12 +1,12 @@
 use crate::render::COLLISIONS_BUFFER;
 use crate::render::{self, CollisionsBufferNode};
-use crate::render_resources::{AnticData, AtariPalette, CustomTexture};
+use crate::render_resources::{AnticData, AtariPalette, CustomTexture, SimpleMaterial};
 use crate::system::AtariSystem;
-use crate::{gtia, render::AnticRendererGraphBuilder};
+use crate::{gtia, render::add_antic_graph};
 use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
 use bevy::{prelude::*, render::render_graph::RenderGraph};
 use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
-use bevy::{render::pipeline::PipelineDescriptor, sprite::collide_aabb};
+use bevy::{render::pipeline::PipelineDescriptor};
 use emulator_6502::{Interface6502, MOS6502};
 
 pub const ATARI_PALETTE_HANDLE: HandleUntyped =
@@ -751,10 +751,11 @@ struct CollistionsReadState {
     buffer: Vec<u8>,
 }
 
-fn collisions_read(_world: &mut World, resources: &mut Resources) {
-    let mut state = resources.get_mut::<CollistionsReadState>().unwrap();
-    let render_graph = resources.get_mut::<RenderGraph>().unwrap();
-    let render_resource_context = resources.get_mut::<Box<dyn RenderResourceContext>>();
+fn collisions_read(world: &mut World) {
+    let world = world.cell();
+    let mut state = world.get_resource_mut::<CollistionsReadState>().unwrap();
+    let render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
+    let render_resource_context = world.get_resource_mut::<Box<dyn RenderResourceContext>>();
     if let Some(render_resource_context) = render_resource_context {
         let collisions_buffer_node: &CollisionsBufferNode =
             render_graph.get_node(COLLISIONS_BUFFER).unwrap();
@@ -767,7 +768,7 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
             }
         }
         if let Some(buffer_id) = collisions_buffer_node.buffer_id {
-            let atari_system = resources.get::<crate::AtariSystem>().unwrap();
+            let atari_system = world.get_resource::<crate::AtariSystem>().unwrap();
             render_resource_context.read_mapped_buffer(
                 buffer_id,
                 0..(state.buffer.len() as u64),
@@ -797,15 +798,14 @@ fn collisions_read(_world: &mut World, resources: &mut Resources) {
 impl Plugin for AnticPlugin {
     fn build(&self, app: &mut AppBuilder) {
         app.add_asset::<AnticData>()
-            .add_asset::<AtariPalette>()
-            .add_asset::<CustomTexture>();
+            .add_asset::<AtariPalette>();
         app.add_system_to_stage(CoreStage::PreUpdate, collisions_read.exclusive_system());
         app.init_resource::<CollistionsReadState>();
-        let resources = app.resources_mut();
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
-        let mut palettes = resources.get_mut::<Assets<AtariPalette>>().unwrap();
-        let mut antic_data = resources.get_mut::<Assets<AnticData>>().unwrap();
+        let world = app.world_mut().cell();
+        let mut pipelines = world.get_resource_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
+        let mut palettes = world.get_resource_mut::<Assets<AtariPalette>>().unwrap();
+        let mut antic_data = world.get_resource_mut::<Assets<AnticData>>().unwrap();
 
         pipelines.set_untracked(
             COLLISIONS_PIPELINE_HANDLE,
@@ -818,7 +818,7 @@ impl Plugin for AnticPlugin {
         palettes.set_untracked(ATARI_PALETTE_HANDLE, AtariPalette::default());
         antic_data.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
 
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
+        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
 
         render_graph.add_system_node(
             "atari_palette",
@@ -836,12 +836,21 @@ impl Plugin for AnticPlugin {
         render_graph
             .add_node_edge("custom_texture", MAIN_PASS)
             .unwrap();
+
         let size = Vec2::new(self.texture_size.x, self.texture_size.y);
-        render_graph.add_antic_graph(
-            resources,
+        add_antic_graph(
+            &mut *render_graph,
+            &world,
             &size,
             self.enable_collisions,
             self.collision_agg_size,
         );
+        render_graph.add_system_node(
+            "simple_material",
+            AssetRenderResourcesNode::<SimpleMaterial>::new(false),
+        );
+        render_graph
+            .add_node_edge("simple_material", "antic_pass")
+            .unwrap();
     }
 }

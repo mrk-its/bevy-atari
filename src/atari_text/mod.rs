@@ -132,10 +132,10 @@ impl Plugin for AtartTextPlugin {
         //     .add_asset::<TextureAtlas>()
         //     .register_type::<Sprite>();
 
-        let resources = app.resources_mut();
-        let mut render_graph = resources.get_mut::<RenderGraph>().unwrap();
-        let mut pipelines = resources.get_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = resources.get_mut::<Assets<Shader>>().unwrap();
+        let world = app.world_mut().cell();
+        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
+        let mut pipelines = world.get_resource_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
 
         render_graph.add_system_node("atari_text", RenderResourcesNode::<TextArea>::new(true));
 

@@ -55,12 +55,15 @@ impl_render_resource_bytes!(Charset);
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Palette {
-    pub data: [Color; 256],
+    pub data: [[f32;4]; 256],
 }
 
 impl Default for Palette {
     fn default() -> Self {
-        let palette: Vec<_> = (0..=255).map(|index| atari_color(index)).collect();
+        let palette: Vec<_> = (0..=255).map(|index| {
+            atari_color(index).as_linear_rgba_f32()
+        }).collect();
+        // let palette: Vec<_> = (0..=255).map(|index| Color::rgba_u8(index, index, index, 255)).collect();
         Self {
             data: palette
                 .as_slice()
@@ -269,4 +272,12 @@ pub struct AtariPalette {
 pub struct CustomTexture {
     pub color: Color,
     pub texture: Option<Handle<Texture>>,
+}
+
+
+#[derive(Debug, RenderResources, TypeUuid, Default)]
+#[uuid = "dace545e-4bc6-4595-a79d-1124fa6949aa"]
+pub struct SimpleMaterial {
+    pub base_color: Color,
+    pub base_color_texture: Option<Handle<Texture>>,
 }

@@ -11,7 +11,6 @@ default = [
   "bevy/bevy_winit",
   "bevy/render",
   "bevy/bevy_gilrs",
-  # "bevy/png",
 ]
 
 native = [
@@ -27,14 +26,14 @@ x11 = [
 ]
 
 [dependencies]
-bevy = {version="0.4.0", default-features=false}
-bevy_webgl2 = {version = "0.4.3", default-features=true, optional=true}
+bevy = { version="0.5", branch = "main", default-features=false }
+bevy_webgl2 = {version = "0.5", default-features=false, optional=true}
 winit = {version = "0.24.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency"]}
 disasm6502 = "0.2"
 rand = {version = "0.8", features = ["small_rng"]}
 getrandom = { version = "0.1", features = ["wasm-bindgen"] }
-wasm-bindgen = "0.2.70"
+wasm-bindgen = "0.2.69"
 once_cell = "1.5.2"
 parking_lot = "0.11.1"
 bitflags = "1.2"
@@ -64,25 +63,26 @@ features = [
 
 [patch.crates-io]
 # bevy = {git = "https://github.com/mrk-its/bevy", branch="force_fps", default-features=false}
+# bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features=false }
 bevy = {path = "../bevy", default-features=false}
 # bevy_webgl2 = {git = "https://github.com/mrk-its/bevy_webgl2", branch="dev", default-features=true}
-bevy_webgl2 = {path = "../bevy_webgl2", default-features=true}
+# bevy_webgl2 = {path = "../bevy_webgl2", default-features=true}
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 
-[profile.dev.package."*"]
-opt-level = 2
-debug = false
-debug-assertions = false
-overflow-checks = false
-incremental = true
-codegen-units = 16
+# [profile.dev.package."*"]
+# opt-level = 2
+# debug = false
+# debug-assertions = false
+# overflow-checks = false
+# incremental = true
+# codegen-units = 16
 
 [profile.dev]
 opt-level = 2
-debug = false
-debug-assertions = false
-overflow-checks = false
+# debug = false
+# debug-assertions = false
+# overflow-checks = false
 lto = false
 panic = 'unwind'
 incremental = true

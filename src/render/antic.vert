@@ -10,7 +10,7 @@ out vec3 v_Position;
 out vec2 v_Uv;
 flat out vec4 v_Custom;
 
-layout(std140) uniform Camera {
+layout(std140) uniform CameraViewProj {  // set = 0, binding = 0
     mat4 ViewProj;
 };
 

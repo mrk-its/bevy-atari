@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use bevy::render::{
-    pipeline::PrimitiveTopology,
     render_graph::{Node, PassNode},
     renderer::{BufferId, BufferInfo, BufferUsage},
 };
@@ -105,205 +104,191 @@ pub fn build_debug_collisions_pipeline(shaders: &mut Assets<Shader>) -> Pipeline
     pipeline_descr
 }
 
-pub trait AnticRendererGraphBuilder {
-    fn add_antic_graph(
-        &mut self,
-        resources: &Resources,
-        texture_size: &Vec2,
-        enable_collisions: bool,
-        collision_agg_size: Option<(u32, u32)>,
-    ) -> &mut Self;
-}
+pub fn add_antic_graph(
+    graph: &mut RenderGraph,
+    world: &bevy::ecs::world::WorldCell,
+    texture_size: &Vec2,
+    enable_collisions: bool,
+    collision_agg_size: Option<(u32, u32)>,
+) {
+    let mut textures = world.get_resource_mut::<Assets<Texture>>().unwrap();
+    let mut active_cameras = world.get_resource_mut::<ActiveCameras>().unwrap();
+    let mut pass_order: Vec<&str> = Vec::new();
 
-impl AnticRendererGraphBuilder for RenderGraph {
-    fn add_antic_graph(
-        &mut self,
-        resources: &Resources,
-        texture_size: &Vec2,
-        enable_collisions: bool,
-        collision_agg_size: Option<(u32, u32)>,
-    ) -> &mut Self {
-        let mut textures = resources.get_mut::<Assets<Texture>>().unwrap();
-        let mut active_cameras = resources.get_mut::<ActiveCameras>().unwrap();
-        let mut pass_order: Vec<&str> = Vec::new();
+    pass_order.push(ANTIC_PASS);
 
-        pass_order.push(ANTIC_PASS);
+    active_cameras.add(ANTIC_CAMERA);
 
-        active_cameras.add(ANTIC_CAMERA);
-
-        let mut color_attachments = vec![RenderPassColorAttachmentDescriptor {
-            attachment: TextureAttachment::Input("color_attachment".to_string()),
+    let mut color_attachments = vec![RenderPassColorAttachmentDescriptor {
+        attachment: TextureAttachment::Input("color_attachment".to_string()),
+        resolve_target: None,
+        ops: Operations {
+            load: LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0)),
+            store: true,
+        },
+    }];
+    if enable_collisions {
+        color_attachments.push(RenderPassColorAttachmentDescriptor {
+            attachment: TextureAttachment::Input("collisions_attachment".to_string()),
             resolve_target: None,
             ops: Operations {
-                load: LoadOp::Clear(Color::rgb(0.0, 0.0, 0.0)),
+                load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 0.0)), // TODO - remove?
                 store: true,
             },
-        }];
-        if enable_collisions {
-            color_attachments.push(RenderPassColorAttachmentDescriptor {
-                attachment: TextureAttachment::Input("collisions_attachment".to_string()),
-                resolve_target: None,
-                ops: Operations {
-                    load: LoadOp::Clear(Color::rgba(0.0, 0.0, 0.0, 0.0)), // TODO - remove?
-                    store: true,
-                },
-            })
-        }
+        })
+    }
 
-        let mut pass_node = PassNode::<&crate::AnticFrame>::new(PassDescriptor {
-            color_attachments,
-            depth_stencil_attachment: None,
-            sample_count: 1,
-        });
+    let mut pass_node = PassNode::<&crate::AnticFrame>::new(PassDescriptor {
+        color_attachments,
+        depth_stencil_attachment: None,
+        sample_count: 1,
+    });
 
-        let texture = Texture::new(
+    let texture = Texture::new(
+        Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
+        TextureDimension::D2,
+        vec![0; (texture_size.x * texture_size.y * 4.0) as usize],
+        TextureFormat::Rgba8Unorm,
+    );
+    textures.set_untracked(ANTIC_TEXTURE_HANDLE, texture);
+
+    graph.add_system_node(ANTIC_CAMERA, CameraNode::new(ANTIC_CAMERA));
+
+    graph.add_node(
+        ANTIC_TEXTURE,
+        TextureNode::new(ANTIC_TEXTURE_HANDLE.typed()),
+    );
+
+    pass_node.add_camera(ANTIC_CAMERA);
+
+    graph.add_node(ANTIC_PASS, pass_node);
+
+    graph.add_node_edge(ANTIC_CAMERA, ANTIC_PASS).unwrap();
+
+    graph.add_slot_edge(
+        ANTIC_TEXTURE,
+        TextureNode::TEXTURE,
+        ANTIC_PASS,
+        "color_attachment",
+    )
+    .unwrap();
+    graph.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
+    graph.add_node("data_texture_update", UpdateDataTextureNode::default());
+    graph.add_node_edge("data_texture_update", ANTIC_PASS)
+        .unwrap();
+    if enable_collisions {
+        let texture_format = TextureFormat::Rg32Uint;
+
+        let collisions_texture = Texture::new(
             Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
             TextureDimension::D2,
-            vec![],
-            TextureFormat::Rgba8Unorm,
+            vec![0; (texture_size.x * texture_size.y * 8.0) as usize],
+            texture_format,
         );
-        textures.set_untracked(ANTIC_TEXTURE_HANDLE, texture);
-
-        self.add_system_node(ANTIC_CAMERA, CameraNode::new(ANTIC_CAMERA));
-
-        self.add_node(
-            ANTIC_TEXTURE,
-            TextureNode::new(ANTIC_TEXTURE_HANDLE.typed()),
+        textures.set_untracked(COLLISIONS_TEXTURE_HANDLE, collisions_texture);
+        graph.add_node(
+            COLLISIONS_TEXTURE,
+            TextureNode::new(COLLISIONS_TEXTURE_HANDLE.typed()),
         );
-
-        pass_node.add_camera(ANTIC_CAMERA);
-
-        self.add_node(ANTIC_PASS, pass_node);
-
-        self.add_node_edge(ANTIC_CAMERA, ANTIC_PASS).unwrap();
-
-        self.add_slot_edge(
-            ANTIC_TEXTURE,
+        graph.add_node_edge(COLLISIONS_TEXTURE, ANTIC_PASS).unwrap();
+        graph.add_slot_edge(
+            COLLISIONS_TEXTURE,
             TextureNode::TEXTURE,
             ANTIC_PASS,
-            "color_attachment",
+            "collisions_attachment",
         )
         .unwrap();
-        self.add_node_edge(ANTIC_TEXTURE, ANTIC_PASS).unwrap();
-        self.add_node("data_texture_update", UpdateDataTextureNode::default());
-        self.add_node_edge("data_texture_update", ANTIC_PASS)
-            .unwrap();
-        if enable_collisions {
-            let texture_format = TextureFormat::Rg32Uint;
 
-            let collisions_texture = Texture::new(
-                Extent3d::new(texture_size.x as u32, texture_size.y as u32, 1),
+        let (index, width, height) = if let Some((width, height)) = collision_agg_size {
+            let mut collisions_agg_pass_node =
+                PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
+                    color_attachments: vec![RenderPassColorAttachmentDescriptor {
+                        attachment: TextureAttachment::Input(
+                            "collisions_attachment".to_string(),
+                        ),
+                        resolve_target: None,
+                        ops: Operations {
+                            load: LoadOp::Load, // TODO - remove?
+                            store: true,
+                        },
+                    }],
+                    depth_stencil_attachment: None,
+                    sample_count: 1,
+                });
+            active_cameras.add(COLLISIONS_AGG_CAMERA);
+            pass_order.push(COLLISIONS_AGG_PASS);
+            collisions_agg_pass_node.add_camera(COLLISIONS_AGG_CAMERA);
+            graph.add_node(COLLISIONS_AGG_PASS, collisions_agg_pass_node);
+            graph.add_system_node(
+                COLLISIONS_AGG_CAMERA,
+                CameraNode::new(COLLISIONS_AGG_CAMERA),
+            );
+            graph.add_node_edge(COLLISIONS_AGG_CAMERA, COLLISIONS_AGG_PASS)
+                .unwrap();
+            let collisions_agg_texture = Texture::new(
+                Extent3d::new(width as u32, height, 1),
                 TextureDimension::D2,
-                vec![],
+                vec![0; (width * height * 8) as usize],
                 texture_format,
             );
-            textures.set_untracked(COLLISIONS_TEXTURE_HANDLE, collisions_texture);
-            self.add_node(
-                COLLISIONS_TEXTURE,
-                TextureNode::new(COLLISIONS_TEXTURE_HANDLE.typed()),
+            textures.set_untracked(COLLISIONS_AGG_TEXTURE_HANDLE, collisions_agg_texture);
+
+            graph.add_node(
+                COLLISIONS_AGG_TEXTURE,
+                TextureNode::new(COLLISIONS_AGG_TEXTURE_HANDLE.typed()),
             );
-            self.add_node_edge(COLLISIONS_TEXTURE, ANTIC_PASS).unwrap();
-            self.add_slot_edge(
-                COLLISIONS_TEXTURE,
+            graph.add_slot_edge(
+                COLLISIONS_AGG_TEXTURE,
                 TextureNode::TEXTURE,
-                ANTIC_PASS,
+                COLLISIONS_AGG_PASS,
                 "collisions_attachment",
             )
             .unwrap();
-
-            let (index, width, height) = if let Some((width, height)) = collision_agg_size {
-                let mut collisions_agg_pass_node =
-                    PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
-                        color_attachments: vec![RenderPassColorAttachmentDescriptor {
-                            attachment: TextureAttachment::Input(
-                                "collisions_attachment".to_string(),
-                            ),
-                            resolve_target: None,
-                            ops: Operations {
-                                load: LoadOp::Load, // TODO - remove?
-                                store: true,
-                            },
-                        }],
-                        depth_stencil_attachment: None,
-                        sample_count: 1,
-                    });
-                active_cameras.add(COLLISIONS_AGG_CAMERA);
-                pass_order.push(COLLISIONS_AGG_PASS);
-                collisions_agg_pass_node.add_camera(COLLISIONS_AGG_CAMERA);
-                self.add_node(COLLISIONS_AGG_PASS, collisions_agg_pass_node);
-                self.add_system_node(
-                    COLLISIONS_AGG_CAMERA,
-                    CameraNode::new(COLLISIONS_AGG_CAMERA),
-                );
-                self.add_node_edge(COLLISIONS_AGG_CAMERA, COLLISIONS_AGG_PASS)
-                    .unwrap();
-                let collisions_agg_texture = Texture::new(
-                    Extent3d::new(width as u32, height, 1),
-                    TextureDimension::D2,
-                    vec![],
-                    texture_format,
-                );
-                textures.set_untracked(COLLISIONS_AGG_TEXTURE_HANDLE, collisions_agg_texture);
-
-                self.add_node(
-                    COLLISIONS_AGG_TEXTURE,
-                    TextureNode::new(COLLISIONS_AGG_TEXTURE_HANDLE.typed()),
-                );
-                self.add_slot_edge(
-                    COLLISIONS_AGG_TEXTURE,
-                    TextureNode::TEXTURE,
-                    COLLISIONS_AGG_PASS,
-                    "collisions_attachment",
-                )
+            graph.add_node_edge(COLLISIONS_AGG_TEXTURE, COLLISIONS_AGG_PASS)
                 .unwrap();
-                self.add_node_edge(COLLISIONS_AGG_TEXTURE, COLLISIONS_AGG_PASS)
-                    .unwrap();
-                (0, width, height)
-            } else {
-                (1, texture_size.x as u32, texture_size.y as u32)
-            };
+            (0, width, height)
+        } else {
+            (1, texture_size.x as u32, texture_size.y as u32)
+        };
 
-            self.add_node(
-                COLLISIONS_BUFFER,
-                CollisionsBufferNode {
-                    buffer_info: BufferInfo {
-                        size: width as usize * height as usize * 16,
-                        buffer_usage: BufferUsage::COPY_DST | BufferUsage::INDIRECT,
-                        mapped_at_creation: false,
-                    },
-                    buffer_id: None,
+        graph.add_node(
+            COLLISIONS_BUFFER,
+            CollisionsBufferNode {
+                buffer_info: BufferInfo {
+                    size: width as usize * height as usize * 16,
+                    buffer_usage: BufferUsage::COPY_DST | BufferUsage::INDIRECT,
+                    mapped_at_creation: false,
                 },
-            );
-            self.add_node(
-                LOAD_COLLISIONS_PASS,
-                LoadCollisionsPass {
-                    index,
-                    width,
-                    height,
-                    texture_format,
-                    texture_handle: COLLISIONS_AGG_TEXTURE_HANDLE.typed(),
-                },
-            );
-            self.add_node_edge(COLLISIONS_BUFFER, LOAD_COLLISIONS_PASS)
-                .unwrap();
-            self.add_slot_edge(COLLISIONS_BUFFER, "buffer", LOAD_COLLISIONS_PASS, "buffer")
-                .unwrap();
-            pass_order.push(LOAD_COLLISIONS_PASS);
-        }
-        pass_order.push(MAIN_PASS);
-
-        info!("pass_order: {:?}", pass_order);
-
-        for (i, &pass_name) in pass_order[..pass_order.len() - 1].iter().enumerate() {
-            self.add_node_edge(pass_name, pass_order[i + 1]).unwrap();
-        }
-
-        self.add_node_edge("transform", ANTIC_PASS).unwrap();
-        self.add_node_edge("atari_palette", ANTIC_PASS).unwrap();
-        self.add_node_edge("antic_data", ANTIC_PASS).unwrap();
-
-        self
+                buffer_id: None,
+            },
+        );
+        graph.add_node(
+            LOAD_COLLISIONS_PASS,
+            LoadCollisionsPass {
+                index,
+                width,
+                height,
+                texture_format,
+                texture_handle: COLLISIONS_AGG_TEXTURE_HANDLE.typed(),
+            },
+        );
+        graph.add_node_edge(COLLISIONS_BUFFER, LOAD_COLLISIONS_PASS)
+            .unwrap();
+        graph.add_slot_edge(COLLISIONS_BUFFER, "buffer", LOAD_COLLISIONS_PASS, "buffer")
+            .unwrap();
+        pass_order.push(LOAD_COLLISIONS_PASS);
     }
+    pass_order.push(MAIN_PASS);
+
+    info!("pass_order: {:?}", pass_order);
+
+    for (i, &pass_name) in pass_order[..pass_order.len() - 1].iter().enumerate() {
+        graph.add_node_edge(pass_name, pass_order[i + 1]).unwrap();
+    }
+
+    graph.add_node_edge("transform", ANTIC_PASS).unwrap();
+    graph.add_node_edge("atari_palette", ANTIC_PASS).unwrap();
+    graph.add_node_edge("antic_data", ANTIC_PASS).unwrap();
 }
 
 pub struct TextureNode {
@@ -329,7 +314,6 @@ impl Node for TextureNode {
     fn update(
         &mut self,
         _world: &World,
-        _resources: &Resources,
         render_context: &mut dyn bevy::render::renderer::RenderContext,
         _input: &bevy::render::render_graph::ResourceSlots,
         output: &mut bevy::render::render_graph::ResourceSlots,
@@ -365,7 +349,6 @@ impl Node for CollisionsBufferNode {
     fn update(
         &mut self,
         _world: &World,
-        _resources: &Resources,
         render_context: &mut dyn bevy::render::renderer::RenderContext,
         _input: &bevy::render::render_graph::ResourceSlots,
         output: &mut bevy::render::render_graph::ResourceSlots,
@@ -382,6 +365,7 @@ impl Node for CollisionsBufferNode {
     }
 }
 
+#[allow(dead_code)]
 pub struct LoadCollisionsPass {
     index: u32,
     width: u32,
@@ -394,7 +378,6 @@ impl Node for LoadCollisionsPass {
     fn update(
         &mut self,
         _world: &World,
-        _resources: &Resources,
         render_context: &mut dyn bevy::render::renderer::RenderContext,
         input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
@@ -442,8 +425,7 @@ impl UpdateDataTextureNode {
 impl Node for UpdateDataTextureNode {
     fn update(
         &mut self,
-        _world: &World,
-        resources: &Resources,
+        world: &World,
         render_context: &mut dyn bevy::render::renderer::RenderContext,
         _input: &bevy::render::render_graph::ResourceSlots,
         _output: &mut bevy::render::render_graph::ResourceSlots,
@@ -460,7 +442,7 @@ impl Node for UpdateDataTextureNode {
             self.buffer_id = Some(buffer_id);
             info!("created texture buffer!");
         }
-        let antic_data_assets = resources.get::<Assets<AnticData>>().unwrap();
+        let antic_data_assets = world.get_resource::<Assets<AnticData>>().unwrap();
         let antic_data = antic_data_assets.get(ANTIC_DATA_HANDLE).unwrap();
         let len = antic_data.texture_data.len() as u64;
         render_resource_context.write_mapped_buffer(

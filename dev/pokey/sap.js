@@ -20,6 +20,7 @@ export class SAPPlayer {
                 console.log("seek change", this.current_frame);
             }
         );
+        this.startTime = null;
     }
 
     _parse_headers(headers_data) {
@@ -92,6 +93,7 @@ export class SAPPlayer {
             clearInterval(this.interval);
             this.interval = null;
         }
+        this.startTime = null;
         this.current_frame = 0;
         this.updatePosition();
         let regs = [0, 0, 0, 0, 0, 0, 0, 0, 0];
@@ -99,9 +101,10 @@ export class SAPPlayer {
         this._send_pokey_regs_event(regs);
     }
     play() {
-        if (this.interval) clearInterval(this.interval);
-        if (!this.data.length) return;
-        this.interval = setInterval( () => this.playFrame(), this.frame_interval);
+        if(this.startTime == null) {
+            this.startTime = window.audio_context.currentTime;
+            console.log(this.startTime);
+        }
     }
     pause() {
         if(this.interval) {

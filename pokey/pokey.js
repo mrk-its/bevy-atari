@@ -13,29 +13,18 @@ class POKEY extends AudioWorkletProcessor {
   constructor() {
     super();
     this.recorded = null;
+    this.buffer = [];
+    this.time_offset = null;
     this.port.onmessage = (e) => {
-      if(e.data == "rec_start") {
-        this.recorded = new Uint8Array(REC_BUF_SIZE);
-        this.rec_ptr = 0;
-        console.log("rec started");
-      } else if(e.data == "rec_stop") {
-        this.port.postMessage(this.recorded.slice(0, this.rec_ptr));
-        this.recorded = null;
-      } else {
-        if(this.recorded != null) {
-          for(var i=0; i<9; i++) {
-            this.recorded[this.rec_ptr + i] = e.data[i];
-          }
-          this.rec_ptr = (this.rec_ptr + 9) % this.recorded.length;
-          if(this.rec_ptr == 0) {
-            this.port.postMessage(this.recorded);
-          }
+      if(e.data == "clear_buffer") {
+        this.buffer = [];
+      } else if(e.data.length == 10) {
+        let offs = currentTime - e.data[9];
+        if(this.time_offset == null || offs < this.time_offset) {
+          this.time_offset = offs;
         }
-        this.audctl = e.data[8]
-        for(var i=0; i<4; i++) {
-          this.audf[i] = e.data[i * 2];
-          this.audc[i] = e.data[i * 2 + 1];
-        }
+        e.data[9] += this.time_offset;
+        this.buffer.push(e.data);
       }
     }
     this.filter = new FIRFilter(FIR_37_to_1);
@@ -105,7 +94,28 @@ class POKEY extends AudioWorkletProcessor {
   }
 
   process (inputs, outputs, parameters) {
+    var index = -1;
+    for(var i=0; i<this.buffer.length; i++) {
+      let ts = this.buffer[i][9];
+      if(!ts || ts <= currentTime) {
+        index = i;
+      } else {
+        break;
+      }
+    }
+    if(index >= 0) {
+      let regs = this.buffer[index];
+      // console.log(regs[9] - currentTime);
+      this.buffer = this.buffer.slice(index + 1);
+      this.audctl = regs[8];
+      for(var i=0; i<4; i++) {
+        this.audf[i] = regs[i * 2];
+        this.audc[i] = regs[i * 2 + 1];
+      }
+    }
+
     const output = outputs[0]
+    // console.log("currentFrame:", currentFrame, currentTime, currentFrame / currentTime);
 
     let fast_1 = (this.audctl & 0x40) > 0;
     let fast_3 = (this.audctl & 0x20) > 0;

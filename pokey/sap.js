@@ -1,25 +1,23 @@
+const EMPTY_POKEY_REGS = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
 export class SAPPlayer {
     constructor() {
-        this.interval = null;
         this.headers = [];
         this.data = null;
-        this.seek_widget = $('#player .seek')[0];
-        this.position_info = $('#player .position-info')[0];
-        $('#player .play').click(() => this.play());
-        $('#player .pause').click(() => this.pause());
-        $('#player .stop').click(() => this.stop());
-        $('#player .prev').click(() => this.prev());
-        $('#player .next').click(() => this.next());
-        this.seek_widget.min = 0;
-        this.seek_widget.max = 0;
         this.current_frame = 0;
         this.frame_cnt = 0;
-        $(this.seek_widget).bind('input', (event) => {
-                this.current_frame = parseInt(event.target.value);
-                this.loadCurrentFrame();
-                console.log("seek change", this.current_frame);
-            }
-        );
+        this.startTime = null;
+        this.state = "stopped";
+    }
+
+    seek(pos) {
+        this.current_frame = parseInt(pos);
+        window.pokey_port.postMessage("clear_buffer");
+        this.loadCurrentFrame();
+        if(this.startTime != null) {
+            this.startTime = null;
+            this.play();
+        }
     }
 
     _parse_headers(headers_data) {
@@ -48,23 +46,16 @@ export class SAPPlayer {
                 var is_ntsc = typeof this.headers.NTSC != "undefined"
                 var fastplay = parseInt(this.headers.FASTPLAY) || 0;
                 if(fastplay) {
-                    this.frame_interval = 1000 / ((is_ntsc ? 262 * 60 : 312 * 50) / fastplay);
-                    if(this.frame_interval < 4) {
-                        console.warn("unsupported (too small) frame interval:", this.frame_interval, "ms");
-                        this.data = new Uint8Array();
-                    }
+                    this.frame_interval = 1 / ((is_ntsc ? 262 * 60 : 312 * 50) / fastplay);
                 } else if (is_ntsc) {
-                    this.frame_interval = 1000 / 60;
+                    this.frame_interval = 1 / 60;
                 } else {
-                    this.frame_interval = 1000 / 50;
+                    this.frame_interval = 1 / 50;
                 }
-                console.log("frame interval:", this.frame_interval)
                 this.frame_cnt = Math.floor(this.data.length / 9);
-                this.seek_widget.max = this.frame_cnt > 0 ? this.frame_cnt - 1 : 0;
                 this.current_frame = 0;
-                this.updatePosition();
+                this.sendEvent();
                 let is_ok = this.data.length > 0;
-                if(is_ok) this.play();
                 return is_ok;
             }
             ptr++;
@@ -72,47 +63,70 @@ export class SAPPlayer {
         console.warn("cannot locate data section");
         return false;
     }
-    playFrame() {
-        this.current_frame = (this.current_frame + 1) % this.frame_cnt;
-        this.loadCurrentFrame();
+    getPokeyRegs(index, ts) {
+        let regs = Array.from(this.data.slice(index * 9, (index + 1) * 9));
+        if(ts) regs.push(ts);
+        return regs;
     }
     loadCurrentFrame() {
         let regs = this.data.slice(this.current_frame * 9, this.current_frame * 9 + 9);
         window.pokey_port.postMessage(regs);
-        this.updatePosition();
-        this._send_pokey_regs_event(regs);
+        this.sendEvent(regs);
     }
-    _send_pokey_regs_event(regs) {
-        let event = new Event("pokey_regs");
-        event.regs = regs;
+    sendEvent(regs) {
+        let event = new Event("sap_player");
+        event.data = {
+            current_frame: this.current_frame,
+            frame_cnt: this.frame_cnt,
+            pokey_regs: regs || null,
+            state: this.state,
+        }
         window.dispatchEvent(event);
     }
-    stop() {
-        if(this.interval) {
-            clearInterval(this.interval);
-            this.interval = null;
+    tick() {
+        this.fillBuffer()
+    }
+    fillBuffer() {
+        if(!this.frame_cnt || this.state != "playing") {
+            return;
         }
-        this.current_frame = 0;
-        this.updatePosition();
-        let regs = [0, 0, 0, 0, 0, 0, 0, 0, 0];
-        window.pokey_port.postMessage(regs);
-        this._send_pokey_regs_event(regs);
+        let currentTime = this.getCurrentTime();
+        while(this.startTime + this.current_frame * this.frame_interval < currentTime + 0.2) {
+            let regs = this.getPokeyRegs(this.current_frame, this.startTime + this.current_frame * this.frame_interval);
+            window.pokey_port.postMessage(regs);
+            this.sendEvent(regs);
+            this.current_frame = (this.current_frame + this.frame_cnt + 1) % this.frame_cnt;
+            if(this.current_frame == 0) {
+                this.startTime = currentTime;
+                return;
+            }
+        }
+    }
+    getCurrentTime() {
+        return window.audio_context.currentTime;
     }
     play() {
-        if (this.interval) clearInterval(this.interval);
-        if (!this.data.length) return;
-        this.interval = setInterval( () => this.playFrame(), this.frame_interval);
+        let currentTime = this.getCurrentTime();
+        if(this.startTime == null) {
+            this.startTime = currentTime - this.current_frame * this.frame_interval;
+        }
+        this.state = "playing";
+        this.fillBuffer();
     }
     pause() {
-        if(this.interval) {
-            clearInterval(this.interval);
-            this.interval = null;
-            this.loadCurrentFrame();
-        }
+        this.state = "paused";
+        this.interval = null;
+        this.startTime = null;
+        this.loadCurrentFrame();
     }
-    isPaused() {
-        return !this.interval;
+    stop() {
+        this.state = "stopped";
+        this.startTime = null;
+        this.current_frame = 0;
+        window.pokey_port.postMessage(EMPTY_POKEY_REGS);
+        this.sendEvent(EMPTY_POKEY_REGS)
     }
+
     prev() {
         if (!this.data.length) return;
         this.pause();
@@ -124,9 +138,5 @@ export class SAPPlayer {
         this.pause();
         this.current_frame = (this.current_frame + 1) % this.frame_cnt;
         this.loadCurrentFrame();
-    }
-    updatePosition() {
-        this.seek_widget.value = this.current_frame;
-        this.position_info.innerText = `${this.current_frame} / ${this.frame_cnt}`
     }
 }
