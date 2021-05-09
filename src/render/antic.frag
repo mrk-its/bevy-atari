@@ -10,7 +10,7 @@ flat in vec4 v_Custom;
 layout(location = 0) out vec4 o_ColorTarget;
 layout(location = 1) out uvec4 o_CollisionsTarget;
 
-layout(std140) uniform CameraViewProj {  // set = 0, binding = 0
+layout(std140) uniform CameraViewProj {
     mat4 ViewProj;
 };
 

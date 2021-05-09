@@ -5,27 +5,27 @@ precision highp float;
 in vec2 v_Uv;
 out vec4 o_Target;
 
-layout(std140) uniform TextArea_width { // set = 1 binding = 1
+layout(std140) uniform TextArea_width { // set = 1 binding = 0
     float width;
 };
 
-layout(std140) uniform TextArea_height { // set = 1 binding = 2
+layout(std140) uniform TextArea_height { // set = 1 binding = 1
     float height;
 };
 
-layout(std140) uniform TextArea_fg_color { // set=1 binding = 3
+layout(std140) uniform TextArea_fg_color { // set=1 binding = 2
     vec4 fg_color;
 };
 
-layout(std140) uniform TextArea_bg_color { // set=1 binding = 4
+layout(std140) uniform TextArea_bg_color { // set=1 binding = 3
     vec4 bg_color;
 };
 
-layout(std140) uniform TextArea_data { // set = 1 binding = 5
+layout(std140) uniform TextArea_data { // set = 1 binding = 4
     uvec4 data[64];  // 64 * 16 = 1024 bytes
 };
 
-layout(std140) uniform TextArea_charset { // set = 1 binding = 6
+layout(std140) uniform TextArea_charset { // set = 1 binding = 5
     uvec4 charset[64];
 };
 
@@ -63,5 +63,5 @@ void main() {
     } else {
         o_Target = encodeColor(bg_color);
     }
-    o_Target = vec4(1.0, 0.0, 0.0, 1.0);
+    // o_Target = vec4(1.0, 0.0, 0.0, 1.0);
 }

@@ -1,25 +1,7 @@
-use crate::render::COLLISIONS_BUFFER;
-use crate::render::{self, CollisionsBufferNode};
-use crate::render_resources::{AnticData, AtariPalette, CustomTexture, SimpleMaterial};
+use crate::gtia;
+use crate::render_resources::AnticData;
 use crate::system::AtariSystem;
-use crate::{gtia, render::add_antic_graph};
-use bevy::render::{render_graph::base::node::MAIN_PASS, renderer::RenderResourceContext};
-use bevy::{prelude::*, render::render_graph::RenderGraph};
-use bevy::{reflect::TypeUuid, render::render_graph::AssetRenderResourcesNode};
-use bevy::{render::pipeline::PipelineDescriptor};
 use emulator_6502::{Interface6502, MOS6502};
-
-pub const ATARI_PALETTE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(AtariPalette::TYPE_UUID, 5197421896076365082);
-
-pub const ANTIC_DATA_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 11338886280454987747);
-
-pub const COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6758940903835595297);
-
-pub const DEBUG_COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 12701505191960931865);
 
 mod consts {
     pub const DMACTL: usize = 0x00; // bit3 - player DMA, bit2 - missile DMA, bit4 - 1-PM hires, 0: PM lores, AHRM page 72
@@ -642,9 +624,12 @@ pub fn tick(
     // data_texture: &mut Texture,
 ) {
     if atari_system.antic.cycle == 0 {
-        if atari_system.antic.scan_line == 0 {
+        if atari_system.antic.scan_line == 8 {
+            antic_data.clear();
+        } else if atari_system.antic.scan_line == 0 {
             // antic reset
             atari_system.antic.next_scan_line = 8;
+            atari_system.gtia.collision_update_scanline = 0;
         }
         atari_system.scanline_tick(atari_system.antic.scan_line);
 
@@ -738,119 +723,4 @@ pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
             + (system.antic.pmbase & 0b11111100) as usize * 256
     };
     system.read(offs as u16)
-}
-
-pub struct AnticPlugin {
-    pub texture_size: Vec2,
-    pub enable_collisions: bool,
-    pub collision_agg_size: Option<(u32, u32)>,
-}
-
-#[derive(Default)]
-struct CollistionsReadState {
-    buffer: Vec<u8>,
-}
-
-fn collisions_read(world: &mut World) {
-    let world = world.cell();
-    let mut state = world.get_resource_mut::<CollistionsReadState>().unwrap();
-    let render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
-    let render_resource_context = world.get_resource_mut::<Box<dyn RenderResourceContext>>();
-    if let Some(render_resource_context) = render_resource_context {
-        let collisions_buffer_node: &CollisionsBufferNode =
-            render_graph.get_node(COLLISIONS_BUFFER).unwrap();
-        if state.buffer.len() != collisions_buffer_node.buffer_info.size {
-            state.buffer = Vec::with_capacity(collisions_buffer_node.buffer_info.size);
-            unsafe {
-                state
-                    .buffer
-                    .set_len(collisions_buffer_node.buffer_info.size);
-            }
-        }
-        if let Some(buffer_id) = collisions_buffer_node.buffer_id {
-            let atari_system = world.get_resource::<crate::AtariSystem>().unwrap();
-            render_resource_context.read_mapped_buffer(
-                buffer_id,
-                0..(state.buffer.len() as u64),
-                &|data, _| {
-                    let data = unsafe { std::mem::transmute::<&[u8], &[u64]>(&data) };
-                    // collision texture is RG texture, but we read it in RGBA format (4 * u32)
-                    // where only RG components are set. That's why we skip every second u64
-                    let len = data.len() / 8;
-                    let data = &data[..len];
-                    let collision_array = &mut *atari_system.gtia.collision_array.write();
-                    let width = len / 240 / 2;
-                    let mut index = 0;
-                    for i in 0..240 {
-                        let mut agg = 0;
-                        for _ in 0..width {
-                            agg |= data[index];
-                            index += 2;
-                        }
-                        collision_array[i] = agg;
-                    }
-                },
-            );
-        }
-    }
-}
-
-impl Plugin for AnticPlugin {
-    fn build(&self, app: &mut AppBuilder) {
-        app.add_asset::<AnticData>()
-            .add_asset::<AtariPalette>();
-        app.add_system_to_stage(CoreStage::PreUpdate, collisions_read.exclusive_system());
-        app.init_resource::<CollistionsReadState>();
-        let world = app.world_mut().cell();
-        let mut pipelines = world.get_resource_mut::<Assets<PipelineDescriptor>>().unwrap();
-        let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
-        let mut palettes = world.get_resource_mut::<Assets<AtariPalette>>().unwrap();
-        let mut antic_data = world.get_resource_mut::<Assets<AnticData>>().unwrap();
-
-        pipelines.set_untracked(
-            COLLISIONS_PIPELINE_HANDLE,
-            render::build_collisions_pipeline(&mut shaders),
-        );
-        pipelines.set_untracked(
-            DEBUG_COLLISIONS_PIPELINE_HANDLE,
-            render::build_debug_collisions_pipeline(&mut shaders),
-        );
-        palettes.set_untracked(ATARI_PALETTE_HANDLE, AtariPalette::default());
-        antic_data.set_untracked(ANTIC_DATA_HANDLE, AnticData::default());
-
-        let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
-
-        render_graph.add_system_node(
-            "atari_palette",
-            AssetRenderResourcesNode::<AtariPalette>::new(false),
-        );
-        render_graph.add_system_node(
-            "antic_data",
-            AssetRenderResourcesNode::<AnticData>::new(false),
-        );
-
-        render_graph.add_system_node(
-            "custom_texture",
-            AssetRenderResourcesNode::<CustomTexture>::new(false),
-        );
-        render_graph
-            .add_node_edge("custom_texture", MAIN_PASS)
-            .unwrap();
-
-        let size = Vec2::new(self.texture_size.x, self.texture_size.y);
-        add_antic_graph(
-            &mut *render_graph,
-            &world,
-            &size,
-            self.enable_collisions,
-            self.collision_agg_size,
-        );
-        render_graph.add_system_node(
-            "simple_material",
-            AssetRenderResourcesNode::<SimpleMaterial>::new(false),
-        );
-        render_graph
-            .add_node_edge("simple_material", "antic_pass")
-            .unwrap();
-    }
 }

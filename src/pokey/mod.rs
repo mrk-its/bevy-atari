@@ -63,7 +63,10 @@ pub struct Pokey {
 
 impl Default for Pokey {
     fn default() -> Self {
+        #[cfg(target_arch = "wasm32")]
         let rng = SmallRng::from_seed([0; 16]);
+        #[cfg(not(target_arch = "wasm32"))]
+        let rng = SmallRng::from_seed([0; 32]);
         Self {
             rng,
             ctl: [AUDC::from_bits_truncate(0); 4],
@@ -96,6 +99,7 @@ impl Pokey {
 
     // const IDLE_DELAY: usize = 2;
 
+    #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
         use wasm_bindgen::{JsCast, JsValue};
         let regs = [
@@ -120,14 +124,16 @@ impl Pokey {
         let port = unsafe {
             js_sys::Reflect::get(&window, &"pokey_port".into())
                 .expect("no pokey_port exists")
-                .dyn_into::<web_sys::MessagePort>().expect("cannot cast to MessagePort")
+                .dyn_into::<web_sys::MessagePort>()
+                .expect("cannot cast to MessagePort")
         };
         port.post_message(&regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn send_regs(&mut self) {}
 
-    pub fn scanline_tick(&mut self, _scanline: usize) {
-    }
+    pub fn scanline_tick(&mut self, _scanline: usize) {}
 
     pub fn update_freq(&mut self, channel: usize, value: u8) {
         self.freq[channel] = value;

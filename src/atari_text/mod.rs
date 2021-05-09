@@ -6,7 +6,7 @@ use bevy::render::{
     texture::Texture,
 };
 use bevy::render::{
-    pipeline::{CullMode, PipelineDescriptor},
+    pipeline::PipelineDescriptor,
     render_graph::{base, RenderGraph, RenderResourcesNode},
     shader::{ShaderStage, ShaderStages},
 };
@@ -98,13 +98,13 @@ impl TextAreaBundle {
                 translation: Vec3::new(
                     (x_offset as f32 + width / 2.0) * 8.0,
                     (y_offset as f32 - height / 2.0) * 8.0,
-                    0.2,
+                    0.0,
                 ),
                 scale: Vec3::new(1.0 * (width as f32) * 8.0, 1.0 * (height as f32) * 8.0, 1.0),
                 ..Default::default()
             },
             visible: Visible {
-                is_visible: false,
+                is_visible: true,
                 is_transparent: true,
             },
             text_area: TextArea {
@@ -134,7 +134,9 @@ impl Plugin for AtartTextPlugin {
 
         let world = app.world_mut().cell();
         let mut render_graph = world.get_resource_mut::<RenderGraph>().unwrap();
-        let mut pipelines = world.get_resource_mut::<Assets<PipelineDescriptor>>().unwrap();
+        let mut pipelines = world
+            .get_resource_mut::<Assets<PipelineDescriptor>>()
+            .unwrap();
         let mut shaders = world.get_resource_mut::<Assets<Shader>>().unwrap();
 
         render_graph.add_system_node("atari_text", RenderResourcesNode::<TextArea>::new(true));
@@ -142,12 +144,11 @@ impl Plugin for AtartTextPlugin {
         render_graph
             .add_node_edge("atari_text", base::node::MAIN_PASS)
             .unwrap();
-
         let mut pipeline_descr = PipelineDescriptor::default_config(ShaderStages {
             vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
             fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
         });
-        pipeline_descr.primitive.cull_mode = CullMode::None;
+        pipeline_descr.primitive.cull_mode = None;
         pipelines.set_untracked(ATARI_TEXT_PIPELINE_HANDLE, pipeline_descr);
     }
 }

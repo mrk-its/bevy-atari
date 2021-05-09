@@ -8,15 +8,15 @@ in vec2 v_Uv;
 
 out uvec4 o_Target;
 
-layout(std140) uniform CameraViewProj {  // set = 0, binding = 0
+layout(std140) uniform CameraViewProj {
     mat4 ViewProj;
 };
 
-layout(std140) uniform CustomTexture_color {  // set = 1, binding = 1
+layout(std140) uniform CustomTexture_color {  // set = 1, binding = 0
     vec4 color;
 };
 
-uniform usampler2D CustomTexture_texture;  // set = 1, binding = 2
+uniform usampler2D CustomTexture_texture;  // set = 1, binding = 1
 
 
 // collision aggregation texture is 384.0 x 15.0

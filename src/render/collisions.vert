@@ -11,7 +11,7 @@ out vec2 v_Uv;
 layout(std140) uniform CameraViewProj {
     mat4 ViewProj;
 };
-layout(std140) uniform Transform { // set = 2, binding = 0
+layout(std140) uniform Transform {
     mat4 Model;
 };
 
