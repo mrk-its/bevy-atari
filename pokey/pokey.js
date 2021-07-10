@@ -12,6 +12,7 @@ const REC_BUF_SIZE = 9 * 50;
 class POKEY extends AudioWorkletProcessor {
   constructor() {
     super();
+    this.frame_cnt = 0;
     this.recorded = null;
     this.buffer = [];
     this.time_offset = null;
@@ -19,11 +20,6 @@ class POKEY extends AudioWorkletProcessor {
       if(e.data == "clear_buffer") {
         this.buffer = [];
       } else if(e.data.length == 10) {
-        let offs = currentTime - e.data[9];
-        if(this.time_offset == null || offs < this.time_offset) {
-          this.time_offset = offs;
-        }
-        e.data[9] += this.time_offset;
         this.buffer.push(e.data);
       }
     }
@@ -94,18 +90,33 @@ class POKEY extends AudioWorkletProcessor {
   }
 
   process (inputs, outputs, parameters) {
+    var lastAtariTime;
+    if(this.buffer.length > 0) {
+      lastAtariTime = this.buffer[this.buffer.length - 1][9];
+    }
+
     var index = -1;
     for(var i=0; i<this.buffer.length; i++) {
-      let ts = this.buffer[i][9];
-      if(!ts || ts <= currentTime) {
-        index = i;
-      } else {
-        break;
+      let regs = this.buffer[i];
+      let atariTime = regs[9];
+      var offs = atariTime - currentTime - (this.time_offset || 0);
+      if(this.time_offset == null) {
+        this.time_offset = offs;
+        offs = 0;
       }
+      if(offs > 0 && (lastAtariTime - atariTime) <= 0.1) break;
+      index = i;
     }
+
+    // var index = this.buffer.length - 1;
     if(index >= 0) {
       let regs = this.buffer[index];
-      // console.log(regs[9] - currentTime);
+
+      this.frame_cnt += 1;
+      if(this.frame_cnt % 60 == 0) {
+        console.log("offs", regs[9] - currentTime, index, this.buffer.length);
+      }
+
       this.buffer = this.buffer.slice(index + 1);
       this.audctl = regs[8];
       for(var i=0; i<4; i++) {

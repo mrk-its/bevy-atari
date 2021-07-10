@@ -112,7 +112,7 @@ impl Pokey {
             self.freq[3] as f64,
             self.ctl[3].bits() as f64,
             self.audctl.bits() as f64,
-            (self.total_cycles as f64) / (312.0 * 114.0 * 50.0) + 5.0,
+            (self.total_cycles as f64) / (312.0 * 114.0 * 60.0),
         ]
         .iter()
         .map(|x| JsValue::from_f64(*x))
