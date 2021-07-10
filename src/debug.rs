@@ -1,10 +1,13 @@
 use std::time::Duration;
 
+use crate::render_resources::SimpleMaterial;
 use crate::{
-    atari_text, render, system::AtariSystem, time_used_plugin::TimeUsedPlugin, DisplayConfig,
-    MainCamera,
+    atari_text,
+    render::{self, MainCamera},
+    system::AtariSystem,
+    time_used_plugin::TimeUsedPlugin,
+    DisplayConfig,
 };
-use crate::{render_resources::SimpleMaterial, Parent};
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
     prelude::*,
@@ -18,6 +21,12 @@ pub struct CPUDebug;
 pub struct AnticDebug;
 pub struct GtiaDebug;
 pub struct FPS;
+
+#[derive(Default, Bundle)]
+pub struct Parent {
+    pub transform: Transform,
+    pub global_transform: GlobalTransform,
+}
 
 pub fn setup(
     mut commands: Commands,

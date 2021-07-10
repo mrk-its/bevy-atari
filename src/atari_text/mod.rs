@@ -1,5 +1,6 @@
 use bevy::core::Bytes;
 use bevy::prelude::Color;
+use bevy::render::pipeline::CullMode;
 use bevy::render::{
     impl_render_resource_bytes,
     renderer::{RenderResource, RenderResourceType},
@@ -148,7 +149,7 @@ impl Plugin for AtartTextPlugin {
             vertex: shaders.add(Shader::from_glsl(ShaderStage::Vertex, VERTEX_SHADER)),
             fragment: Some(shaders.add(Shader::from_glsl(ShaderStage::Fragment, FRAGMENT_SHADER))),
         });
-        pipeline_descr.primitive.cull_mode = None;
+        pipeline_descr.primitive.cull_mode = CullMode::None;
         pipelines.set_untracked(ATARI_TEXT_PIPELINE_HANDLE, pipeline_descr);
     }
 }

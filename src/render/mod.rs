@@ -3,10 +3,10 @@ use std::borrow::Cow;
 use crate::{
     entities,
     render_resources::{AnticData, AtariPalette, CustomTexture, SimpleMaterial},
-    MainCamera,
 };
 use bevy::render::{
-    pipeline::RenderPipeline,
+    pass::RenderPassColorAttachmentDescriptor,
+    pipeline::{CullMode, RenderPipeline},
     render_graph::{
         base::{node::MAIN_PASS, MainPass},
         AssetRenderResourcesNode,
@@ -24,7 +24,7 @@ use bevy::render::{
 use bevy::{
     prelude::*,
     render::{
-        pass::{LoadOp, Operations, PassDescriptor, RenderPassColorAttachment, TextureAttachment},
+        pass::{LoadOp, Operations, PassDescriptor, TextureAttachment},
         pipeline::PipelineDescriptor,
         render_graph::ResourceSlotInfo,
         renderer::{RenderResourceId, RenderResourceType},
@@ -71,6 +71,7 @@ pub const DEBUG_COLLISIONS_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 12701505191960931865);
 
 pub struct AnticFrame;
+pub struct MainCamera;
 
 pub const ANTIC_PASS: &str = "antic_pass";
 pub const ANTIC_CAMERA: &str = "antic_camera";
@@ -104,7 +105,7 @@ pub fn build_antic2_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescriptor
     });
 
     pipeline_descr.color_target_states = Vec::new();
-    pipeline_descr.primitive.cull_mode = None;
+    pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.name = Some("ANTIC2".to_string());
     pipeline_descr.depth_stencil = None;
     pipeline_descr
@@ -123,7 +124,7 @@ pub fn build_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescri
     });
     pipeline_descr.color_target_states = Vec::new();
     pipeline_descr.name = Some("COLLISIONS".to_string());
-    pipeline_descr.primitive.cull_mode = None;
+    pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.depth_stencil = None;
     info!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
@@ -142,7 +143,7 @@ pub fn build_debug_collisions_pipeline(shaders: &mut Assets<Shader>) -> Pipeline
     });
     pipeline_descr.color_target_states = Vec::new();
     pipeline_descr.name = Some("DEBUG_COLLISIONS".to_string());
-    pipeline_descr.primitive.cull_mode = None;
+    pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.depth_stencil = None;
     info!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
@@ -163,7 +164,7 @@ pub fn add_antic_graph(
 
     active_cameras.add(ANTIC_CAMERA);
 
-    let mut color_attachments = vec![RenderPassColorAttachment {
+    let mut color_attachments = vec![RenderPassColorAttachmentDescriptor {
         attachment: TextureAttachment::Input("color_attachment".to_string()),
         resolve_target: None,
         ops: Operations {
@@ -172,7 +173,7 @@ pub fn add_antic_graph(
         },
     }];
     if enable_collisions {
-        color_attachments.push(RenderPassColorAttachment {
+        color_attachments.push(RenderPassColorAttachmentDescriptor {
             attachment: TextureAttachment::Input("collisions_attachment".to_string()),
             resolve_target: None,
             ops: Operations {
@@ -249,7 +250,7 @@ pub fn add_antic_graph(
         let (index, width, height) = if let Some((width, height)) = collision_agg_size {
             let mut collisions_agg_pass_node =
                 PassNode::<&super::entities::CollisionsAggPass>::new(PassDescriptor {
-                    color_attachments: vec![RenderPassColorAttachment {
+                    color_attachments: vec![RenderPassColorAttachmentDescriptor {
                         attachment: TextureAttachment::Input("collisions_attachment".to_string()),
                         resolve_target: None,
                         ops: Operations {

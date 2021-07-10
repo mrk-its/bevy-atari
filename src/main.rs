@@ -32,30 +32,16 @@ use render::ANTIC_DATA_HANDLE;
 use render_resources::{AnticData, CustomTexture, SimpleMaterial};
 use system::AtariSystem;
 
-#[derive(Default, Bundle)]
-pub struct Parent {
-    pub transform: Transform,
-    pub global_transform: GlobalTransform,
-}
-
 #[derive(PartialEq, Copy, Clone, Default)]
 pub struct DisplayConfig {
     pub fps: bool,
     pub debug: bool,
 }
 
-pub struct MainCamera;
-
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum EmulatorState {
     Idle,
     Running,
-}
-
-#[derive(Debug, Default)]
-struct PerfMetrics {
-    frame_cnt: usize,
-    cpu_cycle_cnt: usize,
 }
 
 #[allow(dead_code)]
@@ -93,10 +79,6 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
     decoder.read_to_end(&mut result).unwrap();
     result
 }
-
-// mut cpu_debug: Query<&mut atari_text::TextArea, With<CPUDebug>>,
-// mut antic_debug: Query<&mut atari_text::TextArea, With<AnticDebug>>,
-// mut gtia_debug: Query<&mut atari_text::TextArea, With<GtiaDebug>>,
 
 fn atari_system(
     mut display_config: ResMut<DisplayConfig>,
@@ -299,14 +281,6 @@ fn events(
     }
 }
 
-#[allow(dead_code)]
-fn animation(mut query: Query<&mut GlobalTransform, With<MainPass>>) {
-    for mut transform in query.iter_mut() {
-        transform.rotate(Quat::from_rotation_ypr(0.01, 0.002, 0.015));
-    }
-}
-
-/// This example illustrates how to create a custom material asset and a shader that uses that material
 fn main() {
     let mut app = App::build();
     app.insert_resource(LogSettings {
