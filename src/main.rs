@@ -301,10 +301,10 @@ fn main() {
     });
 
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    // app.insert_resource(WinitConfig {
-    //     force_fps: Some(50.0),
-    //     return_from_run: false,
-    // });
+    app.insert_resource(WinitConfig {
+        force_fps: Some(50.0),
+        return_from_run: false,
+    });
     app.add_plugins(DefaultPlugins);
 
     #[cfg(target_arch = "wasm32")]

@@ -64,7 +64,7 @@ features = [
 [patch.crates-io]
 # bevy = {git = "https://github.com/mrk-its/bevy", branch="force_fps", default-features=false}
 # bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features=false }
-# bevy = {path = "../bevy", default-features=false}
+bevy = {path = "../bevy", default-features=false}
 # bevy_webgl2 = {git = "https://github.com/mrk-its/bevy_webgl2", branch="dev", default-features=true}
 # bevy_webgl2 = {path = "../bevy_webgl2", default-features=true}
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}

@@ -77,7 +77,7 @@ pub struct Gtia {
     pub regs: GTIARegs,
     pub collision_array: Arc<RwLock<[u64; 240]>>,
     collisions: [u8; 0x16], // R
-    trig: [u8; 4],          // R
+    pub trig: [u8; 4],      // R
     pub gractl: GRACTL,
     pub consol: u8,
     pub consol_mask: u8,
@@ -90,7 +90,7 @@ impl Default for Gtia {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
             collision_array: Arc::new(RwLock::new([0x0; 240])),
-            trig: [0xff, 0xff, 0xff, 0],
+            trig: [0xff, 0xff, 0xff, 1],
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
             consol_mask: 0x7,

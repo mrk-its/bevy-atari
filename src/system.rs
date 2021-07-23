@@ -5,6 +5,7 @@ pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
+use std::iter::FromIterator;
 pub use std::{cell::RefCell, rc::Rc};
 
 bitflags! {
@@ -29,6 +30,8 @@ pub struct AtariSystem {
     ram_mask: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
+    cart: Vec<u8>,
+    cart_bank: usize,
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -46,11 +49,14 @@ impl AtariSystem {
         let basic = [0x00; 0x2000];
         let antic = Antic::default();
         let pokey = Pokey::default();
-        let gtia = Gtia::default();
+        let mut gtia = Gtia::default();
         let pia = PIA::default();
         let disk_1 = None;
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
+        let flob = include_bytes!("../flob.1.0.1.car");
+        let cart = Vec::from_iter(flob[16..].iter().cloned());
+        gtia.trig[3] = 1;
         AtariSystem {
             consol,
             joystick,
@@ -59,6 +65,8 @@ impl AtariSystem {
             ram_mask: Vec::new(),
             osrom,
             basic,
+            cart,
+            cart_bank: 0x00,
             antic,
             gtia,
             pokey,
@@ -121,7 +129,9 @@ impl AtariSystem {
                 }
             }
             0xA0..=0xBF => {
-                if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
+                if self.gtia.trig[3] > 0 && self.cart_bank < 128 {
+                    self.cart[(self.cart_bank & 0x7f) * 0x2000 + (addr & 0x1fff)]
+                } else if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
                     self.basic[addr & 0x1fff]
                 } else {
                     self.ram[addr]
@@ -167,6 +177,7 @@ impl AtariSystem {
                 self.pia.write(addr, value);
             }
             0xD4 => self.antic.write(addr, value),
+            0xD5 => self.cart_bank = (addr & 0xff) as usize,
             0xC0..=0xFF => {
                 if !self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
                     self.ram[addr] = value

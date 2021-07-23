@@ -90,25 +90,25 @@ class POKEY extends AudioWorkletProcessor {
   }
 
   process (inputs, outputs, parameters) {
-    var lastAtariTime;
-    if(this.buffer.length > 0) {
-      lastAtariTime = this.buffer[this.buffer.length - 1][9];
-    }
+    // var lastAtariTime;
+    // if(this.buffer.length > 0) {
+    //   lastAtariTime = this.buffer[this.buffer.length - 1][9];
+    // }
 
-    var index = -1;
-    for(var i=0; i<this.buffer.length; i++) {
-      let regs = this.buffer[i];
-      let atariTime = regs[9];
-      var offs = atariTime - currentTime - (this.time_offset || 0);
-      if(this.time_offset == null) {
-        this.time_offset = offs;
-        offs = 0;
-      }
-      if(offs > 0 && (lastAtariTime - atariTime) <= 0.1) break;
-      index = i;
-    }
+    // var index = -1;
+    // for(var i=0; i<this.buffer.length; i++) {
+    //   let regs = this.buffer[i];
+    //   let atariTime = regs[9];
+    //   var offs = atariTime - currentTime - (this.time_offset || 0);
+    //   if(this.time_offset == null) {
+    //     this.time_offset = offs;
+    //     offs = 0;
+    //   }
+    //   if(offs > 0 && (lastAtariTime - atariTime) <= 0.1) break;
+    //   index = i;
+    // }
 
-    // var index = this.buffer.length - 1;
+    var index = this.buffer.length - 1;
     if(index >= 0) {
       let regs = this.buffer[index];
 
