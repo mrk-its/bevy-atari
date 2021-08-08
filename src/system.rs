@@ -1,4 +1,5 @@
 use crate::atr::ATR;
+use crate::cartridge::Cartridge;
 use crate::multiplexer::Multiplexer;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
@@ -30,15 +31,15 @@ pub struct AtariSystem {
     ram_mask: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: [u8; 0x2000],
-    cart: Vec<u8>,
-    cart_bank: usize,
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
     pub pia: PIA,
     pub disk_1: Option<ATR>,
     ticks: usize,
+    cart: Option<Box<dyn Cartridge>>,
 }
+
 
 impl AtariSystem {
     pub fn new() -> AtariSystem {
@@ -54,8 +55,7 @@ impl AtariSystem {
         let disk_1 = None;
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
-        let flob = include_bytes!("../flob.1.0.1.car");
-        let cart = Vec::from_iter(flob[16..].iter().cloned());
+
         gtia.trig[3] = 1;
         AtariSystem {
             consol,
@@ -65,14 +65,13 @@ impl AtariSystem {
             ram_mask: Vec::new(),
             osrom,
             basic,
-            cart,
-            cart_bank: 0x00,
             antic,
             gtia,
             pokey,
             pia,
             disk_1,
             ticks: 0,
+            cart: Some(Cartridge::from_bytes(include_bytes!("../flob.1.0.1.car"))),
         }
     }
 
@@ -129,9 +128,12 @@ impl AtariSystem {
                 }
             }
             0xA0..=0xBF => {
-                if self.gtia.trig[3] > 0 && self.cart_bank < 128 {
-                    self.cart[(self.cart_bank & 0x7f) * 0x2000 + (addr & 0x1fff)]
-                } else if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
+                if let Some(cart) = &self.cart {
+                    if self.gtia.trig[3] > 0 && cart.is_enabled() {
+                        return cart.read(addr);
+                    }
+                }
+                if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
                     self.basic[addr & 0x1fff]
                 } else {
                     self.ram[addr]
@@ -155,6 +157,7 @@ impl AtariSystem {
     }
     fn _write(&mut self, addr: u16, value: u8, antic: bool) {
         let addr = addr as usize;
+
         match addr >> 8 {
             0x50..=0x5F => {
                 let portb = self.pia.portb_out();
@@ -177,7 +180,10 @@ impl AtariSystem {
                 self.pia.write(addr, value);
             }
             0xD4 => self.antic.write(addr, value),
-            0xD5 => self.cart_bank = (addr & 0xff) as usize,
+            0xD5 => match &mut self.cart {
+                Some(cart) => cart.write(addr, value),
+                _ => (),
+            },
             0xC0..=0xFF => {
                 if !self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
                     self.ram[addr] = value

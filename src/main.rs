@@ -5,6 +5,7 @@ pub mod antic;
 mod atari800_state;
 pub mod atari_text;
 pub mod atr;
+mod cartridge;
 mod debug;
 pub mod entities;
 pub mod gtia;
