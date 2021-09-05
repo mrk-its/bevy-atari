@@ -20,6 +20,7 @@ mod render_resources;
 pub mod sio;
 mod system;
 pub mod time_used_plugin;
+use crate::cartridge::Cartridge;
 use bevy::log::{Level, LogSettings};
 use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, reflect::TypeUuid};
 use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
@@ -220,6 +221,9 @@ fn events(
                 }
                 "disk_1" => {
                     atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
+                }
+                "car" => {
+                    atari_system.cart = data.map(|data| <dyn Cartridge>::from_bytes(&data).ok()).flatten();
                 }
                 "state" => {
                     if let Some(data) = data {

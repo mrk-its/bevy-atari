@@ -6,7 +6,6 @@ pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
-use std::iter::FromIterator;
 pub use std::{cell::RefCell, rc::Rc};
 
 bitflags! {
@@ -37,9 +36,8 @@ pub struct AtariSystem {
     pub pia: PIA,
     pub disk_1: Option<ATR>,
     ticks: usize,
-    cart: Option<Box<dyn Cartridge>>,
+    pub cart: Option<Box<dyn Cartridge>>,
 }
-
 
 impl AtariSystem {
     pub fn new() -> AtariSystem {
@@ -71,7 +69,7 @@ impl AtariSystem {
             pia,
             disk_1,
             ticks: 0,
-            cart: Some(Cartridge::from_bytes(include_bytes!("../flob.1.0.1.car"))),
+            cart: None,
         }
     }
 
