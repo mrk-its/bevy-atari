@@ -49,6 +49,12 @@ bitflags! {
     }
 }
 
+pub struct PokeyRegWrite {
+    index: u8,
+    value: u8,
+    timestamp: usize,
+}
+
 pub struct Pokey {
     freq: [u8; 4],
     ctl: [AUDC; 4],
@@ -59,6 +65,7 @@ pub struct Pokey {
     pub irqen: IRQ,
     rng: SmallRng,
     pub total_cycles: usize,
+    pub reg_writes: Vec<PokeyRegWrite>,
 }
 
 impl Default for Pokey {
@@ -77,6 +84,7 @@ impl Default for Pokey {
             irqen: IRQ::from_bits_truncate(0xff),
             audctl: AUDCTL::from_bits_truncate(0),
             total_cycles: 0,
+            reg_writes: Vec::new(),
         }
     }
 }
@@ -102,23 +110,33 @@ impl Pokey {
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
         use wasm_bindgen::{JsCast, JsValue};
-        let regs = [
-            self.freq[0] as f64,
-            self.ctl[0].bits() as f64,
-            self.freq[1] as f64,
-            self.ctl[1].bits() as f64,
-            self.freq[2] as f64,
-            self.ctl[2].bits() as f64,
-            self.freq[3] as f64,
-            self.ctl[3].bits() as f64,
-            self.audctl.bits() as f64,
-            (self.total_cycles as f64) / (312.0 * 114.0 * 50.0),
-        ]
-        .iter()
-        .map(|x| JsValue::from_f64(*x))
-        .collect::<js_sys::Array>();
-        let regs = JsValue::from(regs);
 
+        let regs = std::mem::take(&mut self.reg_writes);
+
+        let js_regs = regs.iter().flat_map(|r| {
+            [
+                r.index as f64,
+                r.value as f64,
+                r.timestamp as f64 / (312.0 * 114.0 * 50.0),
+            ]
+        }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
+        // let regs = [
+        //     self.freq[0] as f64,
+        //     self.ctl[0].bits() as f64,
+        //     self.freq[1] as f64,
+        //     self.ctl[1].bits() as f64,
+        //     self.freq[2] as f64,
+        //     self.ctl[2].bits() as f64,
+        //     self.freq[3] as f64,
+        //     self.ctl[3].bits() as f64,
+        //     self.audctl.bits() as f64,
+        //     (self.total_cycles as f64) / (312.0 * 114.0 * 50.0),
+        // ]
+        // .iter()
+        // .map(|x| JsValue::from_f64(*x))
+        // .collect::<js_sys::Array>();
+        // let regs = JsValue::from(regs);
+        let js_regs = JsValue::from(js_regs);
         let window = web_sys::window().expect("no global `window` exists");
         #[allow(unused_unsafe)]
         let port = unsafe {
@@ -127,7 +145,7 @@ impl Pokey {
                 .dyn_into::<web_sys::MessagePort>()
                 .expect("cannot cast to MessagePort")
         };
-        port.post_message(&regs).expect("cannot post_message");
+        port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -150,6 +168,13 @@ impl Pokey {
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0xf;
         let channel = addr / 2;
+        if addr <= 8 {
+            self.reg_writes.push(PokeyRegWrite {
+                index: addr as u8,
+                value,
+                timestamp: self.total_cycles,
+            })
+        }
         match addr {
             0 | 2 | 4 | 6 => {
                 self.update_freq(channel, value);
