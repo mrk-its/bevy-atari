@@ -174,7 +174,7 @@ pub fn debug_overlay_system(
                 data.extend(atari_text::atascii_to_screen(&line, i.address == pc));
             }
         }
-        &text.data.data[..data.len()].copy_from_slice(&data);
+        text.data.data[..data.len()].copy_from_slice(&data);
     }
 
     for mut text in q.q1_mut().iter_mut() {
@@ -191,7 +191,7 @@ pub fn debug_overlay_system(
             atari_system.antic.nmien,
         );
         let data = atari_text::atascii_to_screen(&status_text, false);
-        &text.data.data[..data.len()].copy_from_slice(&data);
+        text.data.data[..data.len()].copy_from_slice(&data);
     }
     for mut text in q.q2_mut().iter_mut() {
         let status_text = format!(
@@ -205,7 +205,7 @@ pub fn debug_overlay_system(
             atari_system.gtia.consol,
         );
         let data = atari_text::atascii_to_screen(&status_text, false);
-        &text.data.data[..data.len()].copy_from_slice(&data);
+        text.data.data[..data.len()].copy_from_slice(&data);
     }
     // for (_, mut transform) in scan_line.iter_mut() {
     //     *transform = GlobalTransform::from_translation(Vec3::new(
