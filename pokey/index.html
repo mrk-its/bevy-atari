@@ -16,7 +16,7 @@
                 latencyHint,
             })
             $("#latency").text(audioContext.baseLatency)
-            await audioContext.audioWorklet.addModule('pokey.js')
+            await audioContext.audioWorklet.addModule('pokey_v2.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
             var analyser = createAnalyser(audioContext);
             analyser.node.connect(audioContext.destination);

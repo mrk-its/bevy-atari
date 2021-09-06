@@ -1,5 +1,4 @@
 <html>
-
 <head>
   <meta charset="utf-8" />
   <title>Good Enough Atari Emulator</title>
@@ -293,7 +292,7 @@
         latencyHint: latencyHint,
       });
       console.log("sampleRate: ", audioContext.sampleRate);
-      await audioContext.audioWorklet.addModule('pokey/pokey.js')
+      await audioContext.audioWorklet.addModule('pokey/pokey_v2.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
         outputChannelCount: [2],
       })
