@@ -9,54 +9,10 @@ const POKEY_FREQ = 48000 * M;
 
 const REC_BUF_SIZE = 9 * 50;
 
-class POKEY extends AudioWorkletProcessor {
+class POKEY {
   constructor() {
-    super();
-    this.input_dt = null;
-    this.lastSyncTime = null;
-    this.is_playing = false;
-    this.frame_cnt = 0;
-    this.recorded = null;
-    this.buffer = [];
-    this.buffer_pos = 0;
-    this.time_offset = null;
-    this.sampleCnt = 0;
-    this.volume = 0.4;
-
-    this.minLatency = 0.02;
-    this.maxLatency = 0.1;
-
-    this.port.onmessage = (e) => {
-      if(e.data == "clear_buffer") {
-        this.buffer = [];
-      } else if(e.data.length >= 3) {
-        if(this.is_playing) {
-          let minTimeAhead = this.sampleCnt / sampleRate + this.minLatency;
-          let maxTimeAhead = this.sampleCnt / sampleRate + this.maxLatency;
-          if(this.input_dt == null) {
-            this.input_dt = minTimeAhead - e.data[2];
-          }
-          let min_input_t = e.data[2] + this.input_dt;
-          let max_input_t = e.data[e.data.length - 1] + this.input_dt;
-          if(min_input_t < minTimeAhead) {
-            this.input_dt += (minTimeAhead - min_input_t);
-            // console.log("input too slow, syncing", (minTimeAhead - min_input_t))
-          } else if(max_input_t > maxTimeAhead) {
-            this.input_dt -= (max_input_t - maxTimeAhead);
-            // console.log("input too fast, syncing", (max_input_t - maxTimeAhead))
-          }
-          for(var i=2; i<e.data.length; i+=3) {
-            e.data[i] += this.input_dt;
-          }
-          this.buffer = this.buffer.concat(e.data);
-        }
-      }
-    }
     this.filter = new FIRFilter(FIR_37_to_1);
-    this.out_t = 0;
-    this.pokey_t = 0;
     this.clock_cnt = 0;
-
 
     this.set_audctl(0);
 
@@ -89,6 +45,15 @@ class POKEY extends AudioWorkletProcessor {
     this.hipass1 = (value & 4) > 0;
     this.hipass2 = (value & 2) > 0;
   }
+  
+  set_audf(index, value) {
+    this.audf[index] = value;
+  }
+
+  set_audc(index, value) {
+    this.audc[index] = value;
+  }
+
   get_poly_output(k, poly) {
     return poly[(this.cycle_cnt + k) % poly.length];
   }
@@ -126,112 +91,173 @@ class POKEY extends AudioWorkletProcessor {
     this.square_output[k + 1] = (~this.square_output[k + 1]) & 1
   }
 
-  process (inputs, outputs, parameters) {
-    const output = outputs[0]
-
-    output.slice(0, 1).forEach(channel => {
-      this.is_playing = true;
-      for (let i = 0; i < channel.length; i++) {
-        while(
-          this.buffer_pos < this.buffer.length
-          && this.buffer[this.buffer_pos + 2] <= this.sampleCnt / sampleRate
-        ) {
-          let index = this.buffer[this.buffer_pos];
-          let value = this.buffer[this.buffer_pos + 1];
-          if(index == 8) {
-            this.set_audctl(value)
-          } else if((index & 1) == 0) {
-            this.audf[index >> 1] = value;
-          } else {
-            this.audc[index >> 1] = value;
-          }
-          this.buffer_pos += 3;
-        }
-
-        for (let j=0; j < M; j++) {
-          this.clock_cnt -= 1;
-          let clock_underflow = this.clock_cnt < 0;
-          if(clock_underflow) {
-            this.clock_cnt = this.clock_period - 1;
-          }
-
-          if(!this.link12) {
-            if(this.fast_1 || clock_underflow) {
-              this.cnt[0] -= 1;
-              if(this.cnt[0] < 0) {
-                this.reload_single(0)
-                this.output[0] = this.get_output(0)
-              }
-            }
-            if(clock_underflow) {
-              this.cnt[1] -= 1;
-              if(this.cnt[1] < 0) {
-                this.reload_single(1)
-                this.output[1] = this.get_output(1)
-              }
-            }
-          } else {
-            if(this.fast_1 || clock_underflow) {
-              this.cnt[0] -= 1;
-              if(this.cnt[0] < 0) {
-                this.cnt[0] = 255;
-                this.square_output[0] = (~this.square_output[0]) & 1
-                this.output[0] = this.get_output(0)
-                this.cnt[1] -= 1;
-                if(this.cnt[1] < 0) {
-                  this.reload_linked(0);
-                  this.output[1] = this.get_output(1);
-                }
-              }
-            }
-          }
-          if(!this.link34) {
-            if(this.fast_3 || clock_underflow) {
-              this.cnt[2] -= 1;
-              if(this.cnt[2] < 0) {
-                this.reload_single(2)
-                this.output[2] = this.get_output(2)
-              }
-            }
-            if(clock_underflow) {
-              this.cnt[3] -= 1;
-              if(this.cnt[3] < 0) {
-                this.reload_single(3)
-                this.output[3] = this.get_output(3);
-              }
-            }
-          } else {
-            if(this.fast_3 || clock_underflow) {
-              this.cnt[2] -= 1;
-              if(this.cnt[2] < 0) {
-                this.cnt[2] = 255;
-                this.square_output[2] = (~this.square_output[2]) & 1
-                this.output[2] = this.get_output(2)
-                this.cnt[3] -= 1;
-                if(this.cnt[3] < 0) {
-                  this.reload_linked(2);
-                  this.output[3] = this.get_output(3);
-                }
-              }
-            }
-          }
-
-          let ch1_off = this.hipass1 && !this.square_output[2] ? 0 : 1;
-          let ch2_off = this.hipass2 && !this.square_output[3] ? 0 : 1;
-
-          this.cycle_cnt += 1;
-          this.filter.add_sample(
-
-            0.2 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
-            + 0.2 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
-            + 0.2 * (2 * this.output[2] - 1) * (this.link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
-            + 0.2 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
-          );
-        }
-        channel[i] = this.filter.get() * this.volume;
-        this.sampleCnt += 1;
+  tick() {
+    for (let j=0; j < M; j++) {
+      this.clock_cnt -= 1;
+      let clock_underflow = this.clock_cnt < 0;
+      if(clock_underflow) {
+        this.clock_cnt = this.clock_period - 1;
       }
-    })
+
+      if(!this.link12) {
+        if(this.fast_1 || clock_underflow) {
+          this.cnt[0] -= 1;
+          if(this.cnt[0] < 0) {
+            this.reload_single(0)
+            this.output[0] = this.get_output(0)
+          }
+        }
+        if(clock_underflow) {
+          this.cnt[1] -= 1;
+          if(this.cnt[1] < 0) {
+            this.reload_single(1)
+            this.output[1] = this.get_output(1)
+          }
+        }
+      } else {
+        if(this.fast_1 || clock_underflow) {
+          this.cnt[0] -= 1;
+          if(this.cnt[0] < 0) {
+            this.cnt[0] = 255;
+            this.square_output[0] = (~this.square_output[0]) & 1
+            this.output[0] = this.get_output(0)
+            this.cnt[1] -= 1;
+            if(this.cnt[1] < 0) {
+              this.reload_linked(0);
+              this.output[1] = this.get_output(1);
+            }
+          }
+        }
+      }
+      if(!this.link34) {
+        if(this.fast_3 || clock_underflow) {
+          this.cnt[2] -= 1;
+          if(this.cnt[2] < 0) {
+            this.reload_single(2)
+            this.output[2] = this.get_output(2)
+          }
+        }
+        if(clock_underflow) {
+          this.cnt[3] -= 1;
+          if(this.cnt[3] < 0) {
+            this.reload_single(3)
+            this.output[3] = this.get_output(3);
+          }
+        }
+      } else {
+        if(this.fast_3 || clock_underflow) {
+          this.cnt[2] -= 1;
+          if(this.cnt[2] < 0) {
+            this.cnt[2] = 255;
+            this.square_output[2] = (~this.square_output[2]) & 1
+            this.output[2] = this.get_output(2)
+            this.cnt[3] -= 1;
+            if(this.cnt[3] < 0) {
+              this.reload_linked(2);
+              this.output[3] = this.get_output(3);
+            }
+          }
+        }
+      }
+
+      let ch1_off = this.hipass1 && !this.square_output[2] ? 0 : 1;
+      let ch2_off = this.hipass2 && !this.square_output[3] ? 0 : 1;
+
+      this.cycle_cnt += 1;
+      this.filter.add_sample(
+
+        0.2 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
+        + 0.2 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
+        + 0.2 * (2 * this.output[2] - 1) * (this.link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
+        + 0.2 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
+      );
+    }
+    return this.filter.get();
+  }
+}
+
+
+class POKEYProcessor extends AudioWorkletProcessor {
+  constructor() {
+    super();
+    this.pokey = [
+      new POKEY(),
+      new POKEY(),
+    ]
+
+    this.input_dt = null;
+    this.lastSyncTime = null;
+    this.is_playing = false;
+    this.buffer = [];
+    this.buffer_pos = 0;
+    this.sampleCnt = 0;
+    this.volume = 0.4;
+
+    this.minLatency = 0.02;
+    this.maxLatency = 0.1;
+
+    this.port.onmessage = (e) => {
+      if(e.data == "clear_buffer") {
+        this.buffer = [];
+      } else if(e.data.length >= 3) {
+        if(this.is_playing) {
+          let minTimeAhead = this.sampleCnt / sampleRate + this.minLatency;
+          let maxTimeAhead = this.sampleCnt / sampleRate + this.maxLatency;
+          if(this.input_dt == null) {
+            this.input_dt = minTimeAhead - e.data[2];
+          }
+          let min_input_t = e.data[2] + this.input_dt;
+          let max_input_t = e.data[e.data.length - 1] + this.input_dt;
+          if(min_input_t < minTimeAhead) {
+            this.input_dt += (minTimeAhead - min_input_t);
+            // console.log("input too slow, syncing", (minTimeAhead - min_input_t))
+          } else if(max_input_t > maxTimeAhead) {
+            this.input_dt -= (max_input_t - maxTimeAhead);
+            // console.log("input too fast, syncing", (max_input_t - maxTimeAhead))
+          }
+          for(var i=2; i<e.data.length; i+=3) {
+            e.data[i] += this.input_dt;
+          }
+          this.buffer = this.buffer.concat(e.data);
+        }
+      }
+    }
+  }
+
+  processEvents() {
+    while(
+      this.buffer_pos < this.buffer.length
+      && this.buffer[this.buffer_pos + 2] <= this.sampleCnt / sampleRate
+    ) {
+      var index = this.buffer[this.buffer_pos];
+      let value = this.buffer[this.buffer_pos + 1];
+      let pokey_idx = this.pokey.length == 1 ? 0 : (index >> 4) & 1;
+      index = index & 0xf;
+
+      if(index == 8) {
+        this.pokey[pokey_idx].set_audctl(value)
+      } else if((index & 1) == 0) {
+        this.pokey[pokey_idx].set_audf(index >> 1, value);
+      } else {
+        this.pokey[pokey_idx].set_audc(index >> 1, value);
+      }
+      this.buffer_pos += 3;
+    }
+  }
+
+  process (inputs, outputs, parameters) {
+    this.is_playing = true;
+
+    const output = outputs[0]
+    for(let i=0; i < output[0].length; i++) {
+      this.processEvents();
+
+      output[0][i] = this.pokey[0].tick() * this.volume;
+      output[1][i] = this.pokey.length == 2 ? this.pokey[1].tick() * this.volume : output[0][i];
+
+      this.sampleCnt += 1;
+    }
+
     if(this.buffer_pos > 0) {
       this.buffer.splice(0, this.buffer_pos);
       this.buffer_pos = 0;
@@ -244,7 +270,7 @@ class POKEY extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('POKEY', POKEY)
+registerProcessor('POKEY', POKEYProcessor)
 
 class PolyGenerator {
   constructor(n_bits) {

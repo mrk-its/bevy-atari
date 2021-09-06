@@ -166,6 +166,14 @@ impl Pokey {
     }
 
     pub fn write(&mut self, addr: usize, value: u8) {
+        if addr & 0xf <= 8 {
+            self.reg_writes.push(PokeyRegWrite {
+                index: addr as u8,
+                value,
+                timestamp: self.total_cycles,
+            })
+        }
+
         let addr = addr & 0xf;
         let channel = addr / 2;
         if addr <= 8 {

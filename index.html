@@ -294,7 +294,9 @@
       });
       console.log("sampleRate: ", audioContext.sampleRate);
       await audioContext.audioWorklet.addModule('pokey/pokey.js')
-      const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+      const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
+        outputChannelCount: [2],
+      })
       if(false) {
         var analyser = createAnalyser(audioContext);
         analyser.node.connect(audioContext.destination);
