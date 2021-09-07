@@ -90,7 +90,7 @@ impl Default for Gtia {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
             collision_array: Arc::new(RwLock::new([0x0; 240])),
-            trig: [0xff, 0xff, 0xff, 1],
+            trig: [0xff, 0xff, 0xff, 0x00],
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
             consol_mask: 0x7,

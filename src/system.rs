@@ -48,13 +48,12 @@ impl AtariSystem {
         let basic = None;
         let antic = Antic::default();
         let pokey = Pokey::default();
-        let mut gtia = Gtia::default();
+        let gtia = Gtia::default();
         let pia = PIA::default();
         let disk_1 = None;
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
 
-        gtia.trig[3] = 1;
         AtariSystem {
             consol,
             joystick,
@@ -71,6 +70,11 @@ impl AtariSystem {
             ticks: 0,
             cart: None,
         }
+    }
+
+    pub fn set_cart(&mut self, cart: Option<Box<dyn Cartridge>>) {
+        self.cart = cart;
+        self.gtia.trig[3] = if self.cart.is_some() {1} else {0};
     }
 
     pub fn trainer_init(&mut self) {
