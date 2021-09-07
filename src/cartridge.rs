@@ -2,6 +2,7 @@ pub trait Cartridge: Sync + Send {
     fn is_enabled(&self) -> bool;
     fn read(&self, addr: usize) -> u8;
     fn write(&mut self, addr: usize, value: u8);
+    fn reset(&mut self) {}
 }
 
 impl dyn Cartridge {
@@ -62,6 +63,10 @@ impl Cartridge for AtariMax1M {
             _ => (),
         }
     }
+    
+    fn reset(&mut self) {
+        self.cart_bank = 0;
+    }
 }
 
 pub struct AtariMax128k {
@@ -82,5 +87,9 @@ impl Cartridge for AtariMax128k {
         if addr >= 0xd500 && addr < 0xd520 {
             self.cart_bank = (addr & 0x1f) as usize
         }
+    }
+
+    fn reset(&mut self) {
+        self.cart_bank = 0;
     }
 }

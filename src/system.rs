@@ -328,6 +328,9 @@ impl AtariSystem {
         cpu.reset(self);
         self.ticks = 0;
         self.gtia.consol_force_mask = if disable_basic { 0x03 } else { 0x07 };
+        if let Some(cart) = &mut self.cart {
+            cart.reset();
+        }
     }
 
     pub fn update_consol(&mut self, index: usize, value: u8) {
