@@ -29,7 +29,7 @@ pub struct AtariSystem {
     ram_copy: Vec<u8>,
     ram_mask: Vec<u8>,
     osrom: [u8; 0x4000],
-    basic: [u8; 0x2000],
+    basic: Option<[u8; 0x2000]>,
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -45,7 +45,7 @@ impl AtariSystem {
         let mut ram: Vec<u8> = Vec::new();
         ram.resize_with(320 * 1024, || 0);
         let osrom = [0x00; 0x4000];
-        let basic = [0x00; 0x2000];
+        let basic = None;
         let antic = Antic::default();
         let pokey = Pokey::default();
         let mut gtia = Gtia::default();
@@ -132,7 +132,10 @@ impl AtariSystem {
                     }
                 }
                 if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
-                    self.basic[addr & 0x1fff]
+                    match self.basic {
+                        Some(basic) => basic[addr & 0x1fff],
+                        None => self.ram[addr],
+                    }
                 } else {
                     self.ram[addr]
                 }
@@ -205,12 +208,11 @@ impl AtariSystem {
     }
 
     pub fn set_basic(&mut self, data: Option<Vec<u8>>) {
-        let data: &[u8] = if let Some(data) = data.as_ref() {
-            data
-        } else {
-            &[0; 0x2000]
-        };
-        self.basic.copy_from_slice(data);
+        self.basic = data.map(|data| {
+            let mut basic = [0; 0x2000];
+            basic.copy_from_slice(&data);
+            basic
+        });
     }
 
     pub fn copy_from_slice(&mut self, offs: usize, data: &[u8]) {
@@ -237,7 +239,8 @@ impl AtariSystem {
         self.ram[0..0x10000].copy_from_slice(atari800_state.memory.data);
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
-        self.basic.copy_from_slice(atari800_state.memory.basic);
+        self.basic = Some([0; 0x2000]);
+        self.basic.as_mut().unwrap().copy_from_slice(atari800_state.memory.basic);
         if self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
             self.ram[0xc000..0x10000].copy_from_slice(atari800_state.memory.under_atarixl_os);
         }
@@ -312,7 +315,9 @@ impl AtariSystem {
     }
 
     pub fn reset(&mut self, cpu: &mut MOS6502, cold: bool, disable_basic: bool) {
+        let disable_basic = disable_basic || self.basic.is_none();
         self.write(0xd301, 0xff); // turn on osrom
+        info!("atari_system reset, cold: {:?}, disable_basic: {:?}", cold, disable_basic);
         if cold {
             self.write(0x244, 255);
         }
