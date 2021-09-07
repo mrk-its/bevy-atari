@@ -210,14 +210,9 @@ fn events(
             js_api::Message::BinaryData { key, data, .. } => match key.as_str() {
                 "basic" => {
                     atari_system.set_basic(data);
-                    atari_system.reset(&mut *cpu, true, true);
                 }
                 "osrom" => {
                     atari_system.set_osrom(data);
-                    atari_system.reset(&mut *cpu, true, true);
-                    atari_system.antic = antic::Antic::default();
-                    // *frame = FrameState::default();
-                    info!("RESET! {:04x}", cpu.get_program_counter());
                 }
                 "disk_1" => {
                     atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
