@@ -190,7 +190,6 @@ fn events(
                 disable_basic,
             } => {
                 atari_system.reset(&mut *cpu, cold, disable_basic);
-                state.set(EmulatorState::Running).ok();
             }
             js_api::Message::SetState(new_state) => {
                 match new_state.as_ref() {
@@ -200,6 +199,7 @@ fn events(
                     }
                     _ => panic!("invalid state requested"),
                 };
+                info!("set_state: {:?}", new_state);
             }
             js_api::Message::JoyState { port, dirs, fire } => {
                 atari_system.set_joystick(1, port, dirs, fire)

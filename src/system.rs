@@ -325,6 +325,7 @@ impl AtariSystem {
         if cold {
             self.write(0x244, 255);
         }
+        self.antic = Antic::default();
         cpu.reset(self);
         self.ticks = 0;
         self.gtia.consol_force_mask = if disable_basic { 0x03 } else { 0x07 };
