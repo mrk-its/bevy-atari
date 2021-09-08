@@ -219,7 +219,7 @@
         sel.innerText = fn;
         if(key == 'disk_1') set_title(fn);
       } else {
-        sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
+        sel.innerHTML = '<span style="color: #ccc"></span>';
       }
     }
 
@@ -372,14 +372,14 @@
 </head>
 
 
-<body onhashchange="on_hash_change();" onclick="window.audio_context.resume();" ondrop="on_drop_handler(event)" ondragover="event.preventDefault()">
+<body onhashchange="on_hash_change();" onclick="window.audio_context.resume();" _ondrop="on_drop_handler(event)" _ondragover="event.preventDefault()">
   <div id="canvas-container">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto"></canvas>
     <div class="buttons">
       <button onclick="reset(false, false); blur()">Restart (Warm)</button>
       <button onclick="reset(true, false); blur()">Restart (Cold)</button>
       <button onclick="reset(true, true); blur()">Restart (Cold, Disable Basic)</button>
-      <input type="file" onchange="open_local_file(event);blur()"></input>
+      <!-- <input type="file" onchange="open_local_file(event);blur()"></input> -->
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a href="#"
         onclick="event.preventDefault(); c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
