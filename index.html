@@ -51,28 +51,12 @@
   </style>
   <script>
     const k_file_header = [150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137, 0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196, 7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0, 141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6, 165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173, 226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8, 208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0, 133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11, 133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9, 32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172, 121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169, 82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3, 169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32, 89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11, 173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140, 118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0];
-    function store(key, url, filename, data) {
-      try {
-        localStorage[key + "_url"] = url;
-        localStorage[key + "_filename"] = filename;
-        localStorage[key] = btoa(data);
-      } catch(e) {
-        console.error(e);
-      }
-      set_binary_data(key, url, data);
-      update_status();
-    }
 
-    function store_exists(key, url) {
-      return key && localStorage[key] && localStorage[key + "_url"] == url;
-    }
+    const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car'];
+    const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
 
     function store_delete(key) {
-      delete localStorage[key];
-      delete localStorage[key + "_url"];
-      delete localStorage[key + "_filename"];
-      set_binary_data(key, "", []);
-      update_status();
+
     }
 
     function xex2atr(data) {
@@ -89,37 +73,72 @@
       atr_buf[26] = Math.floor(data.length / 256);
       return atr_buf;
     }
+
+    function parse_fragment() {
+      let hash = document.location.hash.substring(1);
+      let old_format = hash.indexOf("||") == -1 && decodeURIComponent(hash).indexOf("||") > 0;
+      if(old_format) {
+        let ret = decodeURIComponent(hash).split("||").map(k => k.split("=="))
+        set_fragment(ret);
+        return ret;
+      }
+      return hash.split("||").map(part => [null, part])
+    }
+
+    function set_fragment(parts) {
+      document.location.hash = parts.map(k => k[1]).join("||");
+    }
+
     function eject(event) {
       event.preventDefault();
-      store_delete(event.target.parentNode.parentNode.attributes.id.value);
-      update_fragment();
+      let node = event.target.parentNode.parentNode;
+      let key = node.attributes.id.value;
+      let url = node.attributes["data-url"].value;
+      set_fragment(parse_fragment().filter(k => k[1] != url))
     }
-    function set_binary(url, data) {
+
+    function set_binary(key, url, data) {
       var filename = url_to_filename(url);
-      if (filename.toLowerCase().endsWith(".rom") || filename.toLowerCase().endsWith(".bin")) {
-        if (data.length == 0x4000) {
-          store("osrom", url, filename, data);
-        } else if (data.length == 0x2000) {
-          store("basic", url, filename, data);
+      let parts = filename.split(".")
+      let ext = parts[parts.length-1];
+      if(!key) {
+        // guess type of binary
+        if (ext == "rom" || ext == "bin") {
+          if (data.length == 0x4000) {
+            key = "osrom"
+          } else if (data.length == 0x2000) {
+            key = "basic"
+          } else {
+            console.warn("invalid length of rom file", data.length);
+            return;
+          }
+        } else if (ext == "state") {
+          key = "state"
+        } else if (ext == "car") {
+          key = "car"
+        } else if (ext == "atr") {
+          let is_valid = (data[0] == 0x96 && data[1] == 0x02 && data[4] == 128 && data[5] == 0);
+          if (is_valid) {
+            key = "disk_1"
+          } else {
+            console.warn("unsupported ATR file");
+            return;
+          }
+        } else if(ext == "xex") {
+          // handled below
         } else {
-          console.warn("invalid length of rom file", data.length);
+          console.warn("unknown type of file", filename);
+          return
         }
-      } else if (filename.toLowerCase().endsWith(".state")) {
-        set_binary_data("state", filename, data);
-      } else if (filename.toLowerCase().endsWith(".car")) {
-        set_binary_data("car", filename, data);
-        store("car", url, filename, data);
-      } else if (filename.toLowerCase().endsWith(".atr")) {
-        let is_valid = (data[0] == 0x96 && data[1] == 0x02 && data[4] == 128 && data[5] == 0);
-        if (is_valid) {
-          store("disk_1", url, filename, data);
-        } else {
-          console.warn("unsupported ATR file");
-        }
-      } else if (filename.toLowerCase().endsWith(".xex")) {
-        let atr_filename = filename.substring(0, filename.length - 4) + "[auto-k-file].atr";
-        store("disk_1", url, atr_filename, xex2atr(data));
       }
+      if (ext == "xex") {
+        filename = filename.substring(0, filename.length - 4) + "[auto-k-file].atr";
+        data = xex2atr(data)
+        key = "disk_1"
+      }
+      set_binary_data(key, filename, data);
+      update_status(key, url);
+      return key;
     }
 
     function is_absolute_url(url) {
@@ -149,13 +168,11 @@
     }
 
     function fetch_binary_data(key, url) {
-      if (store_exists(key, url)) {
-        init_binary_data(key);
-        return Promise.resolve(key);
-      }
+      console.log("fetch_binary_data", key, url)
       return fetch_url(url).then(function (data) {
-        set_binary(url, data);
-        return key;
+        let type = set_binary(key, url, data);
+        console.log("set_binary", key, url, "len:", data.length);
+        return type;
       })
     }
 
@@ -170,7 +187,9 @@
       event.preventDefault();
       let url = event.dataTransfer.getData("text/plain");
       if (url) {
-        fetch_binary_data("", url).then(update_fragment);
+        fetch_binary_data("", url).then((key) => {
+          console.log("key:", key);
+        });
       } else {
         for (file of event.dataTransfer.files) {
           handle_file(file);
@@ -178,18 +197,12 @@
       }
     }
 
-    function on_hash_change() {
-      reload_from_fragment();
+    function delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms))
     }
 
-    function update_fragment() {
-      let hash = ['disk_1', 'osrom', 'basic', 'car'].map(
-        key => [key, localStorage[key + "_url"]]
-      ).filter(
-        i => is_absolute_url(i[1])
-      ).map(i => `${i[0]}==${i[1]}`).join("||");
-
-      document.location.hash = '#' + encodeURIComponent(hash);
+    function on_hash_change() {
+      reload_from_fragment();
     }
 
     function set_title(text) {
@@ -197,40 +210,42 @@
       if(title) title.innerText = text;
     }
 
-    function update_status() {
-      for (key of ['disk_1', 'osrom', 'basic', 'car']) {
-        let fn = localStorage[`${key}_filename`];
-        let sel = document.querySelector(`#${key} span`);
-        if (fn) {
-          sel.innerText = fn;
-          if(key == 'disk_1') set_title(fn);
-        } else {
-          sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
-        }
+    function update_status(key, url) {
+      let fn = url && url_to_filename(url);
+      let sel = document.querySelector(`#${key} span`);
+      if(sel)
+        sel.parentElement.setAttribute('data-url', url)
+      if (fn) {
+        sel.innerText = fn;
+        if(key == 'disk_1') set_title(fn);
+      } else {
+        sel.innerHTML = '<span style="color: #ccc">drag & drop or use file selector above</span>';
       }
-      // document.querySelector("#disk_1 span").innerHTML = localStorage.disk_1_filename || none_text;
-      // document.querySelector("#osrom span").innerHTML= localStorage.osrom_filename || none_text;
-      // document.querySelector("#basic span").innerHTML = localStorage.basic_filename || none_text;
     }
 
-    function init_binary_data(key) {
-      let data = localStorage[key];
-      let url = localStorage[key + "_url"]
-      let filename = localStorage[key + "_filename"]
-      if (data) {
-        let d = new Uint8Array(atob(data).split(","));
-        set_binary_data(key, filename, d);
-        update_status();
-      }
-    }
-    function reload_from_fragment() {
+    async function reload_from_fragment() {
+      set_state("idle");
+      await delay(100);
       let todo = [];
-
-      for (let [key, url] of decodeURIComponent(document.location.hash.substring(1)).split("||").filter(x => x).map(part => part.split("=="))) {
+      for (let [key, url] of parse_fragment()) {
         todo.push(fetch_binary_data(key, url));
       };
-      return Promise.all(todo)
+      let result = await Promise.all(todo);
+      let result_set = new Set(result);
+      if(!result_set.has("osrom")) {
+        await fetch_binary_data(null, DEFAULT_OSROM_URL);
+        result_set.add("osrom");
+      }
+      let to_remove = BINARY_KEYS.filter(x => !result_set.has(x))
+      for (let key of to_remove) {
+        console.log("removing:", key);
+        set_binary_data(key, "", []);
+        update_status(key, null);
+      }
+      reset(true, true);
+      set_state("running");
     }
+
     function blur() {
       document.activeElement.blur();
     }
@@ -340,18 +355,7 @@
       window.reset = reset;
       window.set_state = set_state;
 
-      init_binary_data("osrom");
-      init_binary_data("basic");
-      init_binary_data("disk_1");
-      init_binary_data("car");
-      update_status();
-
-      reload_from_fragment().then(function () {
-        set_state("running");
-        // reset(true);
-        update_fragment();
-        console.log("done");
-      })
+      reload_from_fragment();
     }
     run();
 
@@ -378,12 +382,12 @@
       <input type="file" onchange="open_local_file(event);blur()"></input>
       <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a href="#"
-        onclick="var c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
+        onclick="event.preventDefault(); c = document.getElementById('bevy-canvas'); let x = (c.webkitRequestFullScreen || c.requestFullscreen); x.call(c);">fullscreen</a>
     </div>
     <div class="files">
       <div id="osrom">
         OSROM: <span></span>
-        <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div>
+        <!-- <div class="actions"><a onclick="eject(event)" href="#">Eject</a></div> -->
       </div>
       <div id="basic">
         Basic: <span></span>
