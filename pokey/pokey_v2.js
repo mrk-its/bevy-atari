@@ -13,7 +13,7 @@ class POKEY {
   constructor() {
     this.filter = new FIRFilter(FIR_37_to_1);
     this.clock_cnt = 0;
-
+    
     this.set_audctl(0);
 
     this.audf = [0, 0, 0, 0];
@@ -180,6 +180,9 @@ class POKEY {
 class POKEYProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
+    this.stereo_cnt = 0;
+    this.is_stereo = false;
+    
     this.pokey = [
       new POKEY(),
       new POKEY(),
@@ -191,7 +194,7 @@ class POKEYProcessor extends AudioWorkletProcessor {
     this.buffer = [];
     this.buffer_pos = 0;
     this.sampleCnt = 0;
-    this.volume = 0.4;
+    this.volume = 0.75;
 
     this.minLatency = 0.02;
     this.maxLatency = 0.1;
@@ -224,7 +227,16 @@ class POKEYProcessor extends AudioWorkletProcessor {
     }
   }
 
+  set_stereo(is_stereo) {
+    if(is_stereo ^ this.is_stereo) {
+      console.info("is_stereo: ", is_stereo);
+    }
+    this.is_stereo = is_stereo;
+  }
+
   processEvents() {
+    var pokey_lr = 0;
+
     while(
       this.buffer_pos < this.buffer.length
       && this.buffer[this.buffer_pos + 2] <= this.sampleCnt / sampleRate
@@ -233,7 +245,7 @@ class POKEYProcessor extends AudioWorkletProcessor {
       let value = this.buffer[this.buffer_pos + 1];
       let pokey_idx = this.pokey.length == 1 ? 0 : (index >> 4) & 1;
       index = index & 0xf;
-
+      pokey_lr |= (pokey_idx + 1)
       if(index == 8) {
         this.pokey[pokey_idx].set_audctl(value)
       } else if((index & 1) == 0) {
@@ -243,6 +255,19 @@ class POKEYProcessor extends AudioWorkletProcessor {
       }
       this.buffer_pos += 3;
     }
+    if(pokey_lr == 3) {
+      this.stereo_cnt += 1;
+      if(this.stereo_cnt > 20) {
+        this.stereo_cnt = 20;
+        this.set_stereo(true);
+      }
+    } else if(pokey_lr == 1) {
+      this.stereo_cnt -= 1;
+      if(this.stereo_cnt < 0) {
+        this.stereo_cnt = 0;
+        this.set_stereo(false);
+      }
+    }
   }
 
   process (inputs, outputs, parameters) {
@@ -251,9 +276,12 @@ class POKEYProcessor extends AudioWorkletProcessor {
     const output = outputs[0]
     for(let i=0; i < output[0].length; i++) {
       this.processEvents();
-
       output[0][i] = this.pokey[0].tick() * this.volume;
-      output[1][i] = this.pokey.length == 2 ? this.pokey[1].tick() * this.volume : output[0][i];
+      if(this.is_stereo) {
+        output[1][i] = this.pokey.length == 2 ? this.pokey[1].tick() * this.volume : output[0][i]
+      } else {
+        output[1][i] = output[0][i]
+      }
 
       this.sampleCnt += 1;
     }
