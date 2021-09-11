@@ -137,7 +137,7 @@
           return
         }
       }
-      if (ext == "xex") {
+      if (key == "xex" || ext == "xex") {
         filename = filename.substring(0, filename.length - 4) + "[auto-k-file].atr";
         data = xex2atr(data)
         key = "disk_1"
