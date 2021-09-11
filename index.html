@@ -74,6 +74,12 @@
       return atr_buf;
     }
 
+    function parse_part(part) {
+      let m = part.match("^(\\w+)=(.*)");
+      console.log(part, m);
+      return m && [m[1], m[2]] || [null, part]
+    }
+
     function parse_fragment() {
       let hash = document.location.hash.substring(1);
       let old_format = hash.indexOf("||") == -1 && decodeURIComponent(hash).indexOf("||") > 0;
@@ -82,7 +88,7 @@
         set_fragment(ret);
         return ret;
       }
-      return hash.split("||").map(part => [null, part])
+      return hash.split("||").map(parse_part)
     }
 
     function set_fragment(parts) {
@@ -162,7 +168,11 @@
       if (is_absolute_url(url)) {
         url = "https://atari.ha.sed.pl/" + url;
       }
-      return fetch(url).then(r => r.arrayBuffer()).then(function (data) {
+      return fetch(url).then(r => {
+        let content_disposition = r.headers.get("Content-Disposition");
+        // TODO use filename from content_disposition
+        return r.arrayBuffer()
+      }).then(function (data) {
         return new Uint8Array(data);
       })
     }
@@ -211,7 +221,7 @@
     }
 
     function update_status(key, url) {
-      let fn = url && url_to_filename(url);
+      let fn = url && url_to_filename(url) || url;
       let sel = document.querySelector(`#${key} span`);
       if(sel)
         sel.parentElement.setAttribute('data-url', url)
