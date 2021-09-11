@@ -10,7 +10,8 @@ const POKEY_FREQ = 48000 * M;
 const REC_BUF_SIZE = 9 * 50;
 
 class POKEY {
-  constructor() {
+  constructor(index) {
+    this.index = index
     this.filter = new FIRFilter(FIR_37_to_1);
     this.clock_cnt = 0;
     
@@ -30,7 +31,10 @@ class POKEY {
       return array;
     }
     this.poly_4 = poly_array(new Poly4())
-    this.poly_5 = poly_array(new Poly5())
+    // console.log("poly_4:", this.poly_4)
+    this.poly_5 = [1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0]
+    // this.poly_5 = poly_array(new Poly5())
+    console.log("poly_5:", this.poly_5)
     this.poly_9 = poly_array(new Poly9())
     this.poly_17 = poly_array(new Poly17())
     this.cycle_cnt = 0;
@@ -57,38 +61,42 @@ class POKEY {
   get_poly_output(k, poly) {
     return poly[(this.cycle_cnt + k) % poly.length];
   }
+
   get_output(k) {
     let audc = this.audc[k];
-    let mask = audc & 0x80 ? 1 : this.get_poly_output(k, this.poly_5);
     if(audc & 0x20) {
-      return mask & this.square_output[k];
+      return this.square_output[k];
     } else {
       if(audc & 0x40) {
-        return mask & this.get_poly_output(k, this.poly_4)
+        return this.get_poly_output(k, this.poly_4)
       } else {
         if(this.audctl & 0x80) {
-          return mask & this.get_poly_output(k, this.poly_9)
+          return this.get_poly_output(k, this.poly_9)
         } else {
-          return mask & this.get_poly_output(k, this.poly_17)
+          return this.get_poly_output(k, this.poly_17)
         }
       }
     }
   }
 
   set_output(k) {
-    this.output[k] = this.get_output(k);
+    this.square_output[k] = (~this.square_output[k]) & 1
+    if((this.audc[k] & 0x80) || this.get_poly_output(k, this.poly_5)) {
+      this.output[k] = this.get_output(k)
+    }
   }
 
   reload_single(k) {
-    this.cnt[k] = this.audf[k];
-    this.square_output[k] = (~this.square_output[k]) & 1
+    let fast_delay = (k == 0 && this.fast_1 || k == 2 && this.fast_3 ? 3 : 0)
+    this.cnt[k] = this.audf[k] + fast_delay
+    this.set_output(k)
   }
 
   reload_linked(k) {
     let cnt = this.audf[k] + 256 * this.audf[k + 1] + 6;
     this.cnt[k] = cnt & 0xff
     this.cnt[k + 1] = cnt >> 8;
-    this.square_output[k + 1] = (~this.square_output[k + 1]) & 1
+    this.set_output(k + 1)
   }
 
   tick() {
@@ -102,60 +110,40 @@ class POKEY {
       if(!this.link12) {
         if(this.fast_1 || clock_underflow) {
           this.cnt[0] -= 1;
-          if(this.cnt[0] < 0) {
-            this.reload_single(0)
-            this.output[0] = this.get_output(0)
-          }
+          if(this.cnt[0] < 0) this.reload_single(0)
         }
         if(clock_underflow) {
           this.cnt[1] -= 1;
-          if(this.cnt[1] < 0) {
-            this.reload_single(1)
-            this.output[1] = this.get_output(1)
-          }
+          if(this.cnt[1] < 0) this.reload_single(1)
         }
       } else {
         if(this.fast_1 || clock_underflow) {
           this.cnt[0] -= 1;
           if(this.cnt[0] < 0) {
             this.cnt[0] = 255;
-            this.square_output[0] = (~this.square_output[0]) & 1
-            this.output[0] = this.get_output(0)
+            this.set_output(0);
             this.cnt[1] -= 1;
-            if(this.cnt[1] < 0) {
-              this.reload_linked(0);
-              this.output[1] = this.get_output(1);
-            }
+            if(this.cnt[1] < 0) this.reload_linked(0);
           }
         }
       }
       if(!this.link34) {
         if(this.fast_3 || clock_underflow) {
           this.cnt[2] -= 1;
-          if(this.cnt[2] < 0) {
-            this.reload_single(2)
-            this.output[2] = this.get_output(2)
-          }
+          if(this.cnt[2] < 0) this.reload_single(2)
         }
         if(clock_underflow) {
           this.cnt[3] -= 1;
-          if(this.cnt[3] < 0) {
-            this.reload_single(3)
-            this.output[3] = this.get_output(3);
-          }
+          if(this.cnt[3] < 0) this.reload_single(3)
         }
       } else {
         if(this.fast_3 || clock_underflow) {
           this.cnt[2] -= 1;
           if(this.cnt[2] < 0) {
             this.cnt[2] = 255;
-            this.square_output[2] = (~this.square_output[2]) & 1
-            this.output[2] = this.get_output(2)
+            this.set_output(2)
             this.cnt[3] -= 1;
-            if(this.cnt[3] < 0) {
-              this.reload_linked(2);
-              this.output[3] = this.get_output(3);
-            }
+            if(this.cnt[3] < 0) this.reload_linked(2);
           }
         }
       }
@@ -164,13 +152,13 @@ class POKEY {
       let ch2_off = this.hipass2 && !this.square_output[3] ? 0 : 1;
 
       this.cycle_cnt += 1;
-      this.filter.add_sample(
-
+      let last_sample = (
         0.2 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
         + 0.2 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
         + 0.2 * (2 * this.output[2] - 1) * (this.link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
         + 0.2 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
-      );
+      )
+      this.filter.add_sample(last_sample);
     }
     return this.filter.get();
   }
@@ -184,8 +172,8 @@ class POKEYProcessor extends AudioWorkletProcessor {
     this.is_stereo = false;
     
     this.pokey = [
-      new POKEY(),
-      new POKEY(),
+      new POKEY('L'),
+      new POKEY('R'),
     ]
 
     this.input_dt = null;
@@ -194,7 +182,7 @@ class POKEYProcessor extends AudioWorkletProcessor {
     this.buffer = [];
     this.buffer_pos = 0;
     this.sampleCnt = 0;
-    this.volume = 0.75;
+    this.volume = 1.0;
 
     this.minLatency = 0.02;
     this.maxLatency = 0.1;

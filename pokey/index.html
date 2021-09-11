@@ -17,7 +17,9 @@
             })
             $("#latency").text(audioContext.baseLatency)
             await audioContext.audioWorklet.addModule('pokey_v2.js')
-            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY')
+            const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
+                outputChannelCount: [2],
+            })
             var analyser = createAnalyser(audioContext);
             analyser.node.connect(audioContext.destination);
             // pokeyNode.connect(audioContext.destination)
@@ -73,8 +75,7 @@
                 regs.map((v, i) => {
                     set_reg(reg_names[i], v);
                 })
-                let msg = regs.map((v) => parseInt(v, 16));
-                msg.push(window.audio_context.currentTime + 1.0);
+                let msg = regs.flatMap((v, i) => [i, parseInt(v, 16), 0]);
                 window.pokey_port.postMessage(msg);
             }
         }
