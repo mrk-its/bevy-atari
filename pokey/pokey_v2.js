@@ -48,6 +48,8 @@ class POKEY {
     this.clock_period = value & 1 ? 114 : 28;
     this.hipass1 = (value & 4) > 0;
     this.hipass2 = (value & 2) > 0;
+    this.hipass1_flipflop = 1;
+    this.hipass2_flipflop = 1;
   }
   
   set_audf(index, value) {
@@ -100,6 +102,9 @@ class POKEY {
   }
 
   tick() {
+    if(!this.hipass1) this.hipass1_flipflop = 1;
+    if(!this.hipass2) this.hipass2_flipflop = 1;
+
     for (let j=0; j < M; j++) {
       this.clock_cnt -= 1;
       let clock_underflow = this.clock_cnt < 0;
@@ -130,16 +135,29 @@ class POKEY {
       if(!this.link34) {
         if(this.fast_3 || clock_underflow) {
           this.cnt[2] -= 1;
-          if(this.cnt[2] < 0) this.reload_single(2)
+          if(this.cnt[2] < 0) {
+            this.reload_single(2)
+            if(this.hipass1) {
+              // this.hipass1_flipflop = this.output[0]
+              this.set_output(0);
+            }
+          }
         }
         if(clock_underflow) {
           this.cnt[3] -= 1;
-          if(this.cnt[3] < 0) this.reload_single(3)
+          if(this.cnt[3] < 0) {
+            this.reload_single(3)
+            if(this.hipass2) {
+              // this.hipass2_flipflop = this.output[1]
+              this.set_output(1);
+            }
+          }
         }
       } else {
         if(this.fast_3 || clock_underflow) {
           this.cnt[2] -= 1;
           if(this.cnt[2] < 0) {
+            // what about hipass1 / hipass2 here?
             this.cnt[2] = 255;
             this.set_output(2)
             this.cnt[3] -= 1;
@@ -148,17 +166,20 @@ class POKEY {
         }
       }
 
-      let ch1_off = this.hipass1 && !this.square_output[2] ? 0 : 1;
-      let ch2_off = this.hipass2 && !this.square_output[3] ? 0 : 1;
-
       this.cycle_cnt += 1;
-      let last_sample = (
-        0.2 * (2 * (1 ^ this.output[0]) - 1) * ch1_off * (this.audc[0] & 15) / 15.0
-        + 0.2 * (2 * (1 ^ this.output[1]) - 1) * ch2_off * (this.audc[1] & 15) / 15.0
-        + 0.2 * (2 * this.output[2] - 1) * (this.link34 ? 0 : 1) * (this.audc[2] & 15) / 15.0
-        + 0.2 * (2 * this.output[3] - 1) * (this.audc[3] & 15) / 15.0
-      )
-      this.filter.add_sample(last_sample);
+
+      let vol_only = n => (this.audc[n] >> 4) & 1
+      let vol = n => this.audc[n] & 15
+
+      let ch1 = 1 & (this.hipass1_flipflop ^ this.output[0]) | vol_only(0)
+      let ch2 = 1 & (this.hipass2_flipflop ^ this.output[1]) | vol_only(1)
+      let ch3 = 1 & this.output[2] | vol_only(2)
+      let ch4 = 1 & this.output[3] | vol_only(3)
+
+      let normalize = vol => vol / 60.0
+      let normalizeAltirra = vol => (1.0 - Math.exp(-2.9 * (vol / 60.0))) / (1.0 - Math.exp(-2.9))
+      let sample = normalizeAltirra(ch1 * vol(0) + ch2 * vol(1) + ch3 * vol(2) + ch4 * vol(3))
+      this.filter.add_sample(sample);
     }
     return this.filter.get();
   }
@@ -182,7 +203,7 @@ class POKEYProcessor extends AudioWorkletProcessor {
     this.buffer = [];
     this.buffer_pos = 0;
     this.sampleCnt = 0;
-    this.volume = 1.0;
+    this.volume = 0.5;
 
     this.minLatency = 0.02;
     this.maxLatency = 0.1;
