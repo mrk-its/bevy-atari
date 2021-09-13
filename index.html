@@ -317,7 +317,7 @@
         latencyHint: latencyHint,
       });
       console.log("sampleRate: ", audioContext.sampleRate);
-      await audioContext.audioWorklet.addModule('pokey/pokey_v2.js')
+      await audioContext.audioWorklet.addModule('pokey/pokey.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
         outputChannelCount: [2],
       })

@@ -24,7 +24,7 @@
             });
 
             $("#latency").text(audioContext.baseLatency)
-            await audioContext.audioWorklet.addModule('pokey_v2.js')
+            await audioContext.audioWorklet.addModule('pokey.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
                 outputChannelCount: [2],
             })
