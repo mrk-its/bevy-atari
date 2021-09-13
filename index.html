@@ -334,6 +334,13 @@
         pokeyNode.connect(audioContext.destination)
       }
 
+      document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+          audioContext.suspend();
+        } else {
+          audioContext.resume();
+        }
+      });
       // window.rec_buffers = [];
       // pokeyNode.port.onmessage = (msg) => {
       //   window.rec_buffers.push(msg.data);

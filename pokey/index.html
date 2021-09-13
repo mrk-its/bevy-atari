@@ -15,6 +15,14 @@
                 sampleRate: 48000,
                 latencyHint,
             })
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                audioContext.suspend();
+                } else {
+                audioContext.resume();
+                }
+            });
+
             $("#latency").text(audioContext.baseLatency)
             await audioContext.audioWorklet.addModule('pokey_v2.js')
             const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
@@ -173,13 +181,6 @@
 
         initAudio("playback");
 
-        // document.addEventListener('visibilitychange', function() {
-        //     if (document.hidden) {
-        //         window.audio_context.suspend();
-        //     } else {
-        //         window.audio_context.resume();
-        //     }
-        // });
     </script>
     <style>
         #pokey_regs input {
