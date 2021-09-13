@@ -63,15 +63,12 @@ export class SAPPlayer {
         console.warn("cannot locate data section");
         return false;
     }
-    getPokeyRegs(index, ts) {
-        let regs = Array.from(this.data.slice(index * 9, (index + 1) * 9));
-        if(ts) regs.push(ts);
-        return regs;
+    getPokeyRegs(index) {
+        return Array.from(this.data.slice(index * 9, (index + 1) * 9));
     }
     loadCurrentFrame() {
-        let regs = this.data.slice(this.current_frame * 9, this.current_frame * 9 + 9);
-        window.pokey_port.postMessage(regs);
-        this.sendEvent(regs);
+        let regs = Array.from(this.data.slice(this.current_frame * 9, this.current_frame * 9 + 9))
+        this._send_regs(regs)
     }
     sendEvent(regs) {
         let event = new Event("sap_player");
@@ -91,10 +88,9 @@ export class SAPPlayer {
             return;
         }
         let currentTime = this.getCurrentTime();
-        while(this.startTime + this.current_frame * this.frame_interval < currentTime + 0.2) {
-            let regs = this.getPokeyRegs(this.current_frame, this.startTime + this.current_frame * this.frame_interval);
-            window.pokey_port.postMessage(regs);
-            this.sendEvent(regs);
+        while(this.startTime + this.current_frame * this.frame_interval < currentTime + 0.5) {
+            let regs = this.getPokeyRegs(this.current_frame);
+            this._send_regs(regs)
             this.current_frame = (this.current_frame + this.frame_cnt + 1) % this.frame_cnt;
             if(this.current_frame == 0) {
                 this.startTime = currentTime;
@@ -119,12 +115,17 @@ export class SAPPlayer {
         this.startTime = null;
         this.loadCurrentFrame();
     }
+    _send_regs(regs) {
+        let msg = regs.flatMap((v, i) => [i, v, this.current_frame * this.frame_interval])
+        console.log("msg:", msg)
+        window.pokey_port.postMessage(msg);
+        this.sendEvent(regs)
+    }
     stop() {
         this.state = "stopped";
         this.startTime = null;
         this.current_frame = 0;
-        window.pokey_port.postMessage(EMPTY_POKEY_REGS);
-        this.sendEvent(EMPTY_POKEY_REGS)
+        this._send_regs(EMPTY_POKEY_REGS)
     }
 
     prev() {

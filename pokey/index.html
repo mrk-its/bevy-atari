@@ -74,10 +74,6 @@
         }
         function hash_to_pokey() {
             let hash = document.location.hash.substring(1);
-            if(hash.startsWith("http")) {
-                play_url(hash);
-            }
-
             let regs = hash.split("_")
             if (regs && regs.length == 9) {
                 regs.map((v, i) => {
@@ -85,6 +81,9 @@
                 })
                 let msg = regs.flatMap((v, i) => [i, parseInt(v, 16), 0]);
                 window.pokey_port.postMessage(msg);
+            } else {
+                play_url(hash);
+
             }
         }
 
@@ -102,7 +101,10 @@
             }
         }
         function play_url(url) {
-            fetch("https://atari.ha.sed.pl/" + url)
+            if(url.startsWith("http://") || url.startsWith("https://")) {
+                url = "https://atari.ha.sed.pl/" + url
+            }
+            fetch(url)
                 .then(response => response.arrayBuffer())
                 .then(buffer => {
                     window.sapPlayer.load(buffer)
