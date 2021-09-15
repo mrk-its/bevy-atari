@@ -31,9 +31,9 @@ class POKEY {
       return array;
     }
     this.poly_4 = poly_array(new Poly4())
-    // console.log("poly_4:", this.poly_4)
-    this.poly_5 = [1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0]
-    // this.poly_5 = poly_array(new Poly5())
+    console.log("poly_4:", this.poly_4)
+    // this.poly_5 = [1, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0]
+    this.poly_5 = poly_array(new Poly5())
     console.log("poly_5:", this.poly_5)
     this.poly_9 = poly_array(new Poly9())
     this.poly_17 = poly_array(new Poly17())
@@ -191,7 +191,7 @@ class POKEYProcessor extends AudioWorkletProcessor {
     super();
     this.stereo_cnt = 0;
     this.is_stereo = false;
-    
+    this.last_sample = [0.0, 0.0];
     this.pokey = [
       new POKEY('L'),
       new POKEY('R'),
@@ -279,15 +279,22 @@ class POKEYProcessor extends AudioWorkletProcessor {
     }
   }
 
+  get_output(n) {
+    // let last_sample = this.last_sample[n] || 0;
+    // this.last_sample[n] = last_sample + (this.pokey[n].tick() - last_sample) * 0.008
+    // return this.last_sample[n]
+    return this.pokey[n].tick();
+  }
+
   process (inputs, outputs, parameters) {
     this.is_playing = true;
 
     const output = outputs[0]
     for(let i=0; i < output[0].length; i++) {
       this.processEvents();
-      output[0][i] = this.pokey[0].tick() * this.volume;
+      output[0][i] =  this.get_output(0) * this.volume;
       if(this.is_stereo) {
-        output[1][i] = this.pokey.length == 2 ? this.pokey[1].tick() * this.volume : output[0][i]
+        output[1][i] = this.pokey.length == 2 ? this.get_output(1) * this.volume : output[0][i]
       } else {
         output[1][i] = output[0][i]
       }
