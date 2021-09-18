@@ -386,9 +386,9 @@ impl Antic {
 
     #[inline(always)]
     pub fn update_dma_cycles(&mut self) {
+        assert!(self.cycle == 0);
         self.is_visible = false;
         if self.scan_line < 8 || self.scan_line >= 248 {
-            self.cycle = 0;
             self.dma_cycles = 0;
             self.visible_cycle = 0;
             return;
@@ -448,6 +448,8 @@ impl Antic {
         self.cycle = start_dma_cycles;
         self.visible_cycle = line_start_cycle.max(start_dma_cycles);
         self.dma_cycles = dma_cycles;
+
+        self.total_cycles += self.cycle;
     }
 
     fn create_mode_line(&self, mode: u8, opts: MODE_OPTS) -> ModeLineDescr {
@@ -575,12 +577,14 @@ impl Antic {
 
     #[inline(always)]
     pub fn do_wsync(&mut self) {
+        let c = self.cycle;
         if self.cycle < 104 {
             self.cycle = 104;
             self.clear_wsync();
         } else {
             self.cycle = SCAN_LINE_CYCLES - 1;
         }
+        self.total_cycles += self.cycle - c;
     }
 
     #[inline(always)]
@@ -664,6 +668,7 @@ pub fn tick(
         if atari_system.antic.wsync() {
             atari_system.antic.clear_wsync();
             atari_system.antic.cycle = 105;
+            atari_system.antic.total_cycles += 105;
         }
     }
     if atari_system.antic.fire_nmi() {
