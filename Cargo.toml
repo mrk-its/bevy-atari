@@ -48,6 +48,7 @@ js-sys = "0.3"
 version = "0.3"
 features = [
   'AudioContext',
+  'AudioContextState',
   'AudioDestinationNode',
   'AudioBufferSourceNode',
   'AudioBuffer',

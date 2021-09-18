@@ -276,8 +276,8 @@
 
   <script type="module">
     import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from './target/wasm.js'
-    import {createAnalyser} from './pokey/analyser.js'
-    import {bytesToBase64} from './pokey/base64.js'
+    // import {createAnalyser} from './pokey/analyser.js'
+    // import {bytesToBase64} from './pokey/base64.js'
 
     window.concat_arrays = function(arrays) {
       let totalLength = arrays.reduce((acc, value) => acc + value.length, 0);
@@ -319,17 +319,17 @@
       console.log("sampleRate: ", audioContext.sampleRate);
       await audioContext.audioWorklet.addModule('pokey/pokey.js')
       const pokeyNode = new AudioWorkletNode(audioContext, 'POKEY', {
-        outputChannelCount: [2],
+        outputChannelCount: [2],  // stereo
       })
       if(false) {
-        var analyser = createAnalyser(audioContext);
-        analyser.node.connect(audioContext.destination);
-        pokeyNode.connect(analyser.node);
-        function tick() {
-          requestAnimationFrame(tick);
-          analyser.draw();
-        }
-        tick();
+        // var analyser = createAnalyser(audioContext);
+        // analyser.node.connect(audioContext.destination);
+        // pokeyNode.connect(analyser.node);
+        // function tick() {
+        //   requestAnimationFrame(tick);
+        //   analyser.draw();
+        // }
+        // tick();
       } else {
         pokeyNode.connect(audioContext.destination)
       }

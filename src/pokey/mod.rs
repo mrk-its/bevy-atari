@@ -66,6 +66,7 @@ pub struct Pokey {
     rng: SmallRng,
     pub total_cycles: usize,
     pub reg_writes: Vec<PokeyRegWrite>,
+    pub delta_t: f64,
 }
 
 impl Default for Pokey {
@@ -85,6 +86,7 @@ impl Default for Pokey {
             audctl: AUDCTL::from_bits_truncate(0),
             total_cycles: 0,
             reg_writes: Vec::new(),
+            delta_t: 0.0,
         }
     }
 }
@@ -92,6 +94,7 @@ unsafe impl Send for Pokey {}
 unsafe impl Sync for Pokey {}
 
 impl Pokey {
+    const LATENCY: f64 = 0.05;
     pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0xf;
         let value = match addr {
@@ -111,33 +114,38 @@ impl Pokey {
     pub fn send_regs(&mut self) {
         use wasm_bindgen::{JsCast, JsValue};
 
-        let regs = std::mem::take(&mut self.reg_writes);
-
-        let js_regs = regs.iter().flat_map(|r| {
-            [
-                r.index as f64,
-                r.value as f64,
-                r.timestamp as f64 / (312.0 * 114.0 * 50.0),
-            ]
-        }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
-        // let regs = [
-        //     self.freq[0] as f64,
-        //     self.ctl[0].bits() as f64,
-        //     self.freq[1] as f64,
-        //     self.ctl[1].bits() as f64,
-        //     self.freq[2] as f64,
-        //     self.ctl[2].bits() as f64,
-        //     self.freq[3] as f64,
-        //     self.ctl[3].bits() as f64,
-        //     self.audctl.bits() as f64,
-        //     (self.total_cycles as f64) / (312.0 * 114.0 * 50.0),
-        // ]
-        // .iter()
-        // .map(|x| JsValue::from_f64(*x))
-        // .collect::<js_sys::Array>();
-        // let regs = JsValue::from(regs);
-        let js_regs = JsValue::from(js_regs);
         let window = web_sys::window().expect("no global `window` exists");
+
+        #[allow(unused_unsafe)]
+        let audio_context = unsafe {
+            js_sys::Reflect::get(&window, &"audio_context".into())
+                .expect("no window.audio_context")
+                .dyn_into::<web_sys::AudioContext>()
+                .expect("cannot cast to AudioContext")
+        };
+        let state = audio_context.state();
+        if state != web_sys::AudioContextState::Running {
+            // skipping writes this way may lead to bad pokey state
+            // for example some channels may still generate sound
+            // or we may have wrong audctl value
+
+            // TODO - reset POKEY (or at least mute all channels) on resume?
+
+            // but typically all pokey registers are frequenty updated
+            // so let's ignore it for a while
+            return;
+        }
+
+        let audio_context_time = audio_context.current_time();
+
+        let atari_time = self.total_cycles as f64 / (312.0 * 114.0 * 50.0);
+
+        let time_diff = atari_time - self.delta_t - audio_context_time;
+        if time_diff.abs() >= 0.05 {
+            self.delta_t = atari_time - audio_context_time;
+            warn!("too big time diff: {}, syncing", time_diff, );
+        }
+
         #[allow(unused_unsafe)]
         let port = unsafe {
             js_sys::Reflect::get(&window, &"pokey_port".into())
@@ -145,6 +153,17 @@ impl Pokey {
                 .dyn_into::<web_sys::MessagePort>()
                 .expect("cannot cast to MessagePort")
         };
+        let regs = std::mem::take(&mut self.reg_writes);
+
+        let js_regs = regs.iter().flat_map(|r| {
+            [
+                r.index as f64,
+                r.value as f64,
+                r.timestamp as f64 / (312.0 * 114.0 * 50.0) - self.delta_t + Self::LATENCY,
+            ]
+        }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
+        let js_regs = JsValue::from(js_regs);
+
         port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);
     }
