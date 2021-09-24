@@ -15,7 +15,9 @@ export function rec_start_stop(event) {
     let button = event.target
     if(sap_writer == null) {
         let is_stereo = $("#sap-r-writer input.stereo").is(":checked")
-        sap_writer = new SAPWriter(is_stereo)
+        let trim = $("#sap-r-writer input.trim").is(":checked")
+        console.log("trim:", trim)
+        sap_writer = new SAPWriter(is_stereo, trim)
         button.innerText = 'Stop';
         document.getElementById("download_url").innerHTML = ''
     } else {

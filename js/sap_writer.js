@@ -17,7 +17,8 @@ function time_str(t) {
 
 
 export class SAPWriter {
-    constructor(is_stereo) {
+    constructor(is_stereo, trim) {
+        this.trim = trim
         this.frames_per_sec = 50;  // TODO
         this.frame_cnt = 0;
         this.frame_size = is_stereo ? 18 : 9
@@ -30,7 +31,23 @@ export class SAPWriter {
         this.out_buffer = new Uint8Array(65536)
         this.out_buffer_used = 0
     }
+    is_zero_volume() {
+        return (
+            !(this.pokey1_sap_regs[1] & 0xf)
+            && !(this.pokey1_sap_regs[3] & 0xf)
+            && !(this.pokey1_sap_regs[5] & 0xf)
+            && !(this.pokey1_sap_regs[7] & 0xf)
+            && (
+                !this.is_stereo || (
+                    !(this.pokey2_sap_regs[1] & 0xf)
+                    && !(this.pokey2_sap_regs[3] & 0xf)
+                    && !(this.pokey2_sap_regs[5] & 0xf)
+                    && !(this.pokey2_sap_regs[7] & 0xf)
+                )
+            )
+        )
 
+    }
     handle_pokey_msg(msg) {
         for(var i=0; i<msg.length; i+=3) {
             let reg = msg[i + 0]
@@ -38,12 +55,15 @@ export class SAPWriter {
             let ts = msg[i + 2]
             this.pokey_regs[reg % this.pokey_regs.length] = value
         }
-        this.append(this.pokey1_sap_regs)
-        if(this.is_stereo) {
-            this.append(this.pokey2_sap_regs)
+        if(!this.trim || !this.is_zero_volume()) {
+            this.trim = false
+            this.append(this.pokey1_sap_regs)
+            if(this.is_stereo) {
+                this.append(this.pokey2_sap_regs)
+            }
+            this.frame_cnt += 1
+            this.send_event()
         }
-        this.frame_cnt += 1
-        this.send_event()
     }
 
     append(array) {
