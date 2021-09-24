@@ -236,7 +236,6 @@ pub fn update_fps(
             if let Some(ft) = diagnostics.get(FrameTimeDiagnosticsPlugin::FRAME_TIME) {
                 if let Some(t) = diagnostics.get(TimeUsedPlugin::TIME_USED) {
                     if let (Some(ft), Some(t)) = (ft.average(), t.average()) {
-                        info!("fps: {:.1} {:.2}", 1.0 / ft, t / ft);
                         fps.set_text(&format!("{:.1} {:.2}", 1.0 / ft, t / ft));
                     }
                 }

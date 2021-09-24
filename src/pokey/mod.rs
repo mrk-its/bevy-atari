@@ -146,13 +146,13 @@ impl Pokey {
             warn!("too big time diff: {}, syncing", time_diff, );
         }
 
-        #[allow(unused_unsafe)]
-        let port = unsafe {
-            js_sys::Reflect::get(&window, &"pokey_port".into())
-                .expect("no pokey_port exists")
-                .dyn_into::<web_sys::MessagePort>()
-                .expect("cannot cast to MessagePort")
-        };
+        // #[allow(unused_unsafe)]
+        // let port = unsafe {
+        //     js_sys::Reflect::get(&window, &"pokey_port".into())
+        //         .expect("no pokey_port exists")
+        //         .dyn_into::<web_sys::MessagePort>()
+        //         .expect("cannot cast to MessagePort")
+        // };
         let regs = std::mem::take(&mut self.reg_writes);
 
         let js_regs = regs.iter().flat_map(|r| {
@@ -163,8 +163,10 @@ impl Pokey {
             ]
         }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
         let js_regs = JsValue::from(js_regs);
+            
+        unsafe {crate::js_api::pokey_post_message(&js_regs)};    
 
-        port.post_message(&js_regs).expect("cannot post_message");
+        // port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);
     }
     #[cfg(not(target_arch = "wasm32"))]

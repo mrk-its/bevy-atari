@@ -80,3 +80,9 @@ pub fn reset(cold: bool, disable_basic: bool) {
         disable_basic,
     });
 }
+use wasm_bindgen::JsValue;
+
+#[wasm_bindgen]
+extern "C" {
+    pub fn pokey_post_message(a: &JsValue);
+}
