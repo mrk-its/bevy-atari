@@ -290,7 +290,7 @@ async function run() {
     if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "interactive";
     console.log("latencyHint: ", latencyHint);
     audio_context = new AudioContext({
-        sampleRate: 48000,
+        sampleRate: 56000,
         latencyHint: latencyHint,
     });
     console.log("sampleRate: ", audio_context.sampleRate);
