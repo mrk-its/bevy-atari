@@ -40,8 +40,7 @@ impl Cartridge for Standard8k {
         self.data[addr & 0x1fff]
     }
 
-    fn write(&mut self, _addr: usize, _value: u8) {
-    }
+    fn write(&mut self, _addr: usize, _value: u8) {}
 }
 pub struct AtariMax1M {
     data: Vec<u8>,
@@ -63,7 +62,7 @@ impl Cartridge for AtariMax1M {
             _ => (),
         }
     }
-    
+
     fn reset(&mut self) {
         self.cart_bank = 0;
     }

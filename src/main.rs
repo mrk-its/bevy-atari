@@ -218,7 +218,10 @@ fn events(
                     atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
                 }
                 "car" => {
-                    atari_system.set_cart(data.map(|data| <dyn Cartridge>::from_bytes(&data).ok()).flatten());
+                    atari_system.set_cart(
+                        data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
+                            .flatten(),
+                    );
                 }
                 "state" => {
                     if let Some(data) = data {

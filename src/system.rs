@@ -74,7 +74,7 @@ impl AtariSystem {
 
     pub fn set_cart(&mut self, cart: Option<Box<dyn Cartridge>>) {
         self.cart = cart;
-        self.gtia.trig[3] = if self.cart.is_some() {1} else {0};
+        self.gtia.trig[3] = if self.cart.is_some() { 1 } else { 0 };
     }
 
     pub fn trainer_init(&mut self) {
@@ -244,7 +244,10 @@ impl AtariSystem {
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
         self.basic = Some([0; 0x2000]);
-        self.basic.as_mut().unwrap().copy_from_slice(atari800_state.memory.basic);
+        self.basic
+            .as_mut()
+            .unwrap()
+            .copy_from_slice(atari800_state.memory.basic);
         if self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
             self.ram[0xc000..0x10000].copy_from_slice(atari800_state.memory.under_atarixl_os);
         }
@@ -321,7 +324,10 @@ impl AtariSystem {
     pub fn reset(&mut self, cpu: &mut MOS6502, cold: bool, disable_basic: bool) {
         let disable_basic = disable_basic || self.basic.is_none();
         self.write(0xd301, 0xff); // turn on osrom
-        info!("atari_system reset, cold: {:?}, disable_basic: {:?}", cold, disable_basic);
+        info!(
+            "atari_system reset, cold: {:?}, disable_basic: {:?}",
+            cold, disable_basic
+        );
         if cold {
             self.write(0x244, 255);
         }
