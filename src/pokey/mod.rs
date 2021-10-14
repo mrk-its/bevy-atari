@@ -112,6 +112,7 @@ impl Pokey {
 
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
+        return;
         use wasm_bindgen::{JsCast, JsValue};
 
         let window = web_sys::window().expect("no global `window` exists");
@@ -163,8 +164,8 @@ impl Pokey {
             ]
         }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
         let js_regs = JsValue::from(js_regs);
-            
-        unsafe {crate::js_api::pokey_post_message(&js_regs)};    
+
+        unsafe {crate::js_api::pokey_post_message(&js_regs)};
 
         // port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);

@@ -2,15 +2,15 @@
 name = "bevy_atari"
 version = "0.1.0"
 authors = []
-edition = "2018"
+edition = "2021"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
 default = [
   "bevy/bevy_winit",
-  "bevy/render",
-  "bevy/bevy_gilrs",
+  "bevy/bevy_render2",
 ]
 
 native = [
@@ -18,7 +18,6 @@ native = [
 ]
 
 web = [
-  "bevy_webgl2"
 ]
 
 x11 = [
@@ -26,10 +25,12 @@ x11 = [
 ]
 
 [dependencies]
-bevy = { version="0.5", default-features=false }
-bevy_webgl2 = {version = "0.5.2", default-features=false, optional=true}
-winit = {version = "0.24.0", features = ["web-sys"], default-features = false}
-emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency"]}
+bevy = { path="../bevy", default_features=false}
+crevice = { path = "../bevy/crates/crevice", version = "0.6.0" }
+
+winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
+# emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency"]}
+emulator_6502 = {path = "../emulator_6502", features=["binary_coded_decimal", "implementation_transparency"]}
 disasm6502 = "0.2"
 rand = {version = "0.8", features = ["small_rng"]}
 getrandom = { version = "0.1", features = ["wasm-bindgen"] }
@@ -43,6 +44,8 @@ flate2 = "1.0"
 gilrs = {version="0.8", features = ["wasm-bindgen"]}
 gilrs-core = {version="0.3"}
 js-sys = "0.3"
+
+bevy_atari_antic = {path="./bevy-atari-antic/"}
 
 [dependencies.web-sys]
 version = "0.3"
@@ -60,16 +63,16 @@ features = [
   'Window',
   'Location',
   'MessagePort',
+  'Storage',
 ]
 
 [patch.crates-io]
 # bevy = {git = "https://github.com/mrk-its/bevy", branch="force_fps", default-features=false}
 # bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features=false }
-bevy = {path = "../bevy", default-features=false}
-# bevy_webgl2 = {git = "https://github.com/mrk-its/bevy_webgl2", branch="dev", default-features=true}
-# bevy_webgl2 = {path = "../bevy_webgl2", default-features=true}
+# bevy = {path = "../bevy", default-features=false}
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
+wgpu = {path="../wgpu/wgpu/"}
 
 # [profile.dev.package."*"]
 # opt-level = 2

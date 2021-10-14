@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use wasm_bindgen::prelude::wasm_bindgen;
+use bevy::prelude::info;
 
 #[allow(dead_code)]
 pub static ARRAY: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]));
@@ -67,6 +68,7 @@ pub fn cmd(cmd: String) {
 #[allow(dead_code)]
 #[wasm_bindgen]
 pub fn set_state(state: String) {
+    info!("set_state: {}", state);
     let mut guard = ARRAY.write();
     guard.push(Message::SetState(state));
 }

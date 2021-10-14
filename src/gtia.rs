@@ -1,8 +1,10 @@
 use crate::palette::default::PALETTE;
-use crate::render_resources::GTIARegs;
-use bevy::prelude::*;
+// use crate::render_resources::GTIARegs;
+use bevy::render2::color::Color;
 use parking_lot::RwLock;
 use std::sync::Arc;
+
+use crate::render::GTIARegs;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -122,9 +124,9 @@ impl Gtia {
         let addr = addr & 0x1f;
 
         let _size_pm = |x| match x & 3 {
-            1 => 32,
-            3 => 64,
-            _ => 16,
+            1 => 32.0,
+            3 => 64.0,
+            _ => 16.0,
         };
 
         match addr {
@@ -134,15 +136,15 @@ impl Gtia {
             GRAFP0..=GRAFP3 => self.regs.grafp[addr - GRAFP0] = value as u32,
             GRAFM => self.regs.grafm = value as u32,
             PRIOR => self.regs.prior = value as u32,
-            HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value as u32,
-            HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value as u32,
+            HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value as f32,
+            HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value as f32,
             SIZEP0..=SIZEP3 => self.regs.player_size[addr - SIZEP0] = _size_pm(value),
             SIZEM => {
                 self.regs.missile_size = [
-                    _size_pm(value) / 4,
-                    _size_pm(value >> 2) / 4,
-                    _size_pm(value >> 4) / 4,
-                    _size_pm(value >> 6) / 4,
+                    _size_pm(value) / 4.0,
+                    _size_pm(value >> 2) / 4.0,
+                    _size_pm(value >> 4) / 4.0,
+                    _size_pm(value >> 6) / 4.0,
                 ]
             }
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
@@ -167,6 +169,7 @@ impl Gtia {
     }
 
     pub fn update_collisions_for_scanline(&mut self) {
+        return;
         // this is called when scan_line is complete
         if self.scan_line > self.collision_update_scanline
             && self.scan_line >= 8

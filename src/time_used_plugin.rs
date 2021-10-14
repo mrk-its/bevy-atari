@@ -27,7 +27,7 @@ impl TimeUsedPlugin {
 }
 
 impl Plugin for TimeUsedPlugin {
-    fn build(&self, app: &mut bevy::app::AppBuilder) {
+    fn build(&self, app: &mut bevy::app::App) {
         app.add_stage_before(
             CoreStage::First,
             "very_first",

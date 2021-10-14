@@ -1,5 +1,6 @@
 use crate::gtia;
-use crate::render_resources::AnticData;
+// use crate::render_resources::AnticData;
+use crate::render::{AnticData, ModeLineDescr};
 use crate::system::AtariSystem;
 use emulator_6502::{Interface6502, MOS6502};
 
@@ -172,36 +173,6 @@ const ANTIC_MODES: [AnticModeDescr; 16] = [
         n_bytes: 40,
     },
 ];
-
-#[derive(Debug)]
-pub struct ModeLineDescr {
-    pub opts: MODE_OPTS,
-    pub mode: u8,
-    pub scan_line: usize,
-    pub width: usize,
-    pub height: usize,
-    pub n_bytes: usize,
-    pub line_voffset: usize,
-    pub data_offset: usize,
-    pub chbase: u8,
-    pub pmbase: u8,
-    pub hscrol: u8,
-    pub video_memory_offset: usize,
-    pub charset_memory_offset: usize,
-}
-
-impl ModeLineDescr {
-    pub fn next_mode_line(&self) -> usize {
-        return self.scan_line + self.height;
-    }
-    pub fn charset_size(&self) -> usize {
-        match self.mode {
-            2..=5 => 1024,
-            6..=7 => 512,
-            _ => 0,
-        }
-    }
-}
 
 const MODE_25_STEALED_CYCLES_FIRST_LINE: [(usize, &[usize; 8]); 4] = [
     (29, &[9, 9, 9, 9, 9, 9, 9, 9]),
@@ -468,7 +439,6 @@ impl Antic {
         };
         ModeLineDescr {
             mode,
-            opts,
             height,
             line_voffset: self.line_voffset,
             n_bytes: hscrol_line_width,
@@ -676,28 +646,23 @@ pub fn tick(
     }
     if atari_system.antic.gets_visible() {
         if atari_system.antic.scan_line >= 8 && atari_system.antic.scan_line < 248 {
-            assert!(antic_data.gtia_regs.regs.len() == 240);
+            // assert!(antic_data.gtia_regs.regs.len() == 240);
 
-            antic_data.gtia_regs.regs[atari_system.antic.scan_line - 8] = atari_system.gtia.regs;
+            antic_data.set_gtia_regs(atari_system.antic.scan_line - 8, &atari_system.gtia.regs);
             if atari_system.antic.scan_line == atari_system.antic.start_scan_line {
                 let mut mode_line = atari_system.antic.create_next_mode_line();
                 let charset_offset = (mode_line.chbase as usize) * 256;
 
-                mode_line.video_memory_offset = antic_data.push_antic_memory(
-                    atari_system,
-                    mode_line.data_offset,
-                    mode_line.n_bytes,
-                );
-
+                mode_line.video_memory_offset =
+                    antic_data.reserve_antic_memory(mode_line.n_bytes, &mut |data| {
+                        atari_system.antic_copy_to_slice(mode_line.data_offset as u16, data)
+                    });
                 // todo: detect charset memory changes
-
-                mode_line.charset_memory_offset = antic_data.push_antic_memory(
-                    atari_system,
-                    charset_offset,
-                    mode_line.charset_size(),
-                );
-
-                antic_data.create_mode_line(&mode_line);
+                mode_line.charset_memory_offset = antic_data
+                    .reserve_antic_memory(mode_line.charset_size(), &mut |data| {
+                        atari_system.antic_copy_to_slice(charset_offset as u16, data)
+                    });
+                antic_data.insert_mode_line(&mode_line);
             }
         }
     }

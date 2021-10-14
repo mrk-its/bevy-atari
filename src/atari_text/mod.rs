@@ -1,5 +1,5 @@
-use bevy::core::Bytes;
-use bevy::prelude::Color;
+use crevice::std140::AsStd140;
+use bevy::render2::color::Color;
 use bevy::render::pipeline::CullMode;
 use bevy::render::{
     impl_render_resource_bytes,
@@ -16,7 +16,7 @@ use bevy::{
     asset::Handle,
     render::{pipeline::RenderPipeline, render_graph::base::MainPass},
 };
-use bevy::{core::Byteable, reflect::TypeUuid};
+use bevy::reflect::TypeUuid;
 use bevy::{prelude::*, render::renderer::RenderResources};
 
 use crate::render_resources::Charset;
@@ -29,7 +29,7 @@ pub const ATARI_TEXT_PIPELINE_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 2785347777738765446);
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, AsStd140, Default, Debug)]
 pub struct TextAreaData {
     pub data: [u8; 1024],
 }
@@ -39,9 +39,6 @@ impl Default for TextAreaData {
         Self { data: [0; 1024] }
     }
 }
-
-unsafe impl Byteable for TextAreaData {}
-impl_render_resource_bytes!(TextAreaData);
 
 #[derive(RenderResources, TypeUuid, Default)]
 #[uuid = "1e08866c-0b8a-437e-8bce-37733b250000"]
@@ -128,7 +125,7 @@ pub struct AtartTextPlugin;
 //     HandleUntyped::weak_from_u64(Mesh::TYPE_UUID, 16824195407667777934);
 
 impl Plugin for AtartTextPlugin {
-    fn build(&self, app: &mut AppBuilder) {
+    fn build(&self, app: &mut App) {
         // app.add_asset::<ColorMaterial>()
         //     .add_asset::<TextureAtlas>()
         //     .register_type::<Sprite>();

@@ -56,7 +56,7 @@ $(window).bind("sap_writer", event => {
     $("#sap-r-writer .time-info").text(`${data.duration} / ${(data.data_size / 1024).toFixed(1)} kB`)
 });
 
-export function pokey_post_message(msg) {
+function pokey_post_message(msg) {
   pokeyNode.port.postMessage(msg);
   if(sap_writer)
     sap_writer.handle_pokey_msg(msg)
@@ -237,6 +237,7 @@ function update_status(key, url) {
 }
 
 async function reload_from_fragment() {
+  console.log("calling set_state: idle");
   set_state("idle");
   await delay(100);
   let todo = [];
@@ -256,6 +257,7 @@ async function reload_from_fragment() {
     update_status(key, null);
   }
   reset(true, true);
+  console.log("calling set_state: running");
   set_state("running");
 }
 
@@ -285,11 +287,11 @@ function auto_focus() {
     }
   }
 
-async function run() {
+export async function run() {
     var latencyHint = parseFloat(localStorage.latencyHint);
     if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "interactive";
     console.log("latencyHint: ", latencyHint);
-    audio_context = new AudioContext({
+    let audio_context = new AudioContext({
         sampleRate: 56000,
         latencyHint: latencyHint,
     });
@@ -300,20 +302,22 @@ async function run() {
     })
     pokeyNode.connect(audio_context.destination)
 
+    window.audio_context = audio_context;
+    window.pokey_post_message = pokey_post_message
+
     document.addEventListener(
         'visibilitychange',
-        e => document.hidden ? audio_context.suspend() : audio_context.resume()
+        e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
     );
 
+    console.log("loading wasm")
     try {
         await init()
     } catch (e) {
         console.warn(e);
     }
     console.log("initialized")
-
+    $("canvas").width(768).height(480)
     reload_from_fragment();
     auto_focus()
 }
-
-run()

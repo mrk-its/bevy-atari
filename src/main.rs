@@ -3,11 +3,11 @@ extern crate bitflags;
 use std::io::prelude::*;
 pub mod antic;
 mod atari800_state;
-pub mod atari_text;
+// pub mod atari_text;
 pub mod atr;
 mod cartridge;
-mod debug;
-pub mod entities;
+// mod debug;
+// pub mod entities;
 pub mod gtia;
 mod js_api;
 pub mod keyboard;
@@ -15,24 +15,29 @@ pub mod multiplexer;
 mod palette;
 pub mod pia;
 pub mod pokey;
+
+#[path="new_render/mod.rs"]
 pub mod render;
-mod render_resources;
+
+// pub mod render;
+// mod render_resources;
 pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 use bevy::log::{Level, LogSettings};
-use bevy::{diagnostic::FrameTimeDiagnosticsPlugin, reflect::TypeUuid};
-use bevy::{prelude::*, render::pipeline::PipelineDescriptor};
-#[allow(unused_imports)]
-use bevy::{
-    render::{mesh::shape, render_graph::base::MainPass},
-    winit::WinitConfig,
-};
+use bevy::{diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, reflect::TypeUuid};
+use bevy::{PipelinedDefaultPlugins, prelude::*};
+// #[allow(unused_imports)]
+// use bevy::{
+//     render::{mesh::shape, render_graph::base::MainPass},
+//     winit::WinitConfig,
+// };
 use emulator_6502::{Interface6502, MOS6502};
-use render::ANTIC_DATA_HANDLE;
-use render_resources::{AnticData, CustomTexture, SimpleMaterial};
+// use render::ANTIC_DATA_HANDLE;
+// use render_resources::{AnticData, CustomTexture, SimpleMaterial};
 use system::AtariSystem;
+use render::{AnticData, ANTIC_DATA_HANDLE};
 
 #[derive(PartialEq, Copy, Clone, Default)]
 pub struct DisplayConfig {
@@ -87,14 +92,14 @@ fn atari_system(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
     mut atari_system: ResMut<AtariSystem>,
-    mut atari_data_assets: ResMut<Assets<AnticData>>,
+    mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
 ) {
     if frame.paused {
         return;
     }
     let mut prev_pc = 0;
-    let antic_data = atari_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
+    let antic_data = antic_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
 
     loop {
         if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
@@ -107,7 +112,6 @@ fn atari_system(
             &mut *atari_system,
             &mut *cpu,
             &mut *antic_data,
-            // &mut *data_texture,
         );
 
         match cpu.get_program_counter() {
@@ -173,8 +177,8 @@ fn atari_system(
     }
 }
 
-pub const SCANLINE_MESH_HANDLE: HandleUntyped =
-    HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
+// pub const SCANLINE_MESH_HANDLE: HandleUntyped =
+//     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
 fn events(
     mut state: ResMut<State<EmulatorState>>,
@@ -282,43 +286,53 @@ fn events(
 }
 
 fn main() {
-    let mut app = App::build();
-    app.insert_resource(LogSettings {
-        level: Level::DEBUG,
-        ..Default::default()
-    });
-    app.insert_resource(Msaa { samples: 1 });
+    let mut app = App::new();
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut filter = "wgpu=warn".to_string();
+        let window = web_sys::window().unwrap();
+        if let Ok(Some(local_storage)) = window.local_storage() {
+            if let Ok(Some(f)) = local_storage.get_item("log") {
+                filter = f;
+            }
+        }
+        app.insert_resource(LogSettings {
+            filter: filter.to_string(),
+            level: Level::INFO,
+        });
+}
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: render::ANTIC_TEXTURE_SIZE.0 * 2.0,
-        height: render::ANTIC_TEXTURE_SIZE.1 * 2.0,
+        width: 768.0,
+        height: 480.0,
         resizable: false,
+        scale_factor_override: Some(1.0),
         mode: bevy::window::WindowMode::Windowed,
-        #[cfg(target_arch = "wasm32")]
+        // #[cfg(target_arch = "wasm32")]
         canvas: Some("#bevy-canvas".to_string()),
         vsync: true,
         ..Default::default()
     });
 
+    app.add_plugins(PipelinedDefaultPlugins);
+    app.add_plugin(render::AnticRenderPlugin);
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    app.insert_resource(WinitConfig {
-        force_fps: Some(50.0),
-        return_from_run: false,
-    });
-    app.add_plugins(DefaultPlugins);
+    // app.insert_resource(WinitConfig {
+    //     force_fps: Some(50.0),
+    //     return_from_run: false,
+    // });
+    // app.add_plugins(DefaultPlugins);
 
-    #[cfg(target_arch = "wasm32")]
-    app.add_plugin(bevy_webgl2::WebGL2Plugin);
-
-    app.add_plugin(atari_text::AtartTextPlugin::default());
-    app.add_asset::<SimpleMaterial>();
-    app.add_asset::<CustomTexture>();
-    app.add_plugin(render::AnticRenderPlugin {
-        texture_size: Vec2::new(render::ANTIC_TEXTURE_SIZE.0, render::ANTIC_TEXTURE_SIZE.1),
-        enable_collisions: true,
-        collision_agg_size: render::COLLISION_AGG_SIZE,
-    });
+//    app.add_plugin(atari_text::AtartTextPlugin::default());
+    // app.add_asset::<SimpleMaterial>();
+    // app.add_asset::<CustomTexture>();
+    // app.add_plugin(render::AnticRenderPlugin {
+    //     texture_size: Vec2::new(render::ANTIC_TEXTURE_SIZE.0, render::ANTIC_TEXTURE_SIZE.1),
+    //     enable_collisions: true,
+    //     collision_agg_size: render::COLLISION_AGG_SIZE,
+    // });
     app.add_plugin(FrameTimeDiagnosticsPlugin::default());
+    app.add_plugin(LogDiagnosticsPlugin::default());
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
@@ -328,7 +342,8 @@ fn main() {
     // frame.break_point = Some(BreakPoint::IndirectPC(0x2e0));
     // frame.break_point = Some(BreakPoint::PC(0x7100));
 
-    app.insert_resource(ClearColor(gtia::atari_color(0)))
+    app
+        // .insert_resource(ClearColor(gtia::atari_color(0)))
         .insert_resource(DisplayConfig {
             fps: true,
             debug: false,
@@ -336,17 +351,17 @@ fn main() {
         .insert_resource(system)
         .insert_resource(cpu)
         .insert_resource(frame)
-        .add_startup_system(debug::setup.system())
+        // .add_startup_system(debug::setup.system())
         .add_state(EmulatorState::Idle)
         .add_system_to_stage(CoreStage::PreUpdate, keyboard::system.system())
         .add_system_set(
             SystemSet::on_update(EmulatorState::Running)
                 .with_system(atari_system.system().label("run_atari"))
                 .with_system(render::post_running.system().after("run_atari")) // TODO: move to render plugin
-                .with_system(debug::debug_overlay_system.system().after("run_atari"))
-                .with_system(debug::update_fps.system()),
+                // .with_system(debug::debug_overlay_system.system().after("run_atari"))
+                // .with_system(debug::update_fps.system()),
         )
-        .add_system(debug::update_display_config.system())
+        // .add_system(debug::update_display_config.system())
         .add_system(events.system())
         .run();
 }
