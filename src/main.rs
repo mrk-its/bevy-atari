@@ -182,8 +182,8 @@ fn events(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
 ) {
-    let mut guard = js_api::ARRAY.write();
-    for event in guard.drain(..) {
+    let mut messages = js_api::MESSAGES.write();
+    for event in messages.drain(..) {
         match event {
             js_api::Message::Reset {
                 cold,
