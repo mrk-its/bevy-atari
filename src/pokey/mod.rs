@@ -1,6 +1,7 @@
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+use wasm_bindgen::{JsCast, JsValue};
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -56,6 +57,7 @@ pub struct PokeyRegWrite {
 }
 
 pub struct Pokey {
+    audio_context: web_sys::AudioContext,
     freq: [u8; 4],
     ctl: [AUDC; 4],
     audctl: AUDCTL,
@@ -71,11 +73,16 @@ pub struct Pokey {
 
 impl Default for Pokey {
     fn default() -> Self {
-        #[cfg(target_arch = "wasm32")]
         let rng = SmallRng::from_seed([0; 16]);
-        #[cfg(not(target_arch = "wasm32"))]
-        let rng = SmallRng::from_seed([0; 32]);
+        let window = web_sys::window().expect("no global `window` exists");
+        let audio_context = unsafe {
+            js_sys::Reflect::get(&window, &"audio_context".into())
+                .expect("no window.audio_context")
+                .dyn_into::<web_sys::AudioContext>()
+                .expect("cannot cast to AudioContext")
+        };
         Self {
+            audio_context,
             rng,
             ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
@@ -112,19 +119,10 @@ impl Pokey {
 
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
-        return;
-        use wasm_bindgen::{JsCast, JsValue};
 
-        let window = web_sys::window().expect("no global `window` exists");
+        // let window = web_sys::window().expect("no global `window` exists");
 
-        #[allow(unused_unsafe)]
-        let audio_context = unsafe {
-            js_sys::Reflect::get(&window, &"audio_context".into())
-                .expect("no window.audio_context")
-                .dyn_into::<web_sys::AudioContext>()
-                .expect("cannot cast to AudioContext")
-        };
-        let state = audio_context.state();
+        let state = self.audio_context.state();
         if state != web_sys::AudioContextState::Running {
             // skipping writes this way may lead to bad pokey state
             // for example some channels may still generate sound
@@ -137,7 +135,7 @@ impl Pokey {
             return;
         }
 
-        let audio_context_time = audio_context.current_time();
+        let audio_context_time = self.audio_context.current_time();
 
         let atari_time = self.total_cycles as f64 / (312.0 * 114.0 * 50.0);
 

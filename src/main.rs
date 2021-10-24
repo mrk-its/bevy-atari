@@ -357,7 +357,6 @@ fn main() {
         .add_system_set(
             SystemSet::on_update(EmulatorState::Running)
                 .with_system(atari_system.system().label("run_atari"))
-                .with_system(render::post_running.system().after("run_atari")) // TODO: move to render plugin
                 // .with_system(debug::debug_overlay_system.system().after("run_atari"))
                 // .with_system(debug::update_fps.system()),
         )
