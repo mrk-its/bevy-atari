@@ -285,10 +285,18 @@ fn events(
 }
 
 fn main() {
+    let mut log_filter = "bevy_webgl2=warn".to_string();
+    #[cfg(target_arch = "wasm32")]
+    {
+        let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
+        if let Ok(Some(_log_filter)) = local_storage.get_item("log") {
+            log_filter = _log_filter;
+        }
+    }
     let mut app = App::build();
     app.insert_resource(LogSettings {
-        level: Level::DEBUG,
-        ..Default::default()
+        filter: log_filter,
+        level: Level::INFO,
     });
     app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {

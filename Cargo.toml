@@ -60,6 +60,7 @@ features = [
   'Window',
   'Location',
   'MessagePort',
+  'Storage',
 ]
 
 [patch.crates-io]

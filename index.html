@@ -54,9 +54,8 @@
     import {
         rec_start_stop,
         on_hash_change,
-        pokey_post_message,
-        audio_context,
         eject,
+        run,
     } from './js/app.js'
     import {reset} from './target/wasm.js'
 
@@ -71,7 +70,7 @@
       audio_context.resume()
       $("#bevy-canvas").focus()
     })
-    $('body').click(e => audio_context.resume())
+    $('body').click(e => window.audio_context.resume())
 
     $(".actions .eject").text("eject").click(eject)
 
@@ -81,8 +80,7 @@
       let x = (c.webkitRequestFullScreen || c.requestFullscreen);
       x.call(c);
     })
-    window.pokey_post_message = pokey_post_message
-    window.audio_context = audio_context
+    run()
   </script>
 </head>
 

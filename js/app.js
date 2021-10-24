@@ -285,7 +285,13 @@ function auto_focus() {
     }
   }
 
-async function run() {
+export async function run() {
+    try {
+      await init()
+    } catch (e) {
+      !e.toString().match("This isn't actually an error") && console.error(e);
+    }
+    console.log("initialized")
     var latencyHint = parseFloat(localStorage.latencyHint);
     if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "interactive";
     console.log("latencyHint: ", latencyHint);
@@ -305,15 +311,10 @@ async function run() {
         e => document.hidden ? audio_context.suspend() : audio_context.resume()
     );
 
-    try {
-        await init()
-    } catch (e) {
-        console.warn(e);
-    }
-    console.log("initialized")
 
     reload_from_fragment();
     auto_focus()
-}
 
-run()
+    window.pokey_post_message = pokey_post_message
+    window.audio_context = audio_context
+}
