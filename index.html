@@ -71,7 +71,7 @@
       audio_context.resume()
       $("#bevy-canvas").focus()
     })
-    $('body').click(e => audio_context.resume())
+    $('body').click(e => window.audio_context.resume())
 
     $(".actions .eject").text("eject").click(eject)
 

@@ -153,7 +153,6 @@ pub struct AnticData {
 
 impl Default for AnticData {
     fn default() -> Self {
-        bevy::utils::tracing::info!("creating new AnticData!");
         let mut gtia_regs = GTIARegsArray::new(240);
         unsafe {
             gtia_regs.regs.set_len(240);

@@ -142,7 +142,7 @@ impl Pokey {
         let time_diff = atari_time - self.delta_t - audio_context_time;
         if time_diff.abs() >= 0.05 {
             self.delta_t = atari_time - audio_context_time;
-            warn!("too big time diff: {}, syncing", time_diff, );
+            warn!("too big time diff: {}, syncing", time_diff,);
         }
 
         // #[allow(unused_unsafe)]
@@ -154,16 +154,20 @@ impl Pokey {
         // };
         let regs = std::mem::take(&mut self.reg_writes);
 
-        let js_regs = regs.iter().flat_map(|r| {
-            [
-                r.index as f64,
-                r.value as f64,
-                r.timestamp as f64 / (312.0 * 114.0 * 50.0) - self.delta_t + Self::LATENCY,
-            ]
-        }).map(|f| JsValue::from_f64(f)).collect::<js_sys::Array>();
+        let js_regs = regs
+            .iter()
+            .flat_map(|r| {
+                [
+                    r.index as f64,
+                    r.value as f64,
+                    r.timestamp as f64 / (312.0 * 114.0 * 50.0) - self.delta_t + Self::LATENCY,
+                ]
+            })
+            .map(|f| JsValue::from_f64(f))
+            .collect::<js_sys::Array>();
         let js_regs = JsValue::from(js_regs);
 
-        unsafe {crate::js_api::pokey_post_message(&js_regs)};
+        unsafe { crate::js_api::pokey_post_message(&js_regs) };
 
         // port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);

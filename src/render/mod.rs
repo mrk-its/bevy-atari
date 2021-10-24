@@ -126,7 +126,7 @@ pub fn build_collisions_pipeline(shaders: &mut Assets<Shader>) -> PipelineDescri
     pipeline_descr.name = Some("COLLISIONS".to_string());
     pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.depth_stencil = None;
-    info!("created pipeline: {:?}", pipeline_descr);
+    debug!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
 }
 
@@ -145,7 +145,7 @@ pub fn build_debug_collisions_pipeline(shaders: &mut Assets<Shader>) -> Pipeline
     pipeline_descr.name = Some("DEBUG_COLLISIONS".to_string());
     pipeline_descr.primitive.cull_mode = CullMode::None;
     pipeline_descr.depth_stencil = None;
-    info!("created pipeline: {:?}", pipeline_descr);
+    debug!("created pipeline: {:?}", pipeline_descr);
     pipeline_descr
 }
 
@@ -331,7 +331,7 @@ pub fn add_antic_graph(
     }
     pass_order.push(MAIN_PASS);
 
-    info!("pass_order: {:?}", pass_order);
+    debug!("pass_order: {:?}", pass_order);
 
     for (i, &pass_name) in pass_order[..pass_order.len() - 1].iter().enumerate() {
         graph.add_node_edge(pass_name, pass_order[i + 1]).unwrap();
@@ -491,7 +491,7 @@ impl Node for UpdateDataTextureNode {
             };
             let buffer_id = render_resource_context.create_buffer(buffer_info);
             self.buffer_id = Some(buffer_id);
-            info!("created texture buffer!");
+            debug!("created texture buffer!");
         }
         let antic_data_assets = world.get_resource::<Assets<AnticData>>().unwrap();
         let antic_data = antic_data_assets.get(ANTIC_DATA_HANDLE).unwrap();
@@ -639,7 +639,7 @@ fn setup(
             ..Default::default()
         };
 
-        info!("bundle: {:?}", bundle.render_pipelines);
+        debug!("bundle: {:?}", bundle.render_pipelines);
         commands.spawn_bundle(bundle);
     }
 

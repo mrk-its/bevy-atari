@@ -288,6 +288,7 @@ function auto_focus() {
   }
 
 export async function run() {
+    console.log("initialized")
     var latencyHint = parseFloat(localStorage.latencyHint);
     if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "interactive";
     console.log("latencyHint: ", latencyHint);
@@ -302,22 +303,21 @@ export async function run() {
     })
     pokeyNode.connect(audio_context.destination)
 
-    window.audio_context = audio_context;
-    window.pokey_post_message = pokey_post_message
-
     document.addEventListener(
         'visibilitychange',
         e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
     );
+    window.pokey_post_message = pokey_post_message
+    window.audio_context = audio_context
 
-    console.log("loading wasm")
     try {
-        await init()
+      await init()
     } catch (e) {
-        console.warn(e);
+      !e.toString().match("This isn't actually an error") && console.error(e);
     }
-    console.log("initialized")
-    $("canvas").width(768).height(480)
+
+
     reload_from_fragment();
     auto_focus()
+
 }

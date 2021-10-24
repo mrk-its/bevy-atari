@@ -186,8 +186,8 @@ fn events(
     mut frame: ResMut<FrameState>,
     mut cpu: ResMut<MOS6502>,
 ) {
-    let mut guard = js_api::ARRAY.write();
-    for event in guard.drain(..) {
+    let mut messages = js_api::MESSAGES.write();
+    for event in messages.drain(..) {
         match event {
             js_api::Message::Reset {
                 cold,
@@ -222,7 +222,10 @@ fn events(
                     atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
                 }
                 "car" => {
-                    atari_system.set_cart(data.map(|data| <dyn Cartridge>::from_bytes(&data).ok()).flatten());
+                    atari_system.set_cart(
+                        data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
+                            .flatten(),
+                    );
                 }
                 "state" => {
                     if let Some(data) = data {
@@ -286,21 +289,19 @@ fn events(
 }
 
 fn main() {
-    let mut app = App::new();
+    let mut log_filter = "bevy_webgl2=warn".to_string();
     #[cfg(target_arch = "wasm32")]
     {
-        let mut filter = "wgpu=warn".to_string();
-        let window = web_sys::window().unwrap();
-        if let Ok(Some(local_storage)) = window.local_storage() {
-            if let Ok(Some(f)) = local_storage.get_item("log") {
-                filter = f;
-            }
+        let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
+        if let Ok(Some(_log_filter)) = local_storage.get_item("log") {
+            log_filter = _log_filter;
         }
-        app.insert_resource(LogSettings {
-            filter: filter.to_string(),
-            level: Level::INFO,
-        });
-}
+    }
+    let mut app = App::new();
+    app.insert_resource(LogSettings {
+        filter: log_filter,
+        level: Level::INFO,
+    });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
         width: 768.0,
