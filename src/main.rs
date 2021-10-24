@@ -7,7 +7,6 @@ mod atari800_state;
 pub mod atr;
 mod cartridge;
 // mod debug;
-// pub mod entities;
 pub mod gtia;
 mod js_api;
 pub mod keyboard;
@@ -16,18 +15,15 @@ mod palette;
 pub mod pia;
 pub mod pokey;
 
-#[path="new_render/mod.rs"]
 pub mod render;
 
-// pub mod render;
-// mod render_resources;
 pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
+use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log::{Level, LogSettings};
-use bevy::{diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin}, reflect::TypeUuid};
-use bevy::{PipelinedDefaultPlugins, prelude::*};
+use bevy::{prelude::*, PipelinedDefaultPlugins};
 // #[allow(unused_imports)]
 // use bevy::{
 //     render::{mesh::shape, render_graph::base::MainPass},
@@ -36,8 +32,8 @@ use bevy::{PipelinedDefaultPlugins, prelude::*};
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
-use system::AtariSystem;
 use render::{AnticData, ANTIC_DATA_HANDLE};
+use system::AtariSystem;
 
 #[derive(PartialEq, Copy, Clone, Default)]
 pub struct DisplayConfig {
@@ -108,11 +104,7 @@ fn atari_system(
             }
         };
 
-        antic::tick(
-            &mut *atari_system,
-            &mut *cpu,
-            &mut *antic_data,
-        );
+        antic::tick(&mut *atari_system, &mut *cpu, &mut *antic_data);
 
         match cpu.get_program_counter() {
             0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
@@ -324,7 +316,7 @@ fn main() {
     // });
     // app.add_plugins(DefaultPlugins);
 
-//    app.add_plugin(atari_text::AtartTextPlugin::default());
+    //    app.add_plugin(atari_text::AtartTextPlugin::default());
     // app.add_asset::<SimpleMaterial>();
     // app.add_asset::<CustomTexture>();
     // app.add_plugin(render::AnticRenderPlugin {

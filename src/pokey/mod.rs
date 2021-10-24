@@ -75,12 +75,10 @@ impl Default for Pokey {
     fn default() -> Self {
         let rng = SmallRng::from_seed([0; 16]);
         let window = web_sys::window().expect("no global `window` exists");
-        let audio_context = unsafe {
-            js_sys::Reflect::get(&window, &"audio_context".into())
-                .expect("no window.audio_context")
-                .dyn_into::<web_sys::AudioContext>()
-                .expect("cannot cast to AudioContext")
-        };
+        let audio_context = js_sys::Reflect::get(&window, &"audio_context".into())
+            .expect("no window.audio_context")
+            .dyn_into::<web_sys::AudioContext>()
+            .expect("cannot cast to AudioContext");
         Self {
             audio_context,
             rng,
@@ -119,7 +117,6 @@ impl Pokey {
 
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
-
         // let window = web_sys::window().expect("no global `window` exists");
 
         let state = self.audio_context.state();
@@ -167,7 +164,7 @@ impl Pokey {
             .collect::<js_sys::Array>();
         let js_regs = JsValue::from(js_regs);
 
-        unsafe { crate::js_api::pokey_post_message(&js_regs) };
+        crate::js_api::pokey_post_message(&js_regs);
 
         // port.post_message(&js_regs).expect("cannot post_message");
         // info!("pokey regs: {:?} {:?}", regs, port);
