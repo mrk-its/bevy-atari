@@ -322,7 +322,6 @@ dependencies = [
  "bevy_input",
  "bevy_log",
  "bevy_math",
- "bevy_pbr2",
  "bevy_reflect",
  "bevy_render2",
  "bevy_scene",
@@ -362,26 +361,6 @@ version = "0.5.0"
 dependencies = [
  "bevy_reflect",
  "glam 0.15.2",
-]
-
-[[package]]
-name = "bevy_pbr2"
-version = "0.5.0"
-dependencies = [
- "bevy_app",
- "bevy_asset",
- "bevy_core",
- "bevy_core_pipeline",
- "bevy_ecs",
- "bevy_math",
- "bevy_reflect",
- "bevy_render2",
- "bevy_transform",
- "bevy_utils",
- "bitflags",
- "bytemuck",
- "crevice",
- "wgpu",
 ]
 
 [[package]]
