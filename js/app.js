@@ -317,4 +317,5 @@ export async function run() {
 
     window.pokey_post_message = pokey_post_message
     window.audio_context = audio_context
+    window.cmd = cmd
 }

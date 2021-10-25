@@ -163,7 +163,7 @@ impl Gtia {
         }
     }
     pub fn set_trig(&mut self, n: usize, is_pressed: bool) {
-        self.trig[n] = if is_pressed { 0 } else { 0xff };
+        self.trig[n] = if is_pressed { 0 } else { 0x01 };
     }
 
     pub fn update_collisions_for_scanline(&mut self) {

@@ -53,7 +53,7 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
                     .and_then(|atr| atr.get_sector(sector as usize).map(|f| f.to_owned()))
                 {
                     assert!(data.len() == len as usize);
-                    atari_system.copy_from_slice(addr as usize, &data);
+                    atari_system.copy_from_slice(addr, &data);
                     0x01
                 } else {
                     0xff

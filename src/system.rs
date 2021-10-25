@@ -219,19 +219,19 @@ impl AtariSystem {
         });
     }
 
-    pub fn copy_from_slice(&mut self, offs: usize, data: &[u8]) {
+    pub fn copy_from_slice(&mut self, offs: u16, data: &[u8]) {
         for (i, b) in data.iter().enumerate() {
-            self.write((i + offs) as u16, *b);
+            self.write(offs.wrapping_add(i as u16), *b);
         }
     }
     pub fn copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
-            *b = self.read(i as u16 + offs);
+            *b = self.read(offs.wrapping_add(i as u16));
         }
     }
     pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
-            *b = self._read(i as u16 + offs, true);
+            *b = self._read(offs.wrapping_add(i as u16), true);
         }
     }
     pub fn readw(&mut self, addr: u16) -> u16 {
