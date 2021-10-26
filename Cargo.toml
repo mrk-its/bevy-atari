@@ -29,7 +29,7 @@ bevy = { path="../bevy", default_features=false}
 crevice = { path = "../bevy/crates/crevice", version = "0.6.0" }
 
 winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
-emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency"]}
+emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
 disasm6502 = "0.2"
 rand = {version = "0.8", features = ["small_rng"]}
 getrandom = { version = "0.1", features = ["wasm-bindgen"] }
