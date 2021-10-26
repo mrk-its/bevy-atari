@@ -24,11 +24,10 @@ use crate::cartridge::Cartridge;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log::{Level, LogSettings};
 use bevy::{prelude::*, PipelinedDefaultPlugins};
-// #[allow(unused_imports)]
-// use bevy::{
-//     render::{mesh::shape, render_graph::base::MainPass},
-//     winit::WinitConfig,
-// };
+#[allow(unused_imports)]
+use bevy::{
+    winit::WinitConfig,
+};
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
@@ -310,10 +309,10 @@ fn main() {
     app.add_plugins(PipelinedDefaultPlugins);
     app.add_plugin(render::AnticRenderPlugin);
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    // app.insert_resource(WinitConfig {
-    //     force_fps: Some(50.0),
-    //     return_from_run: false,
-    // });
+    app.insert_resource(WinitConfig {
+        force_fps: Some(50.0),
+        return_from_run: false,
+    });
     // app.add_plugins(DefaultPlugins);
 
     //    app.add_plugin(atari_text::AtartTextPlugin::default());
