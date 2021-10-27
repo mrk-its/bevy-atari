@@ -11,6 +11,7 @@ resolver = "2"
 default = [
   "bevy/bevy_winit",
   "bevy/bevy_render2",
+  "bevy/bevy_gilrs",
 ]
 
 native = [

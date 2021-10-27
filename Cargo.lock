@@ -299,6 +299,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_gilrs"
+version = "0.5.0"
+dependencies = [
+ "bevy_app",
+ "bevy_ecs",
+ "bevy_input",
+ "bevy_utils",
+ "gilrs",
+]
+
+[[package]]
 name = "bevy_input"
 version = "0.5.0"
 dependencies = [
@@ -319,6 +330,7 @@ dependencies = [
  "bevy_derive",
  "bevy_diagnostic",
  "bevy_ecs",
+ "bevy_gilrs",
  "bevy_input",
  "bevy_log",
  "bevy_math",
