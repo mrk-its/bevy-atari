@@ -57,6 +57,7 @@ pub struct PokeyRegWrite {
 }
 
 pub struct Pokey {
+    #[cfg(target_arch = "wasm32")]
     audio_context: web_sys::AudioContext,
     freq: [u8; 4],
     ctl: [AUDC; 4],
@@ -73,14 +74,16 @@ pub struct Pokey {
 
 impl Default for Pokey {
     fn default() -> Self {
-        let rng = SmallRng::from_seed([0; 16]);
-        let window = web_sys::window().expect("no global `window` exists");
-        let audio_context = js_sys::Reflect::get(&window, &"audio_context".into())
-            .expect("no window.audio_context")
-            .dyn_into::<web_sys::AudioContext>()
-            .expect("cannot cast to AudioContext");
+        let rng = SmallRng::from_seed([0; if cfg!(target_arch="wasm32") {16} else {32}]);
+        #[cfg(target_arch = "wasm32")]
+        let audio_context = {
+            let window = web_sys::window().expect("no global `window` exists");
+            js_sys::Reflect::get(&window, &"audio_context".into())
+                .expect("no window.audio_context")
+                .dyn_into::<web_sys::AudioContext>()
+                .expect("cannot cast to AudioContext")
+        };
         Self {
-            audio_context,
             rng,
             ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
@@ -92,6 +95,8 @@ impl Default for Pokey {
             total_cycles: 0,
             reg_writes: Vec::new(),
             delta_t: 0.0,
+            #[cfg(target_arch = "wasm32")]
+            audio_context,
         }
     }
 }
