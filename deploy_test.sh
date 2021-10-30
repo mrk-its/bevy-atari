@@ -1,3 +1,6 @@
+set -e
+set -o pipefail
+
 DEST=test.tmp
 cargo make build-web
 mkdir -p $DEST/target

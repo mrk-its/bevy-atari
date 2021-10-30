@@ -23,6 +23,7 @@ pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log::{Level, LogSettings};
+use bevy::render2::view::Msaa;
 use bevy::{prelude::*, PipelinedDefaultPlugins};
 #[allow(unused_imports)]
 use bevy::{
@@ -292,6 +293,9 @@ fn main() {
     app.insert_resource(LogSettings {
         filter: log_filter,
         level: Level::INFO,
+    });
+    app.insert_resource(Msaa {
+        samples: 1,
     });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
