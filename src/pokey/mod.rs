@@ -58,7 +58,7 @@ pub struct PokeyRegWrite {
 
 pub struct Pokey {
     #[cfg(target_arch = "wasm32")]
-    audio_context: web_sys::AudioContext,
+    audio_context: Option<web_sys::AudioContext>,
     freq: [u8; 4],
     ctl: [AUDC; 4],
     audctl: AUDCTL,
@@ -80,8 +80,7 @@ impl Default for Pokey {
             let window = web_sys::window().expect("no global `window` exists");
             js_sys::Reflect::get(&window, &"audio_context".into())
                 .expect("no window.audio_context")
-                .dyn_into::<web_sys::AudioContext>()
-                .expect("cannot cast to AudioContext")
+                .dyn_into::<web_sys::AudioContext>().ok()
         };
         Self {
             rng,
@@ -124,7 +123,12 @@ impl Pokey {
     pub fn send_regs(&mut self) {
         // let window = web_sys::window().expect("no global `window` exists");
 
-        let state = self.audio_context.state();
+        let audio_context = match self.audio_context {
+            Some(ref audio_context) => audio_context,
+            None => return,
+        };
+
+        let state = audio_context.state();
         if state != web_sys::AudioContextState::Running {
             // skipping writes this way may lead to bad pokey state
             // for example some channels may still generate sound
@@ -137,7 +141,7 @@ impl Pokey {
             return;
         }
 
-        let audio_context_time = self.audio_context.current_time();
+        let audio_context_time = audio_context.current_time();
 
         let atari_time = self.total_cycles as f64 / (312.0 * 114.0 * 50.0);
 
