@@ -1,5 +1,9 @@
 set -e
-set -o pipefail
+set -x
+if [[ -n $(git status -s | grep -v '??') ]]; then
+  echo git not clean, qutting
+  exit 1
+fi
 
 DEST=test.tmp
 cargo make build-web
