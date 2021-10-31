@@ -123,29 +123,25 @@ impl Gtia {
     pub fn write(&mut self, addr: usize, value: u8) {
         let addr = addr & 0x1f;
 
-        let _size_pm = |x| match x & 3 {
-            1 => 32.0,
-            3 => 64.0,
-            _ => 16.0,
+        let _size_pm = |x: u8| match x & 3 {
+            1 => 1,
+            3 => 2,
+            _ => 0,
         };
 
         match addr {
-            COLBK => self.regs.colors[0] = value as u32,
-            COLPF0..=COLPF3 => self.regs.colors[1 + addr - COLPF0] = value as u32,
-            COLPM0..=COLPM3 => self.regs.colors_pm[addr - COLPM0] = value as u32,
-            GRAFP0..=GRAFP3 => self.regs.grafp[addr - GRAFP0] = value as u32,
-            GRAFM => self.regs.grafm = value as u32,
-            PRIOR => self.regs.prior = value as u32,
-            HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value as f32,
-            HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value as f32,
-            SIZEP0..=SIZEP3 => self.regs.player_size[addr - SIZEP0] = _size_pm(value),
+            COLPM0..=COLBK => self.regs.col[addr - COLPM0] = value,
+            GRAFP0..=GRAFP3 => self.regs.grafp[addr - GRAFP0] = value,
+            GRAFM => self.regs.grafm = value,
+            PRIOR => self.regs.prior = value,
+            HPOSP0..=HPOSP3 => self.regs.hposp[addr - HPOSP0] = value,
+            HPOSM0..=HPOSM3 => self.regs.hposm[addr - HPOSM0] = value,
+            SIZEP0..=SIZEP3 => self.regs.sizep[addr - SIZEP0] = _size_pm(value),
             SIZEM => {
-                self.regs.missile_size = [
-                    _size_pm(value) / 4.0,
-                    _size_pm(value >> 2) / 4.0,
-                    _size_pm(value >> 4) / 4.0,
-                    _size_pm(value >> 6) / 4.0,
-                ]
+                self.regs.sizem = _size_pm(value)
+                    | (_size_pm(value >> 2) << 2)
+                    | (_size_pm(value >> 4) << 4)
+                    | (_size_pm(value >> 6) << 6)
             }
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
             CONSOL => self.consol_mask = 0x7 & !value,
