@@ -1,6 +1,6 @@
 set -e
 set -x
-if [[ -n $(git status -s | grep -v '??') ]]; then
+if [[ -n $(git status -s | grep -v '??' | grep -v bevy-atari-antic) ]]; then
   echo git not clean, qutting
   exit 1
 fi
