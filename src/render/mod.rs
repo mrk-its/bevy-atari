@@ -1,11 +1,9 @@
-use bevy::{
-    prelude::*,
-    reflect::TypeUuid,
-    render2::{camera::OrthographicCameraBundle},
-};
+use bevy::{prelude::*, reflect::TypeUuid, render2::camera::OrthographicCameraBundle};
 
-pub use bevy_atari_antic::{atari_data::AnticData, AtariAnticPlugin, GTIARegs, ModeLineDescr, ANTIC_IMAGE_HANDLE};
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
+pub use bevy_atari_antic::{
+    atari_data::AnticData, AtariAnticPlugin, GTIARegs, ModeLineDescr, ANTIC_IMAGE_HANDLE,
+};
 
 #[derive(Default)]
 pub struct AnticRenderPlugin;
@@ -20,13 +18,10 @@ impl Plugin for AnticRenderPlugin {
 pub const ANTIC_DATA_HANDLE: HandleUntyped =
     HandleUntyped::weak_from_u64(AnticData::TYPE_UUID, 16056864393442354013);
 
-fn setup(
-    mut commands: Commands,
-    mut antic_data_assets: ResMut<Assets<AnticData>>,
-) {
+fn setup(mut commands: Commands, mut antic_data_assets: ResMut<Assets<AnticData>>) {
     let mut antic_data = AnticData::default();
 
-    antic_data.insert_mode_line(&ModeLineDescr{
+    antic_data.insert_mode_line(&ModeLineDescr {
         mode: 0,
         scan_line: 116,
         width: 256,
@@ -43,9 +38,9 @@ fn setup(
 
     antic_data_assets.set_untracked(ANTIC_DATA_HANDLE, antic_data);
 
-    commands.spawn().insert_bundle((
-        ANTIC_DATA_HANDLE.typed::<AnticData>(),
-    ));
+    commands
+        .spawn()
+        .insert_bundle((ANTIC_DATA_HANDLE.typed::<AnticData>(),));
 
     commands.spawn_bundle(PipelinedSpriteBundle {
         sprite: Sprite::default(),

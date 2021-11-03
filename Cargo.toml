@@ -82,6 +82,9 @@ gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 # incremental = true
 # codegen-units = 16
 
+wgpu = {path="../wgpu/wgpu/"}
+glow = {path="../glow"}
+
 [profile.dev]
 opt-level = 2
 # debug = false

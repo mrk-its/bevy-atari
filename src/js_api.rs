@@ -1,7 +1,7 @@
+use bevy::prelude::info;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use wasm_bindgen::prelude::wasm_bindgen;
-use bevy::prelude::info;
 
 #[allow(dead_code)]
 pub static MESSAGES: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]));

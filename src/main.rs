@@ -24,11 +24,9 @@ use crate::cartridge::Cartridge;
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::log::{Level, LogSettings};
 use bevy::render2::view::Msaa;
-use bevy::{prelude::*, PipelinedDefaultPlugins};
 #[allow(unused_imports)]
-use bevy::{
-    winit::WinitConfig,
-};
+use bevy::winit::WinitConfig;
+use bevy::{prelude::*, PipelinedDefaultPlugins};
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
@@ -294,9 +292,7 @@ fn main() {
         filter: log_filter,
         level: Level::INFO,
     });
-    app.insert_resource(Msaa {
-        samples: 1,
-    });
+    app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
         width: 768.0,
@@ -333,7 +329,9 @@ fn main() {
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
 
-    system.set_osrom(Some(include_bytes!("../assets/Atari OS v2 83.10.05.rom").to_vec()));
+    system.set_osrom(Some(
+        include_bytes!("../assets/Atari OS v2 83.10.05.rom").to_vec(),
+    ));
     let cart = <dyn Cartridge>::from_bytes(include_bytes!("../assets/flob.1.0.3.car")).unwrap();
     system.set_cart(Some(cart));
 

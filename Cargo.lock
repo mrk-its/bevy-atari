@@ -425,7 +425,7 @@ dependencies = [
  "hex",
  "hexasphere",
  "image",
- "naga",
+ "naga 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "once_cell",
  "parking_lot",
  "regex",
@@ -1222,8 +1222,6 @@ checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 [[package]]
 name = "glow"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f04649123493bc2483cbef4daddb45d40bbdae5adb221a63a23efdb0cc99520"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -1625,6 +1623,24 @@ dependencies = [
  "num-traits",
  "petgraph",
  "pp-rs",
+ "spirv",
+ "thiserror",
+]
+
+[[package]]
+name = "naga"
+version = "0.7.1"
+source = "git+https://github.com/gfx-rs/naga?rev=323999f#323999fcb9eb8e8c525d75d2878fe1e2e5a99aad"
+dependencies = [
+ "bit-set",
+ "bitflags",
+ "codespan-reporting",
+ "fxhash",
+ "hexf-parse",
+ "indexmap",
+ "log",
+ "num-traits",
+ "petgraph",
  "spirv",
  "thiserror",
 ]
@@ -2586,13 +2602,11 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1577ecc4f6992b9e965878ac594efb24eed2bdf089c11f45b3d1c5f216e2e30"
 dependencies = [
  "arrayvec",
  "js-sys",
  "log",
- "naga",
+ "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
  "parking_lot",
  "raw-window-handle",
  "smallvec",
@@ -2606,17 +2620,16 @@ dependencies = [
 
 [[package]]
 name = "wgpu-core"
-version = "0.11.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3bdcbfa4885b32c2b1feb2faeb8b6a76065b752b8f08751b82f994e937687f46"
+version = "0.11.0"
 dependencies = [
  "arrayvec",
  "bitflags",
  "cfg_aliases",
+ "codespan-reporting",
  "copyless",
  "fxhash",
  "log",
- "naga",
+ "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -2628,9 +2641,7 @@ dependencies = [
 
 [[package]]
 name = "wgpu-hal"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e493835d9edb153d5c8a9d8d016e1811dbe32ddb707a110be1453c7b051d3ec"
+version = "0.11.2"
 dependencies = [
  "arrayvec",
  "ash",
@@ -2650,7 +2661,7 @@ dependencies = [
  "libloading",
  "log",
  "metal",
- "naga",
+ "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
  "objc",
  "parking_lot",
  "profiling",
@@ -2667,8 +2678,6 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e15e44ba88ec415466e18e91881319e7c9e96cb905dc623305168aea65b85ccc"
 dependencies = [
  "bitflags",
 ]

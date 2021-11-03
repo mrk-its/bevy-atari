@@ -74,13 +74,14 @@ pub struct Pokey {
 
 impl Default for Pokey {
     fn default() -> Self {
-        let rng = SmallRng::from_seed([0; if cfg!(target_arch="wasm32") {16} else {32}]);
+        let rng = SmallRng::from_seed([0; if cfg!(target_arch = "wasm32") { 16 } else { 32 }]);
         #[cfg(target_arch = "wasm32")]
         let audio_context = {
             let window = web_sys::window().expect("no global `window` exists");
             js_sys::Reflect::get(&window, &"audio_context".into())
                 .expect("no window.audio_context")
-                .dyn_into::<web_sys::AudioContext>().ok()
+                .dyn_into::<web_sys::AudioContext>()
+                .ok()
         };
         Self {
             rng,
