@@ -2,7 +2,7 @@ use bevy::{prelude::*, reflect::TypeUuid, render2::camera::OrthographicCameraBun
 
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 pub use bevy_atari_antic::{
-    atari_data::AnticData, AtariAnticPlugin, GTIARegs, ModeLineDescr, ANTIC_IMAGE_HANDLE,
+    AnticData, AtariAnticPlugin, GTIARegs, ModeLineDescr, ANTIC_IMAGE_HANDLE,
 };
 
 #[derive(Default)]
