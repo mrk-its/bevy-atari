@@ -2,6 +2,7 @@ use crate::gtia;
 // use crate::render_resources::AnticData;
 use crate::render::{AnticData, ModeLineDescr};
 use crate::system::AtariSystem;
+use bevy_atari_antic::CollisionsData;
 use emulator_6502::{Interface6502, MOS6502};
 
 mod consts {
@@ -669,14 +670,15 @@ pub fn tick(
     atari_system.antic.steal_cycles();
 }
 
-pub fn post_instr_tick(atari_system: &mut AtariSystem) {
+#[inline(always)]
+pub fn post_instr_tick(atari_system: &mut AtariSystem, collisions: &CollisionsData) {
     let antic = &mut atari_system.antic;
     if antic.wsync() {
         antic.do_wsync();
     }
     atari_system.gtia.scan_line =
         antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
-    atari_system.gtia.update_collisions_for_scanline();
+    atari_system.gtia.update_collisions_for_scanline(collisions);
 }
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {

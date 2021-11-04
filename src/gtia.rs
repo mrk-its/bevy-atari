@@ -1,6 +1,7 @@
 use crate::palette::default::PALETTE;
 // use crate::render_resources::GTIARegs;
 use bevy::render2::color::Color;
+use bevy_atari_antic::CollisionsData;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
@@ -164,14 +165,13 @@ impl Gtia {
         self.trig[n] = if is_pressed { 0 } else { 0x01 };
     }
 
-    pub fn update_collisions_for_scanline(&mut self) {
-        return;
+    pub fn update_collisions_for_scanline(&mut self, collisions: &CollisionsData) {
         // this is called when scan_line is complete
         if self.scan_line > self.collision_update_scanline
             && self.scan_line >= 8
             && self.scan_line < 248
         {
-            let collision_array = *self.collision_array.write();
+            let collision_array = collisions.data.write();
             for i in self.collision_update_scanline.max(8)..self.scan_line {
                 self.update_collisions(collision_array[i - 8]);
             }

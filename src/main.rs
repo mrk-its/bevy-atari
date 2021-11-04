@@ -27,6 +27,7 @@ use bevy::render2::view::Msaa;
 #[allow(unused_imports)]
 use bevy::winit::WinitConfig;
 use bevy::{prelude::*, PipelinedDefaultPlugins};
+use bevy_atari_antic::CollisionsData;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
@@ -88,6 +89,7 @@ fn atari_system(
     mut atari_system: ResMut<AtariSystem>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
+    collisions: Res<CollisionsData>,
 ) {
     if frame.paused {
         return;
@@ -116,7 +118,7 @@ fn atari_system(
         cpu.cycle(&mut *atari_system);
 
         if cpu.get_remaining_cycles() == 0 {
-            antic::post_instr_tick(&mut *atari_system);
+            antic::post_instr_tick(&mut *atari_system, &collisions);
             match frame.break_point {
                 Some(BreakPoint::PC(pc)) => {
                     if cpu.get_program_counter() == pc {
