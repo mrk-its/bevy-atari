@@ -114,6 +114,7 @@ impl AtariSystem {
         }
     }
 
+    #[inline(always)]
     fn _read(&mut self, addr: u16, antic: bool) -> u8 {
         // all reads return RAM values directly
         let addr = addr as usize;
@@ -160,6 +161,7 @@ impl AtariSystem {
             _ => self.ram[addr],
         }
     }
+    #[inline(always)]
     fn _write(&mut self, addr: u16, value: u8, antic: bool) {
         let addr = addr as usize;
 
@@ -219,21 +221,25 @@ impl AtariSystem {
         });
     }
 
+    #[inline(always)]
     pub fn copy_from_slice(&mut self, offs: u16, data: &[u8]) {
         for (i, b) in data.iter().enumerate() {
             self.write(offs.wrapping_add(i as u16), *b);
         }
     }
+    #[inline(always)]
     pub fn copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self.read(offs.wrapping_add(i as u16));
         }
     }
+    #[inline(always)]
     pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self._read(offs.wrapping_add(i as u16), true);
         }
     }
+    #[inline(always)]
     pub fn readw(&mut self, addr: u16) -> u16 {
         self.read(addr) as u16 + 256 * self.read(addr + 1) as u16
     }
@@ -408,6 +414,7 @@ impl AtariSystem {
         self.gtia.set_trig(port, (ports[port] & 0x10) > 0);
     }
 
+    #[inline(always)]
     pub fn scanline_tick(&mut self, scanline: usize) {
         self.pokey.scanline_tick(scanline);
         self.ticks += 1;
@@ -416,6 +423,7 @@ impl AtariSystem {
             self.gtia.consol_force_mask = 0x07;
         }
     }
+    #[inline(always)]
     pub fn inc_cycle(&mut self) {
         self.antic.inc_cycle();
         self.pokey.total_cycles = self.antic.total_cycles;
@@ -429,9 +437,11 @@ impl Default for AtariSystem {
 }
 
 impl Interface6502 for AtariSystem {
+    #[inline(always)]
     fn read(&mut self, addr: u16) -> u8 {
         self._read(addr, false)
     }
+    #[inline(always)]
     fn write(&mut self, addr: u16, value: u8) {
         self._write(addr, value, false)
     }
