@@ -42,7 +42,7 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
                 let addr = atari_system.readw(DBUFA);
                 let sector = atari_system.readw(DAUX1);
                 let len = atari_system.readw(DBYT);
-                info!(
+                debug!(
                     "SIO read: addr: {:04x}, sector: {:x}, len: {:x}",
                     addr, sector, len
                 );
