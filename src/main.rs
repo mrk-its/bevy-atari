@@ -21,12 +21,15 @@ pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy::log::{Level, LogSettings};
-use bevy::render2::view::Msaa;
 #[allow(unused_imports)]
-use bevy::winit::WinitConfig;
-use bevy::{prelude::*, PipelinedDefaultPlugins};
+use bevy::{
+    diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
+    log::{Level, LogSettings},
+    prelude::*,
+    render2::view::Msaa,
+    winit::WinitConfig,
+    PipelinedDefaultPlugins,
+};
 use bevy_atari_antic::CollisionsData;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
@@ -313,9 +316,8 @@ fn main() {
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
     app.insert_resource(WinitConfig {
         force_fps: Some(50.0),
-        return_from_run: false,
+        ..Default::default()
     });
-    // app.add_plugins(DefaultPlugins);
 
     //    app.add_plugin(atari_text::AtartTextPlugin::default());
     // app.add_asset::<SimpleMaterial>();
@@ -325,8 +327,8 @@ fn main() {
     //     enable_collisions: true,
     //     collision_agg_size: render::COLLISION_AGG_SIZE,
     // });
-    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
-    app.add_plugin(LogDiagnosticsPlugin::default());
+    // app.add_plugin(FrameTimeDiagnosticsPlugin::default());
+    // app.add_plugin(LogDiagnosticsPlugin::default());
 
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
