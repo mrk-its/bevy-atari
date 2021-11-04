@@ -1001,6 +1001,11 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "emulator_6502"
 version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e8b83946072bc6677b2940bb59619480a035a10f63dd3f07f9e45c23a588c50"
+dependencies = [
+ "log",
+]
 
 [[package]]
 name = "env_logger"
@@ -1218,6 +1223,7 @@ checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 [[package]]
 name = "glow"
 version = "0.11.0"
+source = "git+https://github.com/mrk-its/glow?branch=read_pixels_array_buffer_view#47ff8176bd678a73e029b16aea8eadc9468f9cfc"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -2598,6 +2604,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.11.0"
+source = "git+https://github.com/gfx-rs/wgpu#c824c8fa53d938aa835400251512acb27ac50d72"
 dependencies = [
  "arrayvec",
  "js-sys",
@@ -2617,6 +2624,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.11.0"
+source = "git+https://github.com/gfx-rs/wgpu#c824c8fa53d938aa835400251512acb27ac50d72"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -2638,6 +2646,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.11.2"
+source = "git+https://github.com/gfx-rs/wgpu#c824c8fa53d938aa835400251512acb27ac50d72"
 dependencies = [
  "arrayvec",
  "ash",
@@ -2674,6 +2683,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.11.0"
+source = "git+https://github.com/gfx-rs/wgpu#c824c8fa53d938aa835400251512acb27ac50d72"
 dependencies = [
  "bitflags",
 ]

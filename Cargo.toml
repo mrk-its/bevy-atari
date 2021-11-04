@@ -67,12 +67,10 @@ features = [
 ]
 
 [patch.crates-io]
-# bevy = {git = "https://github.com/mrk-its/bevy", branch="force_fps", default-features=false}
-# bevy = { git = "https://github.com/bevyengine/bevy/", branch = "main", default-features=false }
-# bevy = {path = "../bevy", default-features=false}
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
-# wgpu = {path = "../wgpu/wgpu/"}
+wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
+glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
 
 # [profile.dev.package."*"]
 # opt-level = 2
@@ -82,9 +80,9 @@ gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 # incremental = true
 # codegen-units = 16
 
-wgpu = {path="../wgpu/wgpu/"}
-glow = {path="../glow"}
-emulator_6502 = {path="../emulator_6502"}
+# wgpu = {path="../wgpu/wgpu/"}
+# glow = {path="../glow"}
+# emulator_6502 = {path="../emulator_6502"}
 [profile.dev]
 opt-level = 2
 # debug = false
