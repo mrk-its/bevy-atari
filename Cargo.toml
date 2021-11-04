@@ -84,7 +84,7 @@ gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 
 wgpu = {path="../wgpu/wgpu/"}
 glow = {path="../glow"}
-
+emulator_6502 = {path="../emulator_6502"}
 [profile.dev]
 opt-level = 2
 # debug = false
