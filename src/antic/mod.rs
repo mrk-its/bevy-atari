@@ -592,6 +592,7 @@ impl Antic {
     }
 }
 
+#[inline(always)]
 pub fn tick(
     atari_system: &mut AtariSystem,
     cpu: &mut MOS6502,
