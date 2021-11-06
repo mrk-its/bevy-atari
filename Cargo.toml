@@ -69,7 +69,8 @@ features = [
 [patch.crates-io]
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
-wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
+wgpu = {path = "../wgpu/wgpu"}
+# wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
 glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
 
 # [profile.dev.package."*"]

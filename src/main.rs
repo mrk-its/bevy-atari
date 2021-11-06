@@ -94,6 +94,10 @@ fn atari_system(
     keyboard: Res<Input<KeyCode>>,
     collisions: Res<CollisionsData>,
 ) {
+    {
+        let data: &[u64; 240] = &collisions.data.read();
+        info!("collisions data: {:x?}", &data[0..10]);
+    }
     if frame.paused {
         return;
     }
