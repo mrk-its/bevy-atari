@@ -66,7 +66,9 @@ gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 
 wgpu = {path = "../wgpu/wgpu"}
-glow = {git="https://github.com/grovesNL/glow"}
+glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_into_buffer_offset"}
+# glow = {path="../glow"}
+
 naga = {git="https://github.com/gfx-rs/naga", rev="323999f"}
 
 # [profile.dev.package."*"]

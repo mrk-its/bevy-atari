@@ -1206,7 +1206,7 @@ checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 [[package]]
 name = "glow"
 version = "0.11.0"
-source = "git+https://github.com/grovesNL/glow#72f89b2984a5ecf76780c3a1b03dee7e1287338d"
+source = "git+https://github.com/mrk-its/glow?branch=read_pixels_into_buffer_offset#366a4b7a46f86b9c1bd58ddfd23ede36a010331d"
 dependencies = [
  "js-sys",
  "slotmap",
