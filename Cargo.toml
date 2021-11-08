@@ -9,40 +9,35 @@ resolver = "2"
 
 [features]
 default = [
-  "bevy/bevy_winit",
-  "bevy/bevy_render2",
+  # "bevy/bevy_render2",
   "bevy/bevy_gilrs",
 ]
 
 native = [
-  # "bevy/bevy_wgpu",
 ]
 
 web = [
 ]
 
-x11 = [
-  "winit/x11"
-]
+# x11 = [
+#   "winit/x11"
+# ]
 
 [dependencies]
-bevy = { path="../bevy", default_features=false}
+bevy = {path = "../bevy", default_features = false}
 crevice = { path = "../bevy/crates/crevice", version = "0.6.0" }
+tracing-wasm = "=0.2.0"
 
-winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
+# winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
 disasm6502 = "0.2"
 rand = {version = "0.8", features = ["small_rng"]}
-getrandom = { version = "0.1", features = ["wasm-bindgen"] }
 wasm-bindgen = "0.2"
 once_cell = "1.5.2"
-parking_lot = "0.11.1"
+parking_lot = "0.11"
 bitflags = "1.2"
-lru = "0.6"
-anyhow = "1.0"
 flate2 = "1.0"
 gilrs = {version="0.8", features = ["wasm-bindgen"]}
-gilrs-core = {version="0.3"}
 js-sys = "0.3"
 
 bevy_atari_antic = {path="./bevy-atari-antic/"}
@@ -69,9 +64,10 @@ features = [
 [patch.crates-io]
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
+
 wgpu = {path = "../wgpu/wgpu"}
-# wgpu = {git="https://github.com/gfx-rs/wgpu", revision="c824c8"}
-glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_array_buffer_view"}
+glow = {git="https://github.com/grovesNL/glow"}
+naga = {git="https://github.com/gfx-rs/naga", rev="323999f"}
 
 # [profile.dev.package."*"]
 # opt-level = 2

@@ -26,7 +26,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
 dependencies = [
- "getrandom 0.2.3",
+ "getrandom",
  "once_cell",
  "version_check",
 ]
@@ -192,7 +192,6 @@ dependencies = [
 name = "bevy_atari"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "bevy",
  "bevy_atari_antic",
  "bitflags",
@@ -200,17 +199,14 @@ dependencies = [
  "disasm6502",
  "emulator_6502",
  "flate2",
- "getrandom 0.1.16",
  "gilrs",
- "gilrs-core",
  "js-sys",
- "lru",
  "once_cell",
  "parking_lot",
  "rand",
+ "tracing-wasm",
  "wasm-bindgen",
  "web-sys",
- "winit",
 ]
 
 [[package]]
@@ -426,7 +422,7 @@ dependencies = [
  "hex",
  "hexasphere",
  "image",
- "naga 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "naga",
  "once_cell",
  "parking_lot",
  "regex",
@@ -505,7 +501,7 @@ version = "0.5.0"
 dependencies = [
  "ahash 0.7.6",
  "bevy_derive",
- "getrandom 0.2.3",
+ "getrandom",
  "instant",
  "tracing",
  "uuid",
@@ -1148,19 +1144,6 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fc3cb4d91f53b50155bdcfd23f6a4c39ae1969c2ae85982b135750cccaf5fce"
-dependencies = [
- "cfg-if 1.0.0",
- "js-sys",
- "libc",
- "wasi 0.9.0+wasi-snapshot-preview1",
- "wasm-bindgen",
-]
-
-[[package]]
-name = "getrandom"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fcd999463524c52659517fe2cea98493cfe485d10565e7b0fb07dbba7ad2753"
@@ -1168,7 +1151,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "js-sys",
  "libc",
- "wasi 0.10.2+wasi-snapshot-preview1",
+ "wasi",
  "wasm-bindgen",
 ]
 
@@ -1223,7 +1206,7 @@ checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 [[package]]
 name = "glow"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/glow?branch=read_pixels_array_buffer_view#47ff8176bd678a73e029b16aea8eadc9468f9cfc"
+source = "git+https://github.com/grovesNL/glow#72f89b2984a5ecf76780c3a1b03dee7e1287338d"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -1294,9 +1277,6 @@ name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
-dependencies = [
- "ahash 0.7.6",
-]
 
 [[package]]
 name = "hermit-abi"
@@ -1452,9 +1432,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.106"
+version = "0.2.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a60553f9a9e039a333b4e9b20573b9e9b9c0bb3a11e201ccc48ef4283456d673"
+checksum = "fbe5e23404da5b4f555ef85ebed98fb4083e55a00c317800bc2a50ede9f3d219"
 
 [[package]]
 name = "libloading"
@@ -1492,15 +1472,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if 1.0.0",
-]
-
-[[package]]
-name = "lru"
-version = "0.6.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ea2d928b485416e8908cff2d97d621db22b27f7b3b6729e438bcf42c671ba91"
-dependencies = [
- "hashbrown 0.11.2",
 ]
 
 [[package]]
@@ -1612,26 +1583,6 @@ dependencies = [
 [[package]]
 name = "naga"
 version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eda66d09f712e1f0a6ab436137da4fac312f78301f6d4ac7cb8bfe96e988734f"
-dependencies = [
- "bit-set",
- "bitflags",
- "codespan-reporting",
- "fxhash",
- "hexf-parse",
- "indexmap",
- "log",
- "num-traits",
- "petgraph",
- "pp-rs",
- "spirv",
- "thiserror",
-]
-
-[[package]]
-name = "naga"
-version = "0.7.1"
 source = "git+https://github.com/gfx-rs/naga?rev=323999f#323999fcb9eb8e8c525d75d2878fe1e2e5a99aad"
 dependencies = [
  "bit-set",
@@ -1643,6 +1594,7 @@ dependencies = [
  "log",
  "num-traits",
  "petgraph",
+ "pp-rs",
  "spirv",
  "thiserror",
 ]
@@ -2022,7 +1974,7 @@ version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d34f1408f55294453790c48b2f1ebbb1c5b4b7563eb1f418bcfcfdbb06ebb4e7"
 dependencies = [
- "getrandom 0.2.3",
+ "getrandom",
 ]
 
 [[package]]
@@ -2185,9 +2137,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f690853975602e1bfe1ccbf50504d67174e3bcf340f23b5ea9992e0587a52d8"
+checksum = "e466864e431129c7e0d3476b92f20458e5879919a0596c6472738d9fa2d342f8"
 dependencies = [
  "itoa",
  "ryu",
@@ -2480,7 +2432,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
- "getrandom 0.2.3",
+ "getrandom",
  "serde",
 ]
 
@@ -2512,12 +2464,6 @@ dependencies = [
  "winapi",
  "winapi-util",
 ]
-
-[[package]]
-name = "wasi"
-version = "0.9.0+wasi-snapshot-preview1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
 name = "wasi"
@@ -2608,7 +2554,7 @@ dependencies = [
  "arrayvec",
  "js-sys",
  "log",
- "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
+ "naga",
  "parking_lot",
  "raw-window-handle",
  "smallvec",
@@ -2631,7 +2577,7 @@ dependencies = [
  "copyless",
  "fxhash",
  "log",
- "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
+ "naga",
  "parking_lot",
  "profiling",
  "raw-window-handle",
@@ -2663,7 +2609,7 @@ dependencies = [
  "libloading",
  "log",
  "metal",
- "naga 0.7.1 (git+https://github.com/gfx-rs/naga?rev=323999f)",
+ "naga",
  "objc",
  "parking_lot",
  "profiling",
