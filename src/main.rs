@@ -94,15 +94,13 @@ fn atari_system(
     keyboard: Res<Input<KeyCode>>,
     collisions: Res<CollisionsData>,
 ) {
-    {
-        let data: &[u64; 240] = &collisions.data.read();
-        info!("collisions data: {:x?}", &data[0..10]);
-    }
     if frame.paused {
         return;
     }
     let mut prev_pc = 0;
-    let antic_data = antic_data_assets.get_mut(ANTIC_DATA_HANDLE).unwrap();
+    let antic_data = antic_data_assets
+        .get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>())
+        .unwrap();
 
     loop {
         if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
