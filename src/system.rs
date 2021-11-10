@@ -118,36 +118,20 @@ impl AtariSystem {
         cnt
     }
     fn setup_memory_banks(&mut self) {
-        // fn _banks(start: usize, end: usize) -> Range<usize> {
-        //     (start >> 3)..(end >> 3)
-        // }
-        // let r_00_3f = self._bank_ptr(0, false, false);
-        // let w_00_3f = self._bank_ptr(0, false, true);
-
-        // for i in _banks(0, 0x40) {
-        //     self.read_banks[i] = r_00_3f;
-        //     self.write_banks[i] = w_00_3f as *mut MemBank;
-        // }
-
-        // let r_80_9f = self._bank_ptr(0x8000, false, false);
-        // let w_80_9f = self._bank_ptr(0x8000, false, true);
-        // for i in _banks(0x80, 0xa0) {
-        //     self.read_banks[i] = r_80_9f;
-        //     self.write_banks[i] = w_80_9f as *mut MemBank;
-        // }
-
-
+        // reduce cost of calling of _bank_ptr ~4x
         for i in 0..32 {
-            self.read_banks[i] = self._bank_ptr(i << 11, false, false);
-            self.write_banks[i] = self._bank_ptr(i << 11, false, true) as *mut MemBank;
-            // info!(
-            //     "{:02x} {:p} {:p} read_only: {}",
-            //     i,
-            //     self.read_banks[i],
-            //     self.write_banks[i],
-            //     self.write_banks[i]
-            //         == &self.rom_write_bank[0] as *const u8 as *const MemBank as *mut MemBank
-            // );
+            if (i & 3) == 0 || i == (0x5000 >> 11) {
+                // assume 8kB (2kB * 4) banks except of self test one
+                // compute address of first block in the bank
+                self.read_banks[i] = self._bank_ptr(i << 11, false, false);
+                self.write_banks[i] = self._bank_ptr(i << 11, false, true) as *mut MemBank;
+            } else {
+                // for non-first blocks of 8k bank we computing address using first one
+                unsafe {
+                    self.read_banks[i] = self.read_banks[i & !3].add(i & 3);
+                    self.write_banks[i] = self.write_banks[i & !3].add(i & 3);
+                }
+            }
         }
     }
 
