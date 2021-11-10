@@ -6,7 +6,7 @@ if [[ -n $(git status -s | grep -v '??' | grep -v bevy-atari-antic) ]]; then
 fi
 
 DEST=test.tmp
-cargo make build-web
+cargo make build-web -p release
 mkdir -p $DEST/target
 mkdir -p $DEST/pokey
 
