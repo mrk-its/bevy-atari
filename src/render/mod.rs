@@ -22,8 +22,7 @@ fn setup(mut commands: Commands) {
     commands.spawn_bundle(PipelinedSpriteBundle {
         sprite: Sprite::default(),
         texture: ANTIC_IMAGE_HANDLE.typed(),
-        transform: Default::default(),
-        global_transform: Default::default(),
+        ..Default::default()
     });
 
     let mut camera_bundle = OrthographicCameraBundle::new_2d();

@@ -24,8 +24,6 @@ web = [
 # ]
 
 [dependencies]
-bevy = {path = "../bevy", default_features = false}
-crevice = { path = "../bevy/crates/crevice", version = "0.6.0" }
 tracing-wasm = "=0.2.0"
 
 # winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
@@ -41,6 +39,11 @@ gilrs = {version="0.8", features = ["wasm-bindgen"]}
 js-sys = "0.3"
 # wee_alloc = {version="0.4.5", features = ["static_array_backend"]}
 bevy_atari_antic = {path="./bevy-atari-antic/"}
+
+[dependencies.bevy]
+git = "https://github.com/mrk-its/bevy"
+branch = "bevy_atari"
+default_features = false
 
 [dependencies.web-sys]
 version = "0.3"
