@@ -37,6 +37,9 @@ use emulator_6502::{Interface6502, MOS6502};
 use render::{AnticData, ANTIC_DATA_HANDLE};
 use system::AtariSystem;
 
+// #[global_allocator]
+// static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 #[derive(PartialEq, Copy, Clone, Default)]
 pub struct DisplayConfig {
     pub fps: bool,
@@ -195,13 +198,13 @@ fn events(
             js_api::Message::SetState(new_state) => {
                 let result = match new_state.as_ref() {
                     "running" => {
-                        state.set(EmulatorState::Running);
+                        state.set(EmulatorState::Running)
                     },
                     "idle" => {
-                        state.set(EmulatorState::Idle);
+                        state.set(EmulatorState::Idle)
                     }
                     _ => panic!("invalid state requested"),
-                };
+                }.ok().is_some();
                 info!("set_state: {:?}: {:?}", new_state, result);
             }
             js_api::Message::JoyState { port, dirs, fire } => {

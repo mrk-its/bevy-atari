@@ -1,6 +1,6 @@
 pub trait Cartridge: Sync + Send {
     fn is_enabled(&self) -> bool;
-    fn read(&self, addr: usize) -> u8;
+    fn read(&self, addr: usize) -> &u8;
     fn write(&mut self, addr: usize, value: u8);
     fn reset(&mut self) {}
 }
@@ -36,8 +36,8 @@ impl Cartridge for Standard8k {
         true
     }
 
-    fn read(&self, addr: usize) -> u8 {
-        self.data[addr & 0x1fff]
+    fn read(&self, addr: usize) -> &u8 {
+        &self.data[addr & 0x1fff]
     }
 
     fn write(&mut self, _addr: usize, _value: u8) {}
@@ -52,11 +52,12 @@ impl Cartridge for AtariMax1M {
         self.cart_bank < 128
     }
 
-    fn read(&self, addr: usize) -> u8 {
-        self.data[(self.cart_bank & 0x7f) * 0x2000 + (addr & 0x1fff)]
+    fn read(&self, addr: usize) -> &u8 {
+        &self.data[(self.cart_bank & 0x7f) * 0x2000 + (addr & 0x1fff)]
     }
 
     fn write(&mut self, addr: usize, _value: u8) {
+        // bevy::log::info!("atarimax write: {:04x} {:02x}", addr, _value);
         match addr >> 8 {
             0xD5 => self.cart_bank = (addr & 0xff) as usize,
             _ => (),
@@ -78,8 +79,8 @@ impl Cartridge for AtariMax128k {
         self.cart_bank < 0x10
     }
 
-    fn read(&self, addr: usize) -> u8 {
-        self.data[(self.cart_bank & 0x0f) * 0x2000 + (addr & 0x1fff)]
+    fn read(&self, addr: usize) -> &u8 {
+        &self.data[(self.cart_bank & 0x0f) * 0x2000 + (addr & 0x1fff)]
     }
 
     fn write(&mut self, addr: usize, _value: u8) {

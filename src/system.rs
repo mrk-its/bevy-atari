@@ -6,6 +6,7 @@ pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
+use std::ops::Range;
 pub use std::{cell::RefCell, rc::Rc};
 
 bitflags! {
@@ -25,6 +26,9 @@ bitflags! {
 pub struct AtariSystem {
     consol: Multiplexer<u8>,
     joystick: [Multiplexer<u8>; 2],
+    read_banks: [*const MemBank; 32],
+    write_banks: [*mut MemBank; 32],
+    rom_write_bank: MemBank,
     ram: Vec<u8>,
     ram_copy: Vec<u8>,
     ram_mask: Vec<u8>,
@@ -38,12 +42,17 @@ pub struct AtariSystem {
     ticks: usize,
     pub cart: Option<Box<dyn Cartridge>>,
 }
+unsafe impl Send for AtariSystem {}
+unsafe impl Sync for AtariSystem {}
+
+type MemBank = [u8; 2048];
 
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
         let mut ram: Vec<u8> = Vec::new();
         ram.resize_with(320 * 1024, || 0);
+        let rom_write_bank = [0; 2048];
         let osrom = [0x00; 0x4000];
         let basic = None;
         let antic = Antic::default();
@@ -54,10 +63,16 @@ impl AtariSystem {
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
 
-        AtariSystem {
+        let read_banks = [0 as *const MemBank; 32];
+        let write_banks = [0 as *mut MemBank; 32];
+
+        let mut atari_system = AtariSystem {
             consol,
             joystick,
             ram,
+            read_banks,
+            write_banks,
+            rom_write_bank,
             ram_copy: Vec::new(),
             ram_mask: Vec::new(),
             osrom,
@@ -69,12 +84,15 @@ impl AtariSystem {
             disk_1,
             ticks: 0,
             cart: None,
-        }
+        };
+        atari_system.setup_memory_banks();
+        atari_system
     }
 
     pub fn set_cart(&mut self, cart: Option<Box<dyn Cartridge>>) {
         self.cart = cart;
         self.gtia.trig[3] = if self.cart.is_some() { 1 } else { 0 };
+        self.setup_memory_banks();
     }
 
     pub fn trainer_init(&mut self) {
@@ -99,8 +117,40 @@ impl AtariSystem {
         self.ram_copy = self.ram.clone();
         cnt
     }
+    fn setup_memory_banks(&mut self) {
+        // fn _banks(start: usize, end: usize) -> Range<usize> {
+        //     (start >> 3)..(end >> 3)
+        // }
+        // let r_00_3f = self._bank_ptr(0, false, false);
+        // let w_00_3f = self._bank_ptr(0, false, true);
 
-    #[inline(always)]
+        // for i in _banks(0, 0x40) {
+        //     self.read_banks[i] = r_00_3f;
+        //     self.write_banks[i] = w_00_3f as *mut MemBank;
+        // }
+
+        // let r_80_9f = self._bank_ptr(0x8000, false, false);
+        // let w_80_9f = self._bank_ptr(0x8000, false, true);
+        // for i in _banks(0x80, 0xa0) {
+        //     self.read_banks[i] = r_80_9f;
+        //     self.write_banks[i] = w_80_9f as *mut MemBank;
+        // }
+
+
+        for i in 0..32 {
+            self.read_banks[i] = self._bank_ptr(i << 11, false, false);
+            self.write_banks[i] = self._bank_ptr(i << 11, false, true) as *mut MemBank;
+            // info!(
+            //     "{:02x} {:p} {:p} read_only: {}",
+            //     i,
+            //     self.read_banks[i],
+            //     self.write_banks[i],
+            //     self.write_banks[i]
+            //         == &self.rom_write_bank[0] as *const u8 as *const MemBank as *mut MemBank
+            // );
+        }
+    }
+
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
         if !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
             || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG)
@@ -115,92 +165,123 @@ impl AtariSystem {
     }
 
     #[inline(always)]
-    fn _read(&mut self, addr: u16, antic: bool) -> u8 {
-        // all reads return RAM values directly
-        let addr = addr as usize;
+    fn _io_read(&mut self, addr: usize, antic: bool) -> u8 {
+        let addr = usize::from(addr);
         match addr >> 8 {
+            0xD0 => self.gtia.read(addr),
+            0xD1 => 0xff,
+            0xD2 => self.pokey.read(addr),
+            0xD3 => self.pia.read(addr),
+            0xD4 => self.antic.read(addr),
+            _ => 0xff,// panic!("wrong io read address!"),
+        }
+    }
+    #[inline(always)]
+    fn _io_write(&mut self, addr: usize, value: u8, antic: bool) {
+        match addr >> 8 {
+            0xD0 => self.gtia.write(addr, value),
+            0xD2 => self.pokey.write(addr, value),
+            0xD3 => {
+                self.pia.write(addr, value);
+                if (addr & 3) == 1 {
+                    self.setup_memory_banks();
+                };
+            }
+            0xD4 => self.antic.write(addr, value),
+            0xD5 => match &mut self.cart {
+                Some(cart) => {
+                    cart.write(addr, value);
+                    self.setup_memory_banks();
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+    }
+
+    fn _bank_ptr(&mut self, addr: usize, antic: bool, write: bool) -> *const MemBank {
+        // 0x00..0x3f - RAM
+        // 0x40..0x7f - RAM / EXT_RAM / SELFTEST / ANTIC
+        // 0x80..0x9f - RAM
+
+        // 0xa0..0xbf - RAM / BASIC / CART
+
+        // 0xC0..0xff - RAM / ROM (without D0..D7)
+        let mem_ref = match addr >> 8 {
             0x50..=0x57 => {
                 let portb = self.pia.portb_out();
                 if portb.contains(PORTB::OSROM_ENABLED)
                     && !portb.contains(PORTB::SELFTEST_DISABLED)
                     && (portb & PORTB::BANK_SELECT_NEG) == PORTB::BANK_SELECT_NEG
                 {
-                    self.osrom[0x1000 + (addr & 0x7ff)]
+                    if !write {
+                        &self.osrom[0x1000 + (addr & 0x7ff)]
+                    } else {
+                        &self.rom_write_bank[0]
+                    }
                 } else {
-                    self.ram[self.bank_offset(addr, antic)]
+                    &self.ram[self.bank_offset(addr, antic)]
                 }
             }
             0xA0..=0xBF => {
                 if let Some(cart) = &self.cart {
                     if self.gtia.trig[3] > 0 && cart.is_enabled() {
-                        return cart.read(addr);
+                        if !write {
+                            // info!("enabled cart at {:04x}", addr);
+                            return cart.read(addr) as *const u8 as *const MemBank;
+                        } else {
+                            return &self.rom_write_bank[0] as *const u8 as *const MemBank;
+                        }
+                    } else {
+                        // info!("no cart at {:04x}", addr);
                     }
                 }
                 if !self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
-                    match self.basic {
-                        Some(basic) => basic[addr & 0x1fff],
-                        None => self.ram[addr],
+                    match &self.basic {
+                        Some(basic) => {
+                            if !write {
+                                &basic[addr & 0x1fff]
+                            } else {
+                                &self.rom_write_bank[0]
+                            }
+                        }
+                        None => &self.ram[addr],
                     }
                 } else {
-                    self.ram[addr]
+                    &self.ram[addr]
                 }
             }
-            0xD0 => self.gtia.read(addr),
-            0xD1 => 0xff,
-            0xD2 => self.pokey.read(addr),
-            0xD3 => self.pia.read(addr),
-            0xD4 => self.antic.read(addr),
             0xC0..=0xFF => {
                 if self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
-                    self.osrom[addr & 0x3fff]
+                    if !write {
+                        &self.osrom[addr & 0x3fff]
+                    } else {
+                        &self.rom_write_bank[0]
+                    }
                 } else {
-                    self.ram[addr]
+                    &self.ram[addr]
                 }
             }
-            0x40..=0x7f => self.ram[self.bank_offset(addr, antic)],
-            _ => self.ram[addr],
+            0x40..=0x7f => &self.ram[self.bank_offset(addr, antic)],
+            _ => &self.ram[addr],
+        };
+        mem_ref as *const u8 as *const MemBank
+    }
+
+    #[inline(always)]
+    fn _read(&mut self, addr: u16, antic: bool) -> u8 {
+        let addr = addr as usize;
+        match addr >> 8 {
+            0xd0..=0xd7 => self._io_read(addr, antic),
+            _ => unsafe { (*self.read_banks[addr >> 11])[addr & 2047] },
         }
     }
     #[inline(always)]
     fn _write(&mut self, addr: u16, value: u8, antic: bool) {
         let addr = addr as usize;
-
         match addr >> 8 {
-            0x50..=0x5F => {
-                let portb = self.pia.portb_out();
-                if !(portb.contains(PORTB::OSROM_ENABLED)
-                    && !portb.contains(PORTB::SELFTEST_DISABLED)
-                    && (portb & PORTB::BANK_SELECT_NEG) == PORTB::BANK_SELECT_NEG)
-                {
-                    let offs = self.bank_offset(addr, antic);
-                    self.ram[offs] = value
-                }
-            }
-            0xA0..=0xBF => {
-                if self.pia.portb_out().contains(PORTB::BASIC_DISABLED) {
-                    self.ram[addr] = value
-                }
-            }
-            0xD0 => self.gtia.write(addr, value),
-            0xD2 => self.pokey.write(addr, value),
-            0xD3 => {
-                self.pia.write(addr, value);
-            }
-            0xD4 => self.antic.write(addr, value),
-            0xD5 => match &mut self.cart {
-                Some(cart) => cart.write(addr, value),
-                _ => (),
-            },
-            0xC0..=0xFF => {
-                if !self.pia.portb_out().contains(PORTB::OSROM_ENABLED) {
-                    self.ram[addr] = value
-                }
-            }
-            0x40..=0x7f => {
-                let offs = self.bank_offset(addr, antic);
-                self.ram[offs] = value;
-            }
-            _ => self.ram[addr] = value,
+            0xd0..=0xd7 => self._io_write(addr, value, antic),
+            _ => unsafe { (*self.write_banks[addr >> 11])[addr & 2047] = value },
         }
     }
 
@@ -221,19 +302,16 @@ impl AtariSystem {
         });
     }
 
-    #[inline(always)]
     pub fn copy_from_slice(&mut self, offs: u16, data: &[u8]) {
         for (i, b) in data.iter().enumerate() {
             self.write(offs.wrapping_add(i as u16), *b);
         }
     }
-    #[inline(always)]
     pub fn copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self.read(offs.wrapping_add(i as u16));
         }
     }
-    #[inline(always)]
     pub fn antic_copy_to_slice(&mut self, offs: u16, data: &mut [u8]) {
         for (i, b) in data.iter_mut().enumerate() {
             *b = self._read(offs.wrapping_add(i as u16), true);

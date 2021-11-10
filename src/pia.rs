@@ -77,12 +77,15 @@ impl PIA {
             _ => panic!("impossible"),
         }
     }
+    #[inline(always)]
     pub fn set_port_a_input(&mut self, mask: u8, value: u8) {
         self.porta_in = self.porta_in & mask | value;
     }
+    #[inline(always)]
     pub fn portb_out(&self) -> PORTB {
         return PORTB::from_bits_truncate(self.portb_out);
     }
+    #[inline(always)]
     pub fn set_portb_out(&mut self, value: u8) {
         self.portb_out = value;
     }
