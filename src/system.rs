@@ -6,7 +6,6 @@ pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
-use std::ops::Range;
 pub use std::{cell::RefCell, rc::Rc};
 
 bitflags! {

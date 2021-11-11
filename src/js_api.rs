@@ -1,4 +1,3 @@
-use bevy::prelude::info;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use wasm_bindgen::prelude::wasm_bindgen;

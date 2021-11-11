@@ -15,9 +15,9 @@ impl Plugin for AnticRenderPlugin {
 }
 
 fn setup(mut commands: Commands) {
-    commands
-        .spawn()
-        .insert_bundle((ANTIC_DATA_HANDLE.typed::<AnticData>(),));
+    // commands
+    //     .spawn()
+    //     .insert_bundle((ANTIC_DATA_HANDLE.typed::<AnticData>(),));
 
     commands.spawn_bundle(PipelinedSpriteBundle {
         sprite: Sprite::default(),

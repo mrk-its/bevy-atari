@@ -5,7 +5,7 @@ use std::time::Duration;
 use bevy::prelude::{GamepadButtonType, KeyCode};
 
 use crate::system::Interface6502;
-use crate::{system::AtariSystem, BreakPoint, DisplayConfig, FrameState};
+use crate::{system::AtariSystem, BreakPoint, DisplayConfig, Debugger};
 
 #[derive(Default)]
 pub struct KeyboarSystemState {
@@ -19,7 +19,7 @@ pub fn system(
     gamepad_buttons: Res<Input<GamepadButton>>,
     axis: Res<Axis<GamepadAxis>>,
     mut state: Local<KeyboarSystemState>,
-    mut frame: ResMut<FrameState>,
+    mut frame: ResMut<Debugger>,
     mut atari_system: ResMut<AtariSystem>,
     cpu: ResMut<MOS6502>,
 ) {
