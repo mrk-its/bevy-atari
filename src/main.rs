@@ -339,12 +339,6 @@ fn main() {
     let mut system = AtariSystem::new();
     let mut cpu = MOS6502::default();
 
-    system.set_osrom(Some(
-        include_bytes!("../assets/Atari OS v2 83.10.05.rom").to_vec(),
-    ));
-    let cart = <dyn Cartridge>::from_bytes(include_bytes!("../assets/flob.1.0.3.car")).unwrap();
-    system.set_cart(Some(cart));
-
     system.reset(&mut cpu, true, true);
 
     let frame = FrameState::default();
