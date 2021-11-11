@@ -1,6 +1,4 @@
-use crate::palette::default::PALETTE;
 // use crate::render_resources::GTIARegs;
-use bevy::render2::color::Color;
 use bevy_atari_antic::CollisionsData;
 use parking_lot::RwLock;
 use std::sync::Arc;
@@ -220,13 +218,4 @@ impl Gtia {
         //     self.collisions[P3PF] |= 0xf;
         // }
     }
-}
-
-pub fn atari_color(index: u8) -> Color {
-    let index = index as usize;
-    Color::rgb(
-        PALETTE[index][0] as f32 / 255.0,
-        PALETTE[index][1] as f32 / 255.0,
-        PALETTE[index][2] as f32 / 255.0,
-    )
 }

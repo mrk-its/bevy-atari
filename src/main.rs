@@ -11,7 +11,6 @@ pub mod gtia;
 mod js_api;
 pub mod keyboard;
 pub mod multiplexer;
-mod palette;
 pub mod pia;
 pub mod pokey;
 
