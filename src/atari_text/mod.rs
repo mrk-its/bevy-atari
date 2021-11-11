@@ -1,4 +1,4 @@
-use crevice::std140::AsStd140;
+use bevy::utils::crevice::std140::AsStd140;
 use bevy::render2::color::Color;
 use bevy::render::pipeline::CullMode;
 use bevy::render::{
