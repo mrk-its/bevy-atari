@@ -78,9 +78,9 @@ function xex2atr(data) {
 }
 
 function parse_part(part) {
-  let m = part.match("^(\\w+)=(.*)");
-  console.log(part, m);
-  return m && [m[1], m[2]] || [null, part]
+  let m = part.match("^(\\w+)(@(\\d+))?=(.*)");
+  console.log("HERE", part, m);
+  return m && [m[1], m[4], m[3]] || [null, part, null]
 }
 
 function parse_fragment() {
@@ -106,7 +106,7 @@ export function eject(event) {
   set_fragment(parse_fragment().filter(k => k[1] != url))
 }
 
-function set_binary(key, url, data) {
+function set_binary(key, url, data, slot) {
   var filename = url_to_filename(url);
   let parts = filename.split(".")
   let ext = parts[parts.length-1];
@@ -145,7 +145,7 @@ function set_binary(key, url, data) {
     data = xex2atr(data)
     key = "disk_1"
   }
-  set_binary_data(key, filename, data);
+  set_binary_data(key, filename, data, slot);
   update_status(key, url);
   return key;
 }
@@ -180,10 +180,10 @@ function fetch_url(url) {
   })
 }
 
-function fetch_binary_data(key, url) {
-  console.log("fetch_binary_data", key, url)
+function fetch_binary_data(key, url, slot) {
+  console.log("fetch_binary_data", key, url, slot)
   return fetch_url(url).then(function (data) {
-    let type = set_binary(key, url, data);
+    let type = set_binary(key, url, data, slot);
     console.log("set_binary", key, url, "len:", data.length);
     return type;
   })
@@ -241,8 +241,8 @@ async function reload_from_fragment() {
   set_state("idle");
   await delay(100);
   let todo = [];
-  for (let [key, url] of parse_fragment()) {
-    todo.push(fetch_binary_data(key, url));
+  for (let [key, url, slot] of parse_fragment()) {
+    todo.push(fetch_binary_data(key, url, parseInt(slot)));
   };
   let result = await Promise.all(todo);
   let result_set = new Set(result);

@@ -59,6 +59,7 @@ pub struct PokeyRegWrite {
 pub struct Pokey {
     #[cfg(target_arch = "wasm32")]
     audio_context: Option<web_sys::AudioContext>,
+    muted: bool,
     freq: [u8; 4],
     ctl: [AUDC; 4],
     audctl: AUDCTL,
@@ -84,6 +85,7 @@ impl Default for Pokey {
                 .ok()
         };
         Self {
+            muted: false,
             rng,
             ctl: [AUDC::from_bits_truncate(0); 4],
             freq: [0; 4],
@@ -117,11 +119,16 @@ impl Pokey {
         // warn!("POKEY read: {:02x}: {:02x}", addr, value);
         value
     }
-
+    pub fn mute(&mut self, muted: bool) {
+        self.muted = muted;
+    }
     // const IDLE_DELAY: usize = 2;
 
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
+        if self.muted {
+            return
+        }
         // let window = web_sys::window().expect("no global `window` exists");
 
         let audio_context = match self.audio_context {
@@ -149,7 +156,7 @@ impl Pokey {
         let time_diff = atari_time - self.delta_t - audio_context_time;
         if time_diff.abs() >= 0.05 {
             self.delta_t = atari_time - audio_context_time;
-            warn!("too big time diff: {}, syncing", time_diff,);
+            debug!("too big time diff: {}, syncing", time_diff,);
         }
 
         // #[allow(unused_unsafe)]

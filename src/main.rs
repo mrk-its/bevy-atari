@@ -15,12 +15,12 @@ pub mod pia;
 pub mod pokey;
 
 pub mod render;
+pub mod focus;
 
 pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
-use bevy::render2::texture::Image;
 #[allow(unused_imports)]
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -30,11 +30,12 @@ use bevy::{
     winit::WinitConfig,
     PipelinedDefaultPlugins,
 };
+use bevy::{render2::{color::Color, render_resource::Extent3d, texture::Image}, sprite2::{PipelinedSpriteBundle, Sprite}};
 use bevy_atari_antic::CollisionsData;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
-use render::{AnticData, ANTIC_DATA_HANDLE};
+use render::AnticData;
 use system::AtariSystem;
 
 // #[global_allocator]
@@ -83,10 +84,12 @@ impl Debugger {
 
 #[derive(Bundle, Default)]
 pub struct AtariBundle {
+    slot: i32,
+    focused: bool,
     system: AtariSystem,
     state: Debugger,
     cpu: MOS6502,
-    antic_data: Handle<AnticData>,
+    antic_data_handle: Handle<AnticData>,
     texture: Handle<Image>,
 }
 
@@ -98,24 +101,29 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
 }
 
 fn atari_system(
-    mut query: Query<(&mut AtariSystem, &mut MOS6502, &mut Debugger)>,
+    mut query: Query<(
+        &bool,
+        &mut AtariSystem,
+        &mut MOS6502,
+        &mut Debugger,
+        &Handle<AnticData>,
+    )>,
     mut display_config: ResMut<DisplayConfig>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
-    collisions: Res<CollisionsData>,
+    collisions: Res<Option<CollisionsData>>,
 ) {
-    for (mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
+    for (&focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
         if debugger.paused {
             continue;
         }
         let mut prev_pc = 0;
-        let antic_data = antic_data_assets
-            .get_mut(ANTIC_DATA_HANDLE.typed::<AnticData>())
-            .unwrap();
+        let antic_data = antic_data_assets.get_mut(antic_data_handle).unwrap();
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if atari_system.handle_keyboard(&keyboard, &mut *cpu) {
+
+                if focused && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
                     cpu.interrupt_request();
                 }
             };
@@ -134,7 +142,7 @@ fn atari_system(
             cpu.cycle(&mut *atari_system);
 
             if cpu.get_remaining_cycles() == 0 {
-                antic::post_instr_tick(&mut *atari_system, &collisions);
+                antic::post_instr_tick(&mut *atari_system, (*collisions).as_ref());
                 match debugger.break_point {
                     Some(BreakPoint::PC(pc)) => {
                         if cpu.get_program_counter() == pc {
@@ -190,11 +198,12 @@ fn atari_system(
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
 fn events(
-    mut query: Query<(&mut AtariSystem, &mut MOS6502, &mut Debugger)>,
+    mut query: Query<(&i32, &mut AtariSystem, &mut MOS6502, &mut Debugger)>,
     mut state: ResMut<State<EmulatorState>>,
 ) {
-    for (mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
-        let mut messages = js_api::MESSAGES.write();
+    let mut _messages = js_api::MESSAGES.write();
+    for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
+        let mut messages = (*_messages).clone();
         for event in messages.drain(..) {
             match event {
                 js_api::Message::Reset {
@@ -219,36 +228,43 @@ fn events(
                 js_api::Message::SetConsol { state } => {
                     atari_system.update_consol(1, state);
                 }
-                js_api::Message::BinaryData { key, data, .. } => match key.as_str() {
-                    "basic" => {
-                        atari_system.set_basic(data);
-                    }
-                    "osrom" => {
-                        atari_system.set_osrom(data);
-                    }
-                    "disk_1" => {
-                        atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
-                    }
-                    "car" => {
-                        atari_system.set_cart(
-                            data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
-                                .flatten(),
-                        );
-                    }
-                    "state" => {
-                        if let Some(data) = data {
-                            let data = gunzip(&data);
-                            let a800_state = atari800_state::Atari800State::new(&data);
-                            a800_state.reload(&mut *atari_system, &mut *cpu);
-                            // *frame = FrameState::default();
-                            state.set(EmulatorState::Running).ok();
-                            info!("LOADED! {:?}", *state);
+                js_api::Message::BinaryData {
+                    key, data, slot, ..
+                } => {
+                    if slot.is_none() || Some(*atari_slot as i32) == slot {
+                        match key.as_str() {
+                            "basic" => {
+                                atari_system.set_basic(data);
+                            }
+                            "osrom" => {
+                                bevy::log::info!("set osrom");
+                                atari_system.set_osrom(data);
+                            }
+                            "disk_1" => {
+                                atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
+                            }
+                            "car" => {
+                                atari_system.set_cart(
+                                    data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
+                                        .flatten(),
+                                );
+                            }
+                            "state" => {
+                                if let Some(data) = data {
+                                    let data = gunzip(&data);
+                                    let a800_state = atari800_state::Atari800State::new(&data);
+                                    a800_state.reload(&mut *atari_system, &mut *cpu);
+                                    // *frame = FrameState::default();
+                                    state.set(EmulatorState::Running).ok();
+                                    info!("LOADED! {:?}", *state);
+                                }
+                            }
+                            _ => {
+                                warn!("unknown binary");
+                            }
                         }
                     }
-                    _ => {
-                        warn!("unknown binary");
-                    }
-                },
+                }
                 js_api::Message::Command { cmd } => {
                     let parts = cmd.split(" ").collect::<Vec<_>>();
                     match parts[0] {
@@ -295,15 +311,45 @@ fn events(
             }
         }
     }
+    _messages.clear();
 }
+pub struct Focus;
 
-fn setup(mut commands: Commands) {
-    let mut atari_bundle = AtariBundle {
-        antic_data: ANTIC_DATA_HANDLE.typed(),
-        ..Default::default()
-    };
-    atari_bundle.system.reset(&mut atari_bundle.cpu, true, true);
-    commands.spawn_bundle(atari_bundle);
+fn setup(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut antic_data_assets: ResMut<Assets<AnticData>>,
+) {
+    for y_offs in -1..=1 {
+        for x_offs in -1..=1 {
+            let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
+            let antic_data = AnticData::new(main_image_handle.clone(), None);
+            let antic_data_handle = antic_data_assets.add(antic_data);
+
+            let mut atari_bundle = AtariBundle {
+                slot: (y_offs + 1) * 3 + x_offs + 1,
+                focused: false,
+                antic_data_handle,
+                ..Default::default()
+            };
+            atari_bundle.system.pokey.mute(true);
+            atari_bundle.system.reset(&mut atari_bundle.cpu, true, true);
+            commands.spawn().insert_bundle(atari_bundle).insert_bundle(PipelinedSpriteBundle {
+                sprite: Sprite::default(),
+                texture: main_image_handle,
+                transform: Transform {
+                    translation: Vec3::new(
+                        400.0 * x_offs as f32,
+                        -256.0 * y_offs as f32,
+                        0.0,
+                    ),
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+        }
+    }
+
     // atari_bundle.state.break_point = Some(BreakPoint::IndirectPC(0x2e0));
     // atari_bundle.state.break_point = Some(BreakPoint::PC(0x7100));
 }
@@ -325,8 +371,8 @@ fn main() {
     app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 768.0,
-        height: 480.0,
+        width: 1200.0,
+        height: 768.0,
         resizable: false,
         scale_factor_override: Some(1.0),
         mode: bevy::window::WindowMode::Windowed,
@@ -364,5 +410,7 @@ fn main() {
         )
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
+        .add_system(focus::update.system())
+        .add_startup_system(focus::setup.system())
         .run();
 }

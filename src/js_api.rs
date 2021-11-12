@@ -5,6 +5,8 @@ use wasm_bindgen::prelude::wasm_bindgen;
 #[allow(dead_code)]
 pub static MESSAGES: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]));
 
+
+#[derive(Clone, Debug)]
 pub enum Message {
     JoyState {
         port: usize,
@@ -18,6 +20,7 @@ pub enum Message {
         key: String,
         filename: String,
         data: Option<Vec<u8>>,
+        slot: Option<i32>,
     },
     Command {
         cmd: String,
@@ -47,13 +50,15 @@ pub fn set_consol(state: u8) {
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn set_binary_data(key: String, filename: String, data: Vec<u8>) {
+pub fn set_binary_data(key: String, filename: String, data: Vec<u8>, slot: Option<i32>) {
     let mut messages = MESSAGES.write();
     let data = if data.len() > 0 { Some(data) } else { None };
+    bevy::log::info!("slot: {:?}", slot);
     messages.push(Message::BinaryData {
         key,
         filename,
         data,
+        slot,
     });
 }
 

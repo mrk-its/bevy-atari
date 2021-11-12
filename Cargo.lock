@@ -974,7 +974,6 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "emulator_6502"
 version = "1.1.0"
-source = "git+https://github.com/mrk-its/emulator_6502/?branch=speed_improvements#b9f7d379475580ea00c6d22a8d4d006dd27256a9"
 dependencies = [
  "log",
 ]

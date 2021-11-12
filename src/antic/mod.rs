@@ -509,7 +509,9 @@ impl Antic {
         let is_vscroll = mode > 1 && opts.contains(MODE_OPTS::VSCROL);
         if is_vscroll && !self.is_vscroll {
             self.line_voffset = self.vscrol as usize;
-            self.line_height -= self.line_voffset;
+            if self.line_height >= self.line_voffset {
+                self.line_height -= self.line_voffset;
+            }
         // entering vscroll region
         } else if !is_vscroll && self.is_vscroll {
             self.line_height = self.vscrol as usize + 1;
@@ -672,14 +674,16 @@ pub fn tick(
 }
 
 #[inline(always)]
-pub fn post_instr_tick(atari_system: &mut AtariSystem, collisions: &CollisionsData) {
+pub fn post_instr_tick(atari_system: &mut AtariSystem, collisions: Option<&CollisionsData>) {
     let antic = &mut atari_system.antic;
     if antic.wsync() {
         antic.do_wsync();
     }
     atari_system.gtia.scan_line =
         antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
-    atari_system.gtia.update_collisions_for_scanline(collisions);
+    if let Some(collisions) = collisions {
+        atari_system.gtia.update_collisions_for_scanline(collisions);
+    }
 }
 
 pub fn get_pm_data(system: &mut AtariSystem, n: usize) -> u8 {
