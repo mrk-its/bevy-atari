@@ -3,7 +3,7 @@ use bevy_atari_antic::CollisionsData;
 use parking_lot::RwLock;
 use std::sync::Arc;
 
-use crate::render::GTIARegs;
+use bevy_atari_antic::GTIARegs;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -76,7 +76,7 @@ pub struct Gtia {
     pub scan_line: usize,
     pub collision_update_scanline: usize,
     pub regs: GTIARegs,
-    pub collision_array: Arc<RwLock<[u64; 240]>>,
+    pub collision_array: CollisionsData,
     collisions: [u8; 0x16], // R
     pub trig: [u8; 4],      // R
     pub gractl: GRACTL,
@@ -169,7 +169,7 @@ impl Gtia {
             && self.scan_line >= 8
             && self.scan_line < 248
         {
-            let collision_array = collisions.data.write();
+            let collision_array = collisions.read();
             for i in self.collision_update_scanline.max(8)..self.scan_line {
                 self.update_collisions(collision_array[i - 8]);
             }

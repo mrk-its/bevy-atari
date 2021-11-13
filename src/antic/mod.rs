@@ -1,6 +1,5 @@
 use crate::gtia;
-// use crate::render_resources::AnticData;
-use crate::render::{AnticData, ModeLineDescr};
+use bevy_atari_antic::{AnticData, ModeLineDescr};
 use crate::system::AtariSystem;
 use bevy_atari_antic::CollisionsData;
 use emulator_6502::{Interface6502, MOS6502};
@@ -674,14 +673,14 @@ pub fn tick(
 }
 
 #[inline(always)]
-pub fn post_instr_tick(atari_system: &mut AtariSystem, collisions: Option<&CollisionsData>) {
+pub fn post_instr_tick(atari_system: &mut AtariSystem, collisions: &Option<CollisionsData>) {
     let antic = &mut atari_system.antic;
     if antic.wsync() {
         antic.do_wsync();
     }
     atari_system.gtia.scan_line =
         antic.scan_line - (antic.scan_line > 0 && antic.cycle < 104) as usize;
-    if let Some(collisions) = collisions {
+    if let Some(ref collisions) = collisions {
         atari_system.gtia.update_collisions_for_scanline(collisions);
     }
 }

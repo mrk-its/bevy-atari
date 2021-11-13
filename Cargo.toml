@@ -65,19 +65,16 @@ features = [
 ]
 
 [patch.crates-io]
-# emulator_6502 = {git = "https://github.com/mrk-its/emulator_6502/", branch="speed_improvements"}
 gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
 
-glow = {git="https://github.com/mrk-its/glow", branch="read_pixels_into_buffer_offset"}
+glow = {git="https://github.com/grovesNL/glow"}
 wgpu = {git="https://github.com/mrk-its/wgpu", branch="misc"}
 naga = {git="https://github.com/gfx-rs/naga", rev="323999f"}
 
 [patch.crates-io.emulator_6502]
-#git = "https://github.com/mrk-its/emulator_6502/"
-#branch="speed_improvements"
-path = "../emulator_6502"
-
+git = "https://github.com/mrk-its/emulator_6502/"
+branch="speed_improvements"
 
 # [profile.dev.package."*"]
 # opt-level = 2

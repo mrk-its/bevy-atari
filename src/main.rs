@@ -9,12 +9,11 @@ mod cartridge;
 // mod debug;
 pub mod gtia;
 mod js_api;
-pub mod keyboard;
+pub mod gamepad;
 pub mod multiplexer;
 pub mod pia;
 pub mod pokey;
 
-pub mod render;
 pub mod focus;
 
 pub mod sio;
@@ -30,12 +29,15 @@ use bevy::{
     winit::WinitConfig,
     PipelinedDefaultPlugins,
 };
-use bevy::{render2::{color::Color, render_resource::Extent3d, texture::Image}, sprite2::{PipelinedSpriteBundle, Sprite}};
-use bevy_atari_antic::CollisionsData;
+use bevy::{
+    render2::{camera::OrthographicCameraBundle, texture::Image},
+    sprite2::{PipelinedSpriteBundle, Sprite},
+};
+use bevy_atari_antic::AtariAnticPlugin;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
-use render::AnticData;
+use bevy_atari_antic::AnticData;
 use system::AtariSystem;
 
 // #[global_allocator]
@@ -62,9 +64,6 @@ enum BreakPoint {
     ScanLine(usize),
 }
 
-#[derive(Default)]
-pub struct ClearCollisions(pub bool);
-
 #[derive(Debug, Default)]
 pub struct Debugger {
     paused: bool,
@@ -79,6 +78,29 @@ impl Debugger {
     fn clear_break_point(&mut self) {
         self.paused = true;
         self.break_point = None;
+    }
+}
+
+#[derive(Clone)]
+pub struct EmulatorConfig {
+    collisions: bool,
+    wall_size: (i32, i32),
+    scale: f32,
+}
+
+impl EmulatorConfig {
+    fn is_multi(&self) -> bool {
+        self.wall_size != (1, 1)
+    }
+}
+
+impl Default for EmulatorConfig {
+    fn default() -> Self {
+        Self {
+            collisions: true,
+            wall_size: (1, 1),
+            scale: 0.5,
+        }
     }
 }
 
@@ -111,7 +133,6 @@ fn atari_system(
     mut display_config: ResMut<DisplayConfig>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
-    collisions: Res<Option<CollisionsData>>,
 ) {
     for (&focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
         if debugger.paused {
@@ -122,7 +143,6 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-
                 if focused && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
                     cpu.interrupt_request();
                 }
@@ -142,7 +162,7 @@ fn atari_system(
             cpu.cycle(&mut *atari_system);
 
             if cpu.get_remaining_cycles() == 0 {
-                antic::post_instr_tick(&mut *atari_system, (*collisions).as_ref());
+                antic::post_instr_tick(&mut *atari_system, &antic_data.collisions_data);
                 match debugger.break_point {
                     Some(BreakPoint::PC(pc)) => {
                         if cpu.get_program_counter() == pc {
@@ -313,48 +333,70 @@ fn events(
     }
     _messages.clear();
 }
-pub struct Focus;
 
 fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
+    config: Res<EmulatorConfig>,
 ) {
-    for y_offs in -1..=1 {
-        for x_offs in -1..=1 {
+    for y in 0..config.wall_size.1 {
+        for x in 0..config.wall_size.0 {
             let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-            let antic_data = AnticData::new(main_image_handle.clone(), None);
+            let antic_data = AnticData::new(main_image_handle.clone(), config.collisions);
             let antic_data_handle = antic_data_assets.add(antic_data);
 
             let mut atari_bundle = AtariBundle {
-                slot: (y_offs + 1) * 3 + x_offs + 1,
-                focused: false,
+                slot: y * config.wall_size.0 + x,
+                focused: !config.is_multi(),
                 antic_data_handle,
                 ..Default::default()
             };
-            atari_bundle.system.pokey.mute(true);
+            atari_bundle.system.pokey.mute(config.is_multi());
             atari_bundle.system.reset(&mut atari_bundle.cpu, true, true);
-            commands.spawn().insert_bundle(atari_bundle).insert_bundle(PipelinedSpriteBundle {
-                sprite: Sprite::default(),
-                texture: main_image_handle,
-                transform: Transform {
-                    translation: Vec3::new(
-                        400.0 * x_offs as f32,
-                        -256.0 * y_offs as f32,
-                        0.0,
-                    ),
+            commands
+                .spawn()
+                .insert_bundle(atari_bundle)
+                .insert_bundle(PipelinedSpriteBundle {
+                    sprite: Sprite::default(),
+                    texture: main_image_handle,
+                    transform: Transform {
+                        translation: Vec3::new(
+                            -400.0 / 2.0 * (config.wall_size.0 - 1) as f32 + (400 * x) as f32,
+                            -(-256.0 / 2.0 * (config.wall_size.1 - 1) as f32 + (256 * y) as f32),
+                            0.0,
+                        ),
+                        ..Default::default()
+                    },
                     ..Default::default()
-                },
-                ..Default::default()
-            });
+                });
         }
     }
+
+    let mut camera_bundle = OrthographicCameraBundle::new_2d();
+    camera_bundle.transform.scale = Vec3::new(1.0 / config.scale, 1.0 / config.scale, 1.0);
+    camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
+    commands.spawn_bundle(camera_bundle);
 
     // atari_bundle.state.break_point = Some(BreakPoint::IndirectPC(0x2e0));
     // atari_bundle.state.break_point = Some(BreakPoint::PC(0x7100));
 }
 
 fn main() {
+    let config = EmulatorConfig {
+        collisions: true,
+        wall_size: (1, 1),
+        scale: 2.0,
+    };
+    let window_size = (if !config.is_multi() {
+        Vec2::new(384.0, 240.0)
+    } else {
+        Vec2::new(
+            400.0 * config.wall_size.0 as f32,
+            256.0 * config.wall_size.1 as f32,
+        )
+    }) * config.scale;
+
     let mut log_filter = "bevy_webgl2=warn".to_string();
     #[cfg(target_arch = "wasm32")]
     {
@@ -368,11 +410,12 @@ fn main() {
         filter: log_filter,
         level: Level::INFO,
     });
+    app.insert_resource(config.clone());
     app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
         title: "GoodEnoughAtariEmulator".to_string(),
-        width: 1200.0,
-        height: 768.0,
+        width: window_size.x,
+        height: window_size.y,
         resizable: false,
         scale_factor_override: Some(1.0),
         mode: bevy::window::WindowMode::Windowed,
@@ -383,7 +426,9 @@ fn main() {
     });
 
     app.add_plugins(PipelinedDefaultPlugins);
-    app.add_plugin(render::AnticRenderPlugin);
+    app.add_plugin(AtariAnticPlugin {
+        collisions: config.collisions,
+    });
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
     app.insert_resource(WinitConfig {
         force_fps: Some(50.0),
@@ -393,6 +438,11 @@ fn main() {
     // app.add_plugin(FrameTimeDiagnosticsPlugin::default());
     // app.add_plugin(LogDiagnosticsPlugin::default());
 
+    if config.is_multi() {
+        app.add_system(focus::update.system())
+            .add_startup_system(focus::setup.system());
+    }
+
     app
         .insert_resource(DisplayConfig {
             fps: true,
@@ -401,7 +451,7 @@ fn main() {
         .add_startup_system(setup)
         // .add_startup_system(debug::setup.system())
         .add_state(EmulatorState::Running)
-        // .add_system_to_stage(CoreStage::PreUpdate, keyboard::system.system())
+        .add_system_to_stage(CoreStage::PreUpdate, gamepad::update.system())
         .add_system_set(
             SystemSet::on_update(EmulatorState::Running)
                 .with_system(atari_system.system().label("run_atari"))
@@ -410,7 +460,5 @@ fn main() {
         )
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
-        .add_system(focus::update.system())
-        .add_startup_system(focus::setup.system())
         .run();
 }

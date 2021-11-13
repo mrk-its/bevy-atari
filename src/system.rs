@@ -148,7 +148,7 @@ impl AtariSystem {
     }
 
     #[inline(always)]
-    fn _io_read(&mut self, addr: usize, antic: bool) -> u8 {
+    fn _io_read(&mut self, addr: usize, _antic: bool) -> u8 {
         let addr = usize::from(addr);
         match addr >> 8 {
             0xD0 => self.gtia.read(addr),
@@ -160,7 +160,7 @@ impl AtariSystem {
         }
     }
     #[inline(always)]
-    fn _io_write(&mut self, addr: usize, value: u8, antic: bool) {
+    fn _io_write(&mut self, addr: usize, value: u8, _antic: bool) {
         match addr >> 8 {
             0xD0 => self.gtia.write(addr, value),
             0xD2 => self.pokey.write(addr, value),

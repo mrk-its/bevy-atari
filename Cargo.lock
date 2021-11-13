@@ -974,6 +974,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "emulator_6502"
 version = "1.1.0"
+source = "git+https://github.com/mrk-its/emulator_6502/?branch=speed_improvements#80ea8d6556a111a28bed67de6320077a3bab38e7"
 dependencies = [
  "log",
 ]
@@ -1181,7 +1182,7 @@ checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 [[package]]
 name = "glow"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/glow?branch=read_pixels_into_buffer_offset#366a4b7a46f86b9c1bd58ddfd23ede36a010331d"
+source = "git+https://github.com/grovesNL/glow#f351993708274f0625d4a3428d2da385a4a8cbe7"
 dependencies = [
  "js-sys",
  "slotmap",
@@ -2079,9 +2080,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.69"
+version = "1.0.70"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e466864e431129c7e0d3476b92f20458e5879919a0596c6472738d9fa2d342f8"
+checksum = "e277c495ac6cd1a01a58d0a0c574568b4d1ddf14f59965c6a58b8d96400b54f3"
 dependencies = [
  "itoa",
  "ryu",
