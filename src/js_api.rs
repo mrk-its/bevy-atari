@@ -5,7 +5,6 @@ use wasm_bindgen::prelude::wasm_bindgen;
 #[allow(dead_code)]
 pub static MESSAGES: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]));
 
-
 #[derive(Clone, Debug)]
 pub enum Message {
     JoyState {

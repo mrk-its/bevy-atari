@@ -1,7 +1,7 @@
 use crate::gtia;
-use bevy_atari_antic::{AnticData, ModeLineDescr};
 use crate::system::AtariSystem;
 use bevy_atari_antic::CollisionsData;
+use bevy_atari_antic::{AnticData, ModeLineDescr};
 use emulator_6502::{Interface6502, MOS6502};
 
 mod consts {

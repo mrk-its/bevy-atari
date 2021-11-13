@@ -156,7 +156,7 @@ impl AtariSystem {
             0xD2 => self.pokey.read(addr),
             0xD3 => self.pia.read(addr),
             0xD4 => self.antic.read(addr),
-            _ => 0xff,// panic!("wrong io read address!"),
+            _ => 0xff, // panic!("wrong io read address!"),
         }
     }
     #[inline(always)]

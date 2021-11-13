@@ -127,7 +127,7 @@ impl Pokey {
     #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
         if self.muted {
-            return
+            return;
         }
         // let window = web_sys::window().expect("no global `window` exists");
 
