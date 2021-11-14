@@ -3,4 +3,4 @@
 	url = https://github.com/mrk-its/web-pokey
 [submodule "bevy-atari-antic"]
 	path = bevy-atari-antic
-	url = git@github.com:mrk-its/bevy-atari-antic.git
+	url = https://github.com/mrk-its/bevy-atari-antic/
