@@ -1,18 +1,35 @@
 # bevy-atari - Good Enough Atari XL/XE Emulator
 
-## Features
-* It is build with great [Bevy Game Engine](https://github.com/bevyengine/bevy) and [Bevy WebGL2 plugin](https://github.com/mrk-its/bevy_webgl2), so it compiles to WASM and works in the browser (native builds for Linux / Windows / Mac / Android / iPhone are planned too)
-* uses WebGl2 for rendering and emulates ANTIC / GTIA on GPU, reducing CPU usage.
-* POKEY emulation using WebAudio API
-* GamePad support with Gamepad API
-* Drag & Drop support for ROMs, disk images (ATRs) and XEX files (for both local files and URLs)
+It is written from scratch in Rust language on top of great multiplatform [Bevy Game Engine](https://github.com/bevyengine/bevy)
 
-Few live, fully playable Atari classics:
-* [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#disk_1%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Farch%2FR%2FRobbo%20(L.K.%20Avalon)%2FRobbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex%7C%7Cosrom%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Futils%2F9.%20ROM-y%2FSystemy%20operacyjne%2FAtari%20OS%20v2%2083.10.05.rom)
-* [River Raid](https://mrk.sed.pl/bevy-atari/#disk_1%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Farch%2FR%2FRiver%2520Raid%2FRiver%2520Raid%2520(1983)(Activision)(US).xex%7C%7Cosrom%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Futils%2F9.%2520ROM-y%2FSystemy%2520operacyjne%2FAtari%2520OS%2520v2%252083.10.05.rom)
-* [Boulder Dash](https://mrk.sed.pl/bevy-atari/#disk_1%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Farch%2FB%2FBoulder%2520Dash%2520II%2FBoulder%2520Dash%2520II%2520(1985)(First%2520Star%2520Software)(US).atr%7C%7Cosrom%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Futils%2F9.%2520ROM-y%2FSystemy%2520operacyjne%2FAtari%2520OS%2520v2%252083.10.05.rom)
-* [Zybex](https://mrk.sed.pl/bevy-atari/#disk_1%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Farch%2FZ%2FZybex%2FZybex%2520(19xx)(Callisto%2520Computers)(GB).xex%7C%7Cosrom%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Futils%2F9.%2520ROM-y%2FSystemy%2520operacyjne%2FAtari%2520OS%2520v2%252083.10.05.rom)
-* and many more.
+## Features
+* Cross-platform - primary target is wasm32 running in the browser, but native executables for Linux / Windows / MacOSX can also be build.
+* No pre-configuration required, images configured via URL parameters (it uses CORS proxy to be able to download images from external services)
+* ANTIC / GTIA is emulated on GPU, reducing CPU usage. Requires WebGL2 in the browser.
+* Cycle-accurate 6502 emulation with [emulator_6502](https://github.com/GarettCooper/emulator_6502), with proper DMA cycle stealing.
+* Very good POKEY emulation (including stereo) with [Web-Pokey](https://github.com/mrk-its/web-pokey)
+* 256 kB extended memory by default.
+* ATR disk image support
+* CAR cartrige image support (currently Standard 8k / AtariMax 128k / AtariMax 1M, more will be added if required)
+* GamePad support with Gamepad API
+
+## Known Limitations
+* Simplified ANTIC / GTIA emulation - mid-screen registry changes are not visible on the screen instantly
+* POKEY interrupts are not supported yet.
+* no SIO emulation yet (for now IO is done by SIO patch)
+* only single, read-only disk drive emulation (more drives and write support are planned).
+* no casette image emulation.
+* no integrated debugger yet.
+
+Few live games:
+* [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#http://127.0.0.1:4000/#https://atarionline.pl/arch/R/Robbo%20(L.K.%20Avalon)/Robbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex)
+* [FloB](https://mrk.sed.pl/bevy-atari/#https://bocianu.atari.pl/assets/games/flob.1.0.3b.car)
+* [Gacek (ABBUC 2021)](https://mrk.sed.pl/bevy-atari/#xex=https://atarionline.pl/forum/?PostBackAction=Download&AttachmentID=18196)
+* [Last Squadron (ABBUC 2021 version)](https://mrk.sed.pl/bevy-atari/#disk_1=https://atarionline.pl/forum/?PostBackAction=Download&AttachmentID=15974)
+* [Prince of Persia](https://mrk.sed.pl/bevy-atari/#https://atari.ha.sed.pl/pop.car)
+
+And, as a bonus, multi emulation example:
+* [Atari Wall](https://mrk.sed.pl/bevy-atari/multi/#xex@0=https://atarionline.pl/demoscena/R/Revenge%20of%20Magnus.xex||xex@1=https://atarionline.pl/demoscena/L/Laser%20Demo.xex||car@2=https://atari.ha.sed.pl/pop.car||xex@3=https://atarionline.pl/demoscena/F/Five%20to%20Five.xex||disk_1@5=https://atarionline.pl/demoscena/D/Drunk%20Chessboard.atr||xex@4=https://atarionline.pl/demoscena/cp/Silly%20Venture%202010/Control.xex||disk_1@6=https://atarionline.pl/demoscena/A/Asskicker,%20The%20(128,v2).atr||disk_1@7=https://atarionline.pl/demoscena/I/Isolation%20(128,v2).atr||disk_1@8=https://atari.ha.sed.pl/ferris.xex)
 
 ## Build instructions
 
@@ -24,7 +41,4 @@ cargo install cargo-make
 ```
 cargo make serve
 ```
-and point your browser [here](http://127.0.0.1:4000/#disk_1%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Farch%2FR%2FRiver%2520Raid%2FRiver%2520Raid%2520(1983)(Activision)(US).xex%7C%7Cosrom%3D%3Dhttps%3A%2F%2Fatarionline.pl%2Futils%2F9.%2520ROM-y%2FSystemy%2520operacyjne%2FAtari%2520OS%2520v2%252083.10.05.rom).
-If everything went good you should see:
-
-![Screenshot](assets/screenshot-river-raid.png)
+and point your browser [here](http://127.0.0.1:4000/).
