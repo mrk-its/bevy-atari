@@ -1,12 +1,12 @@
 # bevy-atari - Good Enough Atari XL/XE Emulator
 
-It is written from scratch in Rust language on top of great multiplatform [Bevy Game Engine](https://github.com/bevyengine/bevy)
+It is written from scratch in [Rust](https://www.rust-lang.org/) on the top of great multiplatform [Bevy Game Engine](https://github.com/bevyengine/bevy)
 
 ## Features
 * Cross-platform - primary target is wasm32 running in the browser, but native executables for Linux / Windows / MacOSX can also be build.
 * No pre-configuration required, images configured via URL parameters (it uses CORS proxy to be able to download images from external services)
 * ANTIC / GTIA is emulated on GPU, reducing CPU usage. Requires WebGL2 in the browser.
-* Cycle-accurate 6502 emulation with [emulator_6502](https://github.com/GarettCooper/emulator_6502), with proper DMA cycle stealing.
+* Cycle-accurate 6502 emulation using [emulator_6502](https://github.com/GarettCooper/emulator_6502), with invalid opcodes and proper DMA cycle stealing.
 * Very good POKEY emulation (including stereo) with [Web-Pokey](https://github.com/mrk-its/web-pokey)
 * 256 kB extended memory by default.
 * ATR disk image support
@@ -20,6 +20,7 @@ It is written from scratch in Rust language on top of great multiplatform [Bevy 
 * only single, read-only disk drive emulation (more drives and write support are planned).
 * no casette image emulation.
 * no integrated debugger yet.
+* No POKEY emulation in native builds yet (planned)
 
 Few live games:
 * [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#http://127.0.0.1:4000/#https://atarionline.pl/arch/R/Robbo%20(L.K.%20Avalon)/Robbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex)
