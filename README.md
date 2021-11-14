@@ -1,6 +1,8 @@
 # bevy-atari - Good Enough Atari XL/XE Emulator
 
 It is written from scratch in [Rust](https://www.rust-lang.org/) on the top of great multiplatform [Bevy Game Engine](https://github.com/bevyengine/bevy)
+It is still far from perfect (and won't compete with Alirra for emulation quality), but already good enough to run a lot of Atari software directly in the browser window.
+
 
 ## Features
 * Cross-platform - primary target is wasm32 running in the browser, but native executables for Linux / Windows / MacOSX can also be build.
@@ -21,6 +23,8 @@ It is written from scratch in [Rust](https://www.rust-lang.org/) on the top of g
 * no casette image emulation.
 * no integrated debugger yet.
 * No POKEY emulation in native builds yet (planned)
+
+There are also tons of other bugs, causing screen glitches or simply crashing emulated programs. If you find any, or if you simply have a feature request, please fill an [issue](https://github.com/mrk-its/bevy-atari/issues)
 
 Few live games:
 * [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#http://127.0.0.1:4000/#https://atarionline.pl/arch/R/Robbo%20(L.K.%20Avalon)/Robbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex)
