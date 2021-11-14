@@ -33,6 +33,7 @@ pub struct AtariSystem {
     ram_mask: Vec<u8>,
     osrom: [u8; 0x4000],
     basic: Option<[u8; 0x2000]>,
+    ext_mem_bank_mask: Option<usize>,
     pub antic: Antic,
     pub gtia: Gtia,
     pub pokey: Pokey,
@@ -45,6 +46,14 @@ unsafe impl Send for AtariSystem {}
 unsafe impl Sync for AtariSystem {}
 
 type MemBank = [u8; 2048];
+
+#[allow(dead_code)]
+const MEM_64: Option<usize> = None;
+#[allow(dead_code)]
+const MEM_128: Option<usize> = Some(3);
+#[allow(dead_code)]
+const MEM_320: Option<usize> = Some(15);
+
 
 impl AtariSystem {
     pub fn new() -> AtariSystem {
@@ -66,6 +75,7 @@ impl AtariSystem {
         let write_banks = [0 as *mut MemBank; 32];
 
         let mut atari_system = AtariSystem {
+            ext_mem_bank_mask: MEM_320,
             consol,
             joystick,
             ram,
@@ -135,12 +145,14 @@ impl AtariSystem {
     }
 
     fn bank_offset(&self, addr: usize, antic: bool) -> usize {
-        if !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
-            || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG)
-        {
+        let ext_mem_req = !antic && !self.pia.portb_out().contains(PORTB::CPU_SELECT_NEG)
+            || antic && !self.pia.portb_out().contains(PORTB::ANITC_SELECT_NEG);
+
+        if let (true, Some(mask)) = (ext_mem_req, self.ext_mem_bank_mask) {
             let portb = self.pia.portb_out().bits;
-            // let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
-            let bank_nr = (portb & 0b1100) as usize >> 2;
+            let bank_nr = (((portb & 0b1100) + ((portb & 0xc0) >> 2)) as usize) >> 2;
+            let bank_nr = bank_nr & mask;
+            // let bank_nr = (portb & 0b1100) as usize >> 2;
             (addr & 0x3fff) + 0x10000 + (bank_nr * 16384)
         } else {
             addr
