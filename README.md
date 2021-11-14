@@ -7,7 +7,7 @@ It is still far from perfect (and won't compete with Alirra for emulation qualit
 ## Features
 * Cross-platform - primary target is wasm32 running in the browser, but native executables for Linux / Windows / MacOSX can also be build.
 * No pre-configuration required, images configured via URL parameters (it uses CORS proxy to be able to download images from external services)
-* ANTIC / GTIA is emulated on GPU, reducing CPU usage. Requires WebGL2 in the browser.
+* ANTIC / GTIA is emulated on GPU (using this [fragment shader](https://github.com/mrk-its/bevy-atari-antic/blob/main/src/render/antic.wgsl)), reducing CPU usage of single browser thread. Requires WebGL2 in the browser.
 * Cycle-accurate 6502 emulation using [emulator_6502](https://github.com/GarettCooper/emulator_6502), with invalid opcodes and proper DMA cycle stealing.
 * Very good POKEY emulation (including stereo) with [Web-Pokey](https://github.com/mrk-its/web-pokey)
 * 256 kB extended memory by default.
