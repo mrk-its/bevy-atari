@@ -84,14 +84,9 @@ function parse_part(part) {
 }
 
 function parse_fragment() {
-  let hash = document.location.hash.substring(1);
-  let old_format = hash.indexOf("||") == -1 && decodeURIComponent(hash).indexOf("||") > 0;
-  if(old_format) {
-    let ret = decodeURIComponent(hash).split("||").map(k => k.split("=="))
-    set_fragment(ret);
-    return ret;
-  }
-  return hash.split("||").map(parse_part)
+  let hash = document.location.hash.substring(1)
+  let sep = new RegExp('\\|\\||&&')
+  return hash.split(sep).map(parse_part)
 }
 
 function set_fragment(parts) {

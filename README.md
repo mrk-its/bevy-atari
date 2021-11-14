@@ -30,7 +30,7 @@ Few live games:
 * [Prince of Persia](https://mrk.sed.pl/bevy-atari/#https://atari.ha.sed.pl/pop.car)
 
 And, as a bonus, multi emulation example:
-* [Atari Wall](https://mrk.sed.pl/bevy-atari/multi/#xex@0=https://atarionline.pl/demoscena/R/Revenge%20of%20Magnus.xex||xex@1=https://atarionline.pl/demoscena/L/Laser%20Demo.xex||car@2=https://atari.ha.sed.pl/pop.car||xex@3=https://atarionline.pl/demoscena/F/Five%20to%20Five.xex||disk_1@5=https://atarionline.pl/demoscena/D/Drunk%20Chessboard.atr||xex@4=https://atarionline.pl/demoscena/cp/Silly%20Venture%202010/Control.xex||disk_1@6=https://atarionline.pl/demoscena/A/Asskicker,%20The%20(128,v2).atr||disk_1@7=https://atarionline.pl/demoscena/I/Isolation%20(128,v2).atr||disk_1@8=https://atari.ha.sed.pl/ferris.xex)
+* [Atari Wall](https://mrk.sed.pl/bevy-atari/multi/#xex@0=https://atarionline.pl/demoscena/R/Revenge%20of%20Magnus.xex&&xex@1=https://atarionline.pl/demoscena/L/Laser%20Demo.xex&&car@2=https://atari.ha.sed.pl/pop.car&&xex@3=https://atarionline.pl/demoscena/F/Five%20to%20Five.xex&&disk_1@5=https://atarionline.pl/demoscena/D/Drunk%20Chessboard.atr&&xex@4=https://atarionline.pl/demoscena/cp/Silly%20Venture%202010/Control.xex&&disk_1@6=https://atarionline.pl/demoscena/A/Asskicker,%20The%20(128,v2).atr&&disk_1@7=https://atarionline.pl/demoscena/I/Isolation%20(128,v2).atr&&disk_1@8=https://atari.ha.sed.pl/ferris.xex)
 
 ## Build instructions
 
