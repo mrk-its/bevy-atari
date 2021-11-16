@@ -13,10 +13,27 @@ export var audio_context;
 
 var atr_images = {}
 
-class ATR {
-  constructor(data, file_handle) {
+class Binary {
+  constructor(data, file_name, url, file_handle) {
+    this.emulator_loadable = true
     this.data = data
     this.file_handle = file_handle
+    this.file_name = file_name
+    this.url = url
+  }
+}
+
+class ATR extends Binary {
+  constructor(data, file_name, url, file_handle) {
+
+    if(data[0] == 255 && data[1] == 255) {
+      data = xex2atr(data);
+      file_handle = null;
+      file_name = "[auto-k-file].atr";
+    }
+
+    super(data, file_name, url, file_handle)
+    this.emulator_loadable = false
     if (data[0] != 0x96 || data[1] != 0x2) throw "bad atr magic!";
     this.sector_size = data[4] + 256 * data[5];
     if (this.sector_size != 128 && this.sector_size != 256) {
@@ -34,14 +51,15 @@ class ATR {
   }
 }
 
+
 class GUI {
   constructor() {
-    this.atrImages = {}
+    this.binaries = {}
   }
 
-  createDiskSlot(drive) {
-    let container = $('<div>', { "id": `drive_${drive}` })
-    $("<span>", { "class": "label" }).text(`Disk ${drive - 48}`).appendTo(container)
+  createSlot(id, name, klass) {
+    let container = $('<div>', { "id": id })
+    $("<span>", { "class": "label" }).text(name).appendTo(container)
     $("<span>", { "class": "name" }).appendTo(container)
     let actions = $('<div>').addClass("actions")
 
@@ -55,22 +73,32 @@ class GUI {
         let handle = (await window.showOpenFilePicker())[0];
         let file = await handle.getFile();
         let buffer = new Uint8Array(await file.arrayBuffer());
-        _this.setAtr(drive, new ATR(buffer, handle), file.name);
+        _this.setBinary(id, new klass(buffer, file.name, null, handle));
       })
 
       save_action.click(async (e) => {
         e.preventDefault();
-        let atr = _this.getAtr(drive)
+        let atr = _this.getBinary(id)
         if (!atr || !atr.file_handle) {
-          console.warn("no handle")
-          return;
+          if(!atr) {
+            console.warn("no atr");
+            return;
+          }
+          // console.warn("no handle")
+          let options = { suggestedName: atr.file_name }
+          let handle = await window.showSaveFilePicker(options);
+          let file = await handle.getFile()
+          atr.file_name = file.name
+          atr.file_handle = handle
+          atr.url = null;
+          _this.setBinary(id, atr)  // update
         }
         let version = atr.version;
         let writable = await atr.file_handle.createWritable();
         writable.write(atr.data)
         writable.close()
         if (atr.version == version) {
-          $(`#drive_${drive}`).removeClass("modified")
+          $(`#${id}`).removeClass("modified")
         }
       });
     } else {
@@ -80,12 +108,12 @@ class GUI {
         var file = e.target.files[0];
         if (file) {
           let buffer = new Uint8Array(await file.arrayBuffer());
-          _this.setAtr(drive, new ATR(buffer), file.name);
+          _this.setBinary(id, new klass(buffer, file.name, null, null));
         }
       })
       save_action.click(async e => {
-        let cont = $(`#drive_${drive}`)
-        let atr = _this.getAtr(drive)
+        let cont = $(`#${id}`)
+        let atr = _this.getBinary(id)
         let blob_url = URL.createObjectURL(new Blob([atr.data]))
         save_action.attr("href", blob_url).attr("download", cont.find("span.name").text())
       })
@@ -96,45 +124,57 @@ class GUI {
 
     eject.click((e) => {
       e.preventDefault();
-      _this.ejectAtr(drive);
+      let binary = _this.ejectBinary(id);
+      if(binary && binary.url)
+        set_fragment(parse_fragment().filter(k => k[1] != binary.url))
     })
     container.append(actions)
     return container;
   }
 
   createInterface() {
-    $('div.files').append(this.createDiskSlot(49)).append(this.createDiskSlot(50))
+    $('div.files')
+      .append(this.createSlot("osrom", "OS", Binary))
+      .append(this.createSlot("basic", "Basic", Binary))
+      .append(this.createSlot("car", "Cartridge", Binary))
+      .append(this.createSlot("disk_1", "Disk 1", ATR))
+      .append(this.createSlot("disk_2", "Disk 2", ATR));
   }
 
-  setAtr(drive, atr, filename) {
-    this.atrImages[drive] = atr
-    let cont = $(`#drive_${drive}`)
-    atr.on_modify = () => {
+  setBinary(id, binary) {
+    this.binaries[id] = binary
+    if(binary.emulator_loadable)
+      set_binary_data(id, binary.file_name, binary.data)
+    let cont = $(`#${id}`)
+    binary.on_modify = () => {
       cont.addClass("modified")
     }
     cont.addClass("loaded")
-    cont.find("span.name").text(filename)
+    cont.find("span.name").text(binary.file_name || 'no-name')
 
   }
-  ejectAtr(drive) {
-    delete this.atrImages[drive]
-    let cont = $(`#drive_${drive}`)
+  ejectBinary(id) {
+    let binary = this.binaries[id]
+    delete this.binaries[id]
+    let cont = $(`#${id}`)
     cont.removeClass("loaded")
     cont.find("span.name").text("")
+    if(binary.emulator_loadable) set_binary_data(id, "", [])
+    return binary
   }
-  getAtr(drive) {
-    return this.atrImages[drive]
+  getBinary(id) {
+    return this.binaries[id]
   }
 }
 
 function sio_get_status(drive) {
-  let ret = window.gui.getAtr(drive) ? 0x01 : 0xff
+  let ret = window.gui.getBinary(`disk_${drive - 48}`) ? 0x01 : 0xff
   console.log(`sio_get_status drive: ${drive}, status: ${ret}`);
   return ret
 }
 
 function sio_get_sector(drive, sector, data) {
-  let atr = window.gui.getAtr(drive)
+  let atr = window.gui.getBinary(`disk_${drive - 48}`)
   var status;
   if (atr) {
     data.set(atr.get_sector(sector))
@@ -147,7 +187,7 @@ function sio_get_sector(drive, sector, data) {
 }
 
 function sio_put_sector(drive, sector, data) {
-  let atr = window.gui.getAtr(drive)
+  let atr = window.gui.getBinary(`disk_${drive - 48}`)
   var status;
   if (atr) {
     atr.put_sector(sector, data)
@@ -229,14 +269,13 @@ function xex2atr(data) {
 
 function parse_part(part) {
   let m = part.match("^(\\w+)(@(\\d+))?=(.*)");
-  console.log("HERE", part, m);
   return m && [m[1], m[4], m[3]] || [null, part, null]
 }
 
 function parse_fragment() {
   let hash = document.location.hash.substring(1)
   let sep = new RegExp('\\|\\||&&')
-  return hash.split(sep).map(parse_part)
+  return hash.split(sep).map(parse_part).filter( i => i[1] && i[1].length)
 }
 
 function set_fragment(parts) {
@@ -248,7 +287,6 @@ export function eject(event) {
   let node = event.target.parentNode.parentNode;
   let key = node.attributes.id.value;
   let url = node.attributes["data-url"].value;
-  set_fragment(parse_fragment().filter(k => k[1] != url))
 }
 
 function set_binary(key, url, data, slot) {
@@ -279,24 +317,21 @@ function set_binary(key, url, data, slot) {
         return;
       }
     } else if (ext == "xex") {
+      let is_valid = (data[0] == 255 && data[1] == 255);
+      if(is_valid) {
+        key = "disk_1"
+      } else {
+        console.warn("invalid xex header");
+        return;
+      }
       // handled below
     } else {
       console.warn("unknown type of file", filename);
       return
     }
   }
-  if (key == "xex" || ext == "xex") {
-    filename = filename.substring(0, filename.length - 4) + "[auto-k-file].atr";
-    data = xex2atr(data)
-    key = "disk_1"
-  }
-  if (key == "disk_1") {
-    console.log("disk image: ", key, filename, data, slot);
-    window.gui.setAtr(0x31, new ATR(data, null), filename);
-  } else {
-    set_binary_data(key, filename, data, slot);
-  }
-  update_status(key, url);
+  let klass = key.startsWith("disk_") ? ATR : Binary;
+  window.gui.setBinary(key, new klass(data, filename, url));
   return key;
 }
 
@@ -373,21 +408,6 @@ function set_title(text) {
   if (title) title.innerText = text;
 }
 
-function update_status(key, url) {
-  if (key == "disk_1") return;
-  console.log("update_status", key, url)
-  let fn = url && url_to_filename(url) || url;
-  let sel = document.querySelector(`#${key} span`);
-  if (sel)
-    sel.parentElement.setAttribute('data-url', url)
-  if (fn) {
-    sel.innerText = fn;
-    if (key == 'disk_1') set_title(fn);
-  } else {
-    sel.innerHTML = '<span style="color: #ccc"></span>';
-  }
-}
-
 async function reload_from_fragment() {
   console.log("calling set_state: idle");
   set_state("idle");
@@ -404,9 +424,7 @@ async function reload_from_fragment() {
   }
   let to_remove = BINARY_KEYS.filter(x => !result_set.has(x))
   for (let key of to_remove) {
-    console.log("removing:", key);
     set_binary_data(key, "", []);
-    update_status(key, null);
   }
   reset(true, true);
   console.log("calling set_state: running");
@@ -415,19 +433,6 @@ async function reload_from_fragment() {
 
 function blur() {
   document.activeElement.blur();
-}
-async function open_local_file(event) {
-  event.preventDefault();
-  // let handles = await window.showOpenFilePicker();
-  // for(handle of handles) {
-  //   let file = await handle.getFile();
-  //   handle_file(file);
-  // }
-  for (file of event.target.files) {
-    console.log(file);
-    handle_file(file);
-  }
-  event.target.value = "";
 }
 
 function auto_focus() {

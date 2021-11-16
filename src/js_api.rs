@@ -52,7 +52,6 @@ pub fn set_consol(state: u8) {
 pub fn set_binary_data(key: String, filename: String, data: Vec<u8>, slot: Option<i32>) {
     let mut messages = MESSAGES.write();
     let data = if data.len() > 0 { Some(data) } else { None };
-    bevy::log::info!("slot: {:?}", slot);
     messages.push(Message::BinaryData {
         key,
         filename,

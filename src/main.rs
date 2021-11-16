@@ -257,7 +257,6 @@ fn events(
                                 atari_system.set_basic(data);
                             }
                             "osrom" => {
-                                bevy::log::info!("set osrom");
                                 atari_system.set_osrom(data);
                             }
                             "disk_1" => {
