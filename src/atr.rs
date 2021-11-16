@@ -26,4 +26,9 @@ impl ATR {
             None
         }
     }
+    pub fn put_sector(&mut self, n: usize, data: &[u8]) {
+        let start = (n - 1) * self.sector_size;
+        let end = start + self.sector_size;
+        self.data[start..end].copy_from_slice(data);
+    }
 }

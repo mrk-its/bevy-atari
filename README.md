@@ -27,7 +27,7 @@ It is still far from perfect (and won't compete with Alirra for emulation qualit
 There are also tons of other bugs, causing screen glitches or simply crashing emulated programs. If you find any, or if you simply have a feature request, please fill an [issue](https://github.com/mrk-its/bevy-atari/issues)
 
 Few live games:
-* [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#http://127.0.0.1:4000/#https://atarionline.pl/arch/R/Robbo%20(L.K.%20Avalon)/Robbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex)
+* [Avalon Robbo (demo)](https://mrk.sed.pl/bevy-atari/#https://atarionline.pl/arch/R/Robbo%20(L.K.%20Avalon)/Robbo%20(demo)%20(1989)(L.K.%20Avalon)(PL).xex)
 * [FloB](https://mrk.sed.pl/bevy-atari/#https://bocianu.atari.pl/assets/games/flob.1.0.3b.car)
 * [Gacek (ABBUC 2021)](https://mrk.sed.pl/bevy-atari/#xex=https://atarionline.pl/forum/?PostBackAction=Download&AttachmentID=18196)
 * [Last Squadron (ABBUC 2021 version)](https://mrk.sed.pl/bevy-atari/#disk_1=https://atarionline.pl/forum/?PostBackAction=Download&AttachmentID=15974)

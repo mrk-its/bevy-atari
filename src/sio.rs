@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
 
 use crate::system::AtariSystem;
+use crate::js_api;
 
 #[allow(dead_code)]
 mod consts {
@@ -25,17 +26,11 @@ fn set_sio_status(cpu: &mut MOS6502, atari_system: &mut AtariSystem, status: u8)
 pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
     let device = atari_system.read(DDEVIC);
     let cmd = atari_system.read(DCMND);
+    bevy::log::info!("device {:x?} cmd: {:x?}", device, cmd);
     let status = if device == 0x31 {
         match cmd {
             0x53 => {
-                // status
-                // info!("dskint: read status");
-                if let Some(_) = atari_system.disk_1 {
-                    0x01
-                } else {
-                    0xff
-                }
-                // 0x01
+                js_api::sio_get_status(device)
             }
             0x52 => {
                 // read
@@ -46,18 +41,22 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
                     "SIO read: addr: {:04x}, sector: {:x}, len: {:x}",
                     addr, sector, len
                 );
-                // TODO: unnecessary copy
-                if let Some(data) = atari_system
-                    .disk_1
-                    .as_ref()
-                    .and_then(|atr| atr.get_sector(sector as usize).map(|f| f.to_owned()))
-                {
-                    assert!(data.len() == len as usize);
-                    atari_system.copy_from_slice(addr, &data);
-                    0x01
-                } else {
-                    0xff
-                }
+                let mut data = vec![0; len as usize];
+                let ret = js_api::sio_get_sector(device, sector, &mut data);
+                atari_system.copy_from_slice(addr, &data);
+                ret
+            }
+            0x50 | 0x57 => {
+                let addr = atari_system.readw(DBUFA);
+                let sector = atari_system.readw(DAUX1);
+                let len = atari_system.readw(DBYT);
+                debug!(
+                    "SIO write: addr: {:04x}, sector: {:x}, len: {:x}",
+                    addr, sector, len
+                );
+                let mut data = vec![0; len as usize];
+                atari_system.copy_to_slice(addr, &mut data);
+                js_api::sio_put_sector(device, sector, &data)
             }
             _ => {
                 warn!("unknown SIO command: {:02x}", cmd);

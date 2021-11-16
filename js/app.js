@@ -1,66 +1,216 @@
 import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from '../target/wasm.js'
 
-import {SAPWriter} from './sap_writer.js'
+import { SAPWriter } from './sap_writer.js'
 
 const k_file_header = [150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137, 0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196, 7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0, 141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6, 165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173, 226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8, 208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0, 133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11, 133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9, 32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172, 121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169, 82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3, 169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32, 89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11, 173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140, 118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0];
 
 const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car'];
 const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
 
-var sap_writer=null;
+var sap_writer = null;
 var pokeyNode;
 export var audio_context;
 
-export function rec_start_stop(event) {
-    let button = event.target
-    if(sap_writer == null) {
-        let is_stereo = $("#sap-r-writer input.stereo").is(":checked")
-        let trim = $("#sap-r-writer input.trim").is(":checked")
-        console.log("trim:", trim)
-        sap_writer = new SAPWriter(is_stereo, trim)
-        button.innerText = 'Stop';
-        document.getElementById("download_url").innerHTML = ''
-    } else {
-        let writer = sap_writer
-        sap_writer = null
-        button.innerText='Rec'
-        let writer_div = $("#sap-r-writer")
-        let author = writer_div.find("input[name=author]").val()
-        let name = writer_div.find("input[name=name]").val()
+var atr_images = {}
 
-        var parts = []
-        var sap_headers = []
-        if(name) {
-            parts.push(name)
-            sap_headers.push(`NAME "${name}"`)
-        }
-        if(author) {
-            parts.push(author)
-            sap_headers.push(`AUTHOR "${author}"`)
-        }
-        let fn = parts.join("_") || "file"
-
-        let sap_data = writer.get_sap(sap_headers)
-        var blobUrl = URL.createObjectURL(new Blob([sap_data.buffer]))
-
-
-        var link = document.getElementById("download_url")
-        link.href = blobUrl
-        link.download = `${fn}.sap`
-        link.innerHTML = "download"
+class ATR {
+  constructor(data, file_handle) {
+    this.data = data
+    this.file_handle = file_handle
+    if (data[0] != 0x96 || data[1] != 0x2) throw "bad atr magic!";
+    this.sector_size = data[4] + 256 * data[5];
+    if (this.sector_size != 128 && this.sector_size != 256) {
+      throw `invalid sector size: ${this.sector_size}`
     }
+    this.version = 0
+  }
+  get_sector(sector) {
+    return this.data.subarray(16 + (sector - 1) * this.sector_size, 16 + sector * this.sector_size);
+  }
+  put_sector(sector, data) {
+    this.get_sector(sector).set(data);
+    this.version += 1;
+    if (this.on_modify) this.on_modify()
+  }
+}
+
+class GUI {
+  constructor() {
+    this.atrImages = {}
+  }
+
+  createDiskSlot(drive) {
+    let container = $('<div>', { "id": `drive_${drive}` })
+    $("<span>", { "class": "label" }).text(`Disk ${drive - 48}`).appendTo(container)
+    $("<span>", { "class": "name" }).appendTo(container)
+    let actions = $('<div>').addClass("actions")
+
+    let _this = this
+
+    if (window.showOpenFilePicker) {
+      let save_action = $("<a>", { "class": "save" }).attr("href", "#").text("save").appendTo(actions)
+      let open_action = $("<a>", { "class": "open", "href": "#" }).text("open").appendTo(actions);
+      open_action.click(async (e) => {
+        e.preventDefault();
+        let handle = (await window.showOpenFilePicker())[0];
+        let file = await handle.getFile();
+        let buffer = new Uint8Array(await file.arrayBuffer());
+        _this.setAtr(drive, new ATR(buffer, handle), file.name);
+      })
+
+      save_action.click(async (e) => {
+        e.preventDefault();
+        let atr = _this.getAtr(drive)
+        if (!atr || !atr.file_handle) {
+          console.warn("no handle")
+          return;
+        }
+        let version = atr.version;
+        let writable = await atr.file_handle.createWritable();
+        writable.write(atr.data)
+        writable.close()
+        if (atr.version == version) {
+          $(`#drive_${drive}`).removeClass("modified")
+        }
+      });
+    } else {
+      let save_action = $("<a>", { "class": "save" }).attr("href", "#").text("save").appendTo(actions)
+      let open_action = $("<input type='file'>").addClass("custom-file-input").appendTo(actions)
+      open_action.change(async e => {
+        var file = e.target.files[0];
+        if (file) {
+          let buffer = new Uint8Array(await file.arrayBuffer());
+          _this.setAtr(drive, new ATR(buffer), file.name);
+        }
+      })
+      save_action.click(async e => {
+        let cont = $(`#drive_${drive}`)
+        let atr = _this.getAtr(drive)
+        let blob_url = URL.createObjectURL(new Blob([atr.data]))
+        save_action.attr("href", blob_url).attr("download", cont.find("span.name").text())
+      })
+    }
+
+    let eject = $("<a>", { "class": "eject", "href": "#" }).text("eject").appendTo(actions);
+
+
+    eject.click((e) => {
+      e.preventDefault();
+      _this.ejectAtr(drive);
+    })
+    container.append(actions)
+    return container;
+  }
+
+  createInterface() {
+    $('div.files').append(this.createDiskSlot(49)).append(this.createDiskSlot(50))
+  }
+
+  setAtr(drive, atr, filename) {
+    this.atrImages[drive] = atr
+    let cont = $(`#drive_${drive}`)
+    atr.on_modify = () => {
+      cont.addClass("modified")
+    }
+    cont.addClass("loaded")
+    cont.find("span.name").text(filename)
+
+  }
+  ejectAtr(drive) {
+    delete this.atrImages[drive]
+    let cont = $(`#drive_${drive}`)
+    cont.removeClass("loaded")
+    cont.find("span.name").text("")
+  }
+  getAtr(drive) {
+    return this.atrImages[drive]
+  }
+}
+
+function sio_get_status(drive) {
+  let ret = window.gui.getAtr(drive) ? 0x01 : 0xff
+  console.log(`sio_get_status drive: ${drive}, status: ${ret}`);
+  return ret
+}
+
+function sio_get_sector(drive, sector, data) {
+  let atr = window.gui.getAtr(drive)
+  var status;
+  if (atr) {
+    data.set(atr.get_sector(sector))
+    status = 0x01;
+  } else {
+    status = 0xff;
+  }
+  console.log(`sio_get_sector drive: ${drive}, sector: ${sector}, len: ${data.length}, status: ${status}`);
+  return status;
+}
+
+function sio_put_sector(drive, sector, data) {
+  let atr = window.gui.getAtr(drive)
+  var status;
+  if (atr) {
+    atr.put_sector(sector, data)
+    status = 0x1;
+  } else {
+    status = 0xff;
+  }
+
+  console.log(`sio_put_sector drive: ${drive}, sector: ${sector}, len: ${data.length}, status: ${status}`);
+  return status;
+}
+
+export function rec_start_stop(event) {
+  let button = event.target
+  if (sap_writer == null) {
+    let is_stereo = $("#sap-r-writer input.stereo").is(":checked")
+    let trim = $("#sap-r-writer input.trim").is(":checked")
+    console.log("trim:", trim)
+    sap_writer = new SAPWriter(is_stereo, trim)
+    button.innerText = 'Stop';
+    document.getElementById("download_url").innerHTML = ''
+  } else {
+    let writer = sap_writer
+    sap_writer = null
+    button.innerText = 'Rec'
+    let writer_div = $("#sap-r-writer")
+    let author = writer_div.find("input[name=author]").val()
+    let name = writer_div.find("input[name=name]").val()
+
+    var parts = []
+    var sap_headers = []
+    if (name) {
+      parts.push(name)
+      sap_headers.push(`NAME "${name}"`)
+    }
+    if (author) {
+      parts.push(author)
+      sap_headers.push(`AUTHOR "${author}"`)
+    }
+    let fn = parts.join("_") || "file"
+
+    let sap_data = writer.get_sap(sap_headers)
+    var blobUrl = URL.createObjectURL(new Blob([sap_data.buffer]))
+
+
+    var link = document.getElementById("download_url")
+    link.href = blobUrl
+    link.download = `${fn}.sap`
+    link.innerHTML = "download"
+  }
 }
 
 $(window).bind("sap_writer", event => {
-    let data = event.originalEvent.data;
-    $("#sap-r-writer .time-info").text(`${data.duration} / ${(data.data_size / 1024).toFixed(1)} kB`)
+  let data = event.originalEvent.data;
+  $("#sap-r-writer .time-info").text(`${data.duration} / ${(data.data_size / 1024).toFixed(1)} kB`)
 });
 
 function pokey_post_message(msg) {
   pokeyNode.port.postMessage(msg);
-  if(sap_writer)
+  if (sap_writer)
     sap_writer.handle_pokey_msg(msg)
 }
+
 
 function xex2atr(data) {
   let n_sectors = Math.floor((data.length + 127) / 128) + 3;
@@ -104,8 +254,8 @@ export function eject(event) {
 function set_binary(key, url, data, slot) {
   var filename = url_to_filename(url);
   let parts = filename.split(".")
-  let ext = parts[parts.length-1];
-  if(!key) {
+  let ext = parts[parts.length - 1];
+  if (!key) {
     // guess type of binary
     if (ext == "rom" || ext == "bin") {
       if (data.length == 0x4000) {
@@ -128,7 +278,7 @@ function set_binary(key, url, data, slot) {
         console.warn("unsupported ATR file");
         return;
       }
-    } else if(ext == "xex") {
+    } else if (ext == "xex") {
       // handled below
     } else {
       console.warn("unknown type of file", filename);
@@ -140,7 +290,12 @@ function set_binary(key, url, data, slot) {
     data = xex2atr(data)
     key = "disk_1"
   }
-  set_binary_data(key, filename, data, slot);
+  if (key == "disk_1") {
+    console.log("disk image: ", key, filename, data, slot);
+    window.gui.setAtr(0x31, new ATR(data, null), filename);
+  } else {
+    set_binary_data(key, filename, data, slot);
+  }
   update_status(key, url);
   return key;
 }
@@ -215,17 +370,19 @@ export function on_hash_change() {
 
 function set_title(text) {
   let title = document.querySelector("title");
-  if(title) title.innerText = text;
+  if (title) title.innerText = text;
 }
 
 function update_status(key, url) {
+  if (key == "disk_1") return;
+  console.log("update_status", key, url)
   let fn = url && url_to_filename(url) || url;
   let sel = document.querySelector(`#${key} span`);
-  if(sel)
+  if (sel)
     sel.parentElement.setAttribute('data-url', url)
   if (fn) {
     sel.innerText = fn;
-    if(key == 'disk_1') set_title(fn);
+    if (key == 'disk_1') set_title(fn);
   } else {
     sel.innerHTML = '<span style="color: #ccc"></span>';
   }
@@ -241,7 +398,7 @@ async function reload_from_fragment() {
   };
   let result = await Promise.all(todo);
   let result_set = new Set(result);
-  if(!result_set.has("osrom")) {
+  if (!result_set.has("osrom")) {
     await fetch_binary_data(null, DEFAULT_OSROM_URL);
     result_set.add("osrom");
   }
@@ -274,46 +431,53 @@ async function open_local_file(event) {
 }
 
 function auto_focus() {
-    let canvas = document.getElementsByTagName("canvas");
-    if (!canvas.length) {
-      setTimeout(auto_focus, 100);
-    } else {
-      canvas[0].focus();
-    }
+  let canvas = document.getElementsByTagName("canvas");
+  if (!canvas.length) {
+    setTimeout(auto_focus, 100);
+  } else {
+    canvas[0].focus();
   }
+}
+
 
 export async function run() {
-    console.log("initialized")
-    var latencyHint = parseFloat(localStorage.latencyHint);
-    if(!(latencyHint>=0)) latencyHint = localStorage.latencyHint || "interactive";
-    console.log("latencyHint: ", latencyHint);
-    let audio_context = new AudioContext({
-        sampleRate: 56000,
-        latencyHint: latencyHint,
-    });
-    console.log("sampleRate: ", audio_context.sampleRate);
-    await audio_context.audioWorklet.addModule('pokey/pokey.js')
-    pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
-        outputChannelCount: [2],  // stereo
-    })
-    pokeyNode.connect(audio_context.destination)
+  console.log("initialized")
+  var latencyHint = parseFloat(localStorage.latencyHint);
+  if (!(latencyHint >= 0)) latencyHint = localStorage.latencyHint || "interactive";
+  console.log("latencyHint: ", latencyHint);
+  let audio_context = new AudioContext({
+    sampleRate: 56000,
+    latencyHint: latencyHint,
+  });
+  console.log("sampleRate: ", audio_context.sampleRate);
+  await audio_context.audioWorklet.addModule('pokey/pokey.js')
+  pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
+    outputChannelCount: [2],  // stereo
+  })
+  pokeyNode.connect(audio_context.destination)
 
-    document.addEventListener(
-        'visibilitychange',
-        e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
-    );
-    window.pokey_post_message = pokey_post_message
-    window.audio_context = audio_context
-    window.cmd = cmd
+  document.addEventListener(
+    'visibilitychange',
+    e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
+  );
+  window.pokey_post_message = pokey_post_message
+  window.audio_context = audio_context
+  window.cmd = cmd
 
-    try {
-      await init()
-    } catch (e) {
-      !e.toString().match("This isn't actually an error") && console.error(e);
-    }
+  window.sio_get_sector = sio_get_sector;
+  window.sio_get_status = sio_get_status;
+  window.sio_put_sector = sio_put_sector;
 
+  try {
+    await init()
+  } catch (e) {
+    !e.toString().match("This isn't actually an error") && console.error(e);
+  }
 
-    reload_from_fragment();
-    auto_focus()
+  window.gui = new GUI()
+  window.gui.createInterface();
+
+  reload_from_fragment();
+  auto_focus()
 
 }
