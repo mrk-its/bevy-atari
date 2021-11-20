@@ -16,12 +16,6 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "ahash"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
-
-[[package]]
-name = "ahash"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcb51a0695d8f838b1ee009b3fbf66bda078cd64590202a864a8f3e8c4315c47"
@@ -75,9 +69,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.45"
+version = "1.0.47"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee10e43ae4a853c0a3591d4e2ada1719e553be18199d9da9d4a83f5927c2f5c7"
+checksum = "38d9ff5d688f1c13395289f67db01d4826b46dd694e7580accdc3e8430f2d98e"
 
 [[package]]
 name = "arrayvec"
@@ -146,7 +140,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bevy"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_internal",
 ]
@@ -154,7 +148,7 @@ dependencies = [
 [[package]]
 name = "bevy_app"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_derive",
  "bevy_ecs",
@@ -167,7 +161,7 @@ dependencies = [
 [[package]]
 name = "bevy_asset"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -227,7 +221,7 @@ dependencies = [
 [[package]]
 name = "bevy_core"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -242,7 +236,7 @@ dependencies = [
 [[package]]
 name = "bevy_core_pipeline"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -254,7 +248,7 @@ dependencies = [
 [[package]]
 name = "bevy_derive"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "Inflector",
  "bevy_macro_utils",
@@ -265,7 +259,7 @@ dependencies = [
 [[package]]
 name = "bevy_diagnostic"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_core",
@@ -277,7 +271,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "async-channel",
  "bevy_ecs_macros",
@@ -295,7 +289,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs_macros"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -306,7 +300,7 @@ dependencies = [
 [[package]]
 name = "bevy_gilrs"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -318,7 +312,7 @@ dependencies = [
 [[package]]
 name = "bevy_input"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -329,7 +323,7 @@ dependencies = [
 [[package]]
 name = "bevy_internal"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -357,7 +351,7 @@ dependencies = [
 [[package]]
 name = "bevy_log"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "android_log-sys 0.2.0",
  "bevy_app",
@@ -371,7 +365,7 @@ dependencies = [
 [[package]]
 name = "bevy_macro_utils"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "cargo-manifest",
  "quote",
@@ -381,22 +375,22 @@ dependencies = [
 [[package]]
 name = "bevy_math"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_reflect",
- "glam 0.15.2",
+ "glam",
 ]
 
 [[package]]
 name = "bevy_reflect"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_reflect_derive",
  "bevy_utils",
  "downcast-rs",
  "erased-serde",
- "glam 0.15.2",
+ "glam",
  "parking_lot",
  "serde",
  "smallvec",
@@ -406,7 +400,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect_derive"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -418,7 +412,7 @@ dependencies = [
 [[package]]
 name = "bevy_render2"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -451,7 +445,7 @@ dependencies = [
 [[package]]
 name = "bevy_scene"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -469,7 +463,7 @@ dependencies = [
 [[package]]
 name = "bevy_sprite2"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -492,7 +486,7 @@ dependencies = [
 [[package]]
 name = "bevy_tasks"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -505,7 +499,7 @@ dependencies = [
 [[package]]
 name = "bevy_transform"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -518,9 +512,9 @@ dependencies = [
 [[package]]
 name = "bevy_utils"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
- "ahash 0.7.6",
+ "ahash",
  "bevy_derive",
  "getrandom",
  "instant",
@@ -531,7 +525,7 @@ dependencies = [
 [[package]]
 name = "bevy_window"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -544,7 +538,7 @@ dependencies = [
 [[package]]
 name = "bevy_winit"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -851,19 +845,19 @@ dependencies = [
 
 [[package]]
 name = "crevice"
-version = "0.6.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+version = "0.8.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "bytemuck",
  "crevice-derive",
- "glam 0.15.2",
+ "glam",
  "mint",
 ]
 
 [[package]]
 name = "crevice-derive"
-version = "0.6.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#507f91e6ee56b84ada2e5f8fe68d52cda9c8d43f"
+version = "0.8.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1165,19 +1159,14 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.15.2"
+version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3abb554f8ee44336b72d522e0a7fe86a29e09f839a36022fa869a7dfe941a54b"
+checksum = "c2c626156a479bfb5a4362c43f5abadd700af33ebc8db068089d9cb92493d6ab"
 dependencies = [
  "bytemuck",
+ "mint",
  "serde",
 ]
-
-[[package]]
-name = "glam"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "525a3e490ba77b8e326fb67d4b44b4bd2f920f44d4cc73ccec50adc68e3bee34"
 
 [[package]]
 name = "glow"
@@ -1211,13 +1200,13 @@ dependencies = [
 
 [[package]]
 name = "gpu-descriptor"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7a237f0419ab10d17006d55c62ac4f689a6bf52c75d3f38b8361d249e8d4b0b"
+checksum = "a538f217be4d405ff4719a283ca68323cc2384003eca5baaa87501e821c81dda"
 dependencies = [
  "bitflags",
  "gpu-descriptor-types",
- "hashbrown 0.9.1",
+ "hashbrown",
 ]
 
 [[package]]
@@ -1241,18 +1230,12 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
-dependencies = [
- "ahash 0.4.7",
-]
-
-[[package]]
-name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
+dependencies = [
+ "ahash",
+]
 
 [[package]]
 name = "hermit-abi"
@@ -1271,11 +1254,11 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hexasphere"
-version = "4.1.1"
+version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b69824ef63443efe6187c621d24ef1a3c6a0381881cc024ff47be38a8bfc1127"
+checksum = "9dc62dcfd68ec810c4707804556f2e88655012b1a373b0e0bbbe88a9db366627"
 dependencies = [
- "glam 0.18.0",
+ "glam",
  "lazy_static",
 ]
 
@@ -1312,7 +1295,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
- "hashbrown 0.11.2",
+ "hashbrown",
 ]
 
 [[package]]
@@ -1402,15 +1385,15 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.107"
+version = "0.2.108"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbe5e23404da5b4f555ef85ebed98fb4083e55a00c317800bc2a50ede9f3d219"
+checksum = "8521a1b57e76b1ec69af7599e75e38e7b7fad6610f037db8c79b127201b5d119"
 
 [[package]]
 name = "libloading"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0cf036d15402bea3c5d4de17b3fce76b3e4a56ebc1f577be0e7a72f7c607cf0"
+checksum = "afe203d669ec979b7128619bae5a63b7b42e9203c1b29146079ee05e2f604b52"
 dependencies = [
  "cfg-if 1.0.0",
  "winapi",
@@ -1532,18 +1515,18 @@ dependencies = [
 [[package]]
 name = "naga"
 version = "0.7.1"
-source = "git+https://github.com/gfx-rs/naga?rev=323999f#323999fcb9eb8e8c525d75d2878fe1e2e5a99aad"
+source = "git+https://github.com/gfx-rs/naga?rev=29571cc#29571cc4cfbb28558948b1b31ad764f55b69f37b"
 dependencies = [
  "bit-set",
  "bitflags",
  "codespan-reporting",
- "fxhash",
  "hexf-parse",
  "indexmap",
  "log",
  "num-traits",
  "petgraph",
  "pp-rs",
+ "rustc-hash",
  "spirv",
  "thiserror",
 ]
@@ -2003,6 +1986,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustc-hash"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+
+[[package]]
 name = "rustc_version"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2080,9 +2069,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.70"
+version = "1.0.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e277c495ac6cd1a01a58d0a0c574568b4d1ddf14f59965c6a58b8d96400b54f3"
+checksum = "063bf466a64011ac24040a49009724ee60a57da1b437617ceb32e53ad61bfb19"
 dependencies = [
  "itoa",
  "ryu",
@@ -2315,9 +2304,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.2.25"
+version = "0.2.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e0d2eaa99c3c2e41547cfa109e910a68ea03823cccad4a0525dcbc9b01e8c71"
+checksum = "fdd0568dbfe3baf7048b7908d2b32bca0d81cd56bec6d2a8f894b01d74f86be3"
 dependencies = [
  "ansi_term",
  "chrono",
@@ -2482,7 +2471,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#035bfb0a8e7dffd3d567eec6b49e0bb16c5679c6"
+source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
 dependencies = [
  "arrayvec",
  "js-sys",
@@ -2502,7 +2491,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#035bfb0a8e7dffd3d567eec6b49e0bb16c5679c6"
+source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -2524,7 +2513,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.11.2"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#035bfb0a8e7dffd3d567eec6b49e0bb16c5679c6"
+source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
 dependencies = [
  "arrayvec",
  "ash",
@@ -2561,7 +2550,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#035bfb0a8e7dffd3d567eec6b49e0bb16c5679c6"
+source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
 dependencies = [
  "bitflags",
 ]
