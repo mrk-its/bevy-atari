@@ -88,7 +88,7 @@ use wasm_bindgen::JsValue;
 #[wasm_bindgen]
 extern "C" {
     pub fn pokey_post_message(a: &JsValue);
-    pub fn sio_get_status(device: u8) -> u8;
-    pub fn sio_get_sector(device: u8, sector: u16, data: &mut [u8]) -> u8;
-    pub fn sio_put_sector(device: u8, sector: u16, data: &[u8]) -> u8;
+    pub fn sio_get_status(device: u8, unit: u8, data: &mut [u8]) -> u8;
+    pub fn sio_get_sector(device: u8, unit: u8, sector: u16, data: &mut [u8]) -> u8;
+    pub fn sio_put_sector(device: u8, unit: u8, sector: u16, data: &[u8]) -> u8;
 }

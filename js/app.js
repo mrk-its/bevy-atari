@@ -36,13 +36,17 @@ class ATR extends Binary {
     this.emulator_loadable = false
     if (data[0] != 0x96 || data[1] != 0x2) throw "bad atr magic!";
     this.sector_size = data[4] + 256 * data[5];
+    console.info("sector size: ", this.sector_size);
     if (this.sector_size != 128 && this.sector_size != 256) {
       throw `invalid sector size: ${this.sector_size}`
     }
     this.version = 0
   }
   get_sector(sector) {
-    return this.data.subarray(16 + (sector - 1) * this.sector_size, 16 + sector * this.sector_size);
+    if(sector <= 3) {
+      return this.data.subarray(16 + (sector - 1) * 128, 16 + sector * 128)
+    }
+    return this.data.subarray(16 + 3 * 128 + (sector - 4) * this.sector_size, 16 + 3 * 128 + (sector - 3) * this.sector_size);
   }
   put_sector(sector, data) {
     this.get_sector(sector).set(data);
@@ -167,27 +171,50 @@ class GUI {
   }
 }
 
-function sio_get_status(drive) {
-  let ret = window.gui.getBinary(`disk_${drive - 48}`) ? 0x01 : 0xff
-  console.log(`sio_get_status drive: ${drive}, status: ${ret}`);
-  return ret
+function _drive_id(drive, unit) {
+  return `disk_${drive + unit - 1 - 48}`
 }
 
-function sio_get_sector(drive, sector, data) {
-  let atr = window.gui.getBinary(`disk_${drive - 48}`)
-  var status;
-  if (atr) {
-    data.set(atr.get_sector(sector))
+function sio_get_status(drive, unit, data) {
+  let atr = window.gui.getBinary(_drive_id(drive, unit));
+  var status = 0xff;
+  if(atr) {
+    data[0] = atr.sector_size == 256 ? 0x20 : 0;
+    data[1] = 0;
+    data[2] = 0;
+    data[3] = 0;
     status = 0x01;
   } else {
-    status = 0xff;
+    data[0] = 255;
+    data[1] = 255;
+    data[2] = 255;
+    data[3] = 255;
   }
-  console.log(`sio_get_sector drive: ${drive}, sector: ${sector}, len: ${data.length}, status: ${status}`);
+  console.log(`sio_get_status drive: ${drive}, unit: ${unit}, status: ${status}`);
   return status;
 }
 
-function sio_put_sector(drive, sector, data) {
-  let atr = window.gui.getBinary(`disk_${drive - 48}`)
+function sio_get_sector(drive, unit, sector, data) {
+  let atr = window.gui.getBinary(_drive_id(drive, unit))
+  var status;
+  if (atr) {
+    var read_data = atr.get_sector(sector);
+    if(read_data.length == data.length) {
+      data.set(read_data)
+      status = 0x01;
+    } else {
+      console.error(`read length: ${read_data.length}, buffer length: ${data.length}`)
+      status = 0xff;
+    }
+  } else {
+    status = 0xff;
+  }
+  console.log(`sio_get_sector drive: ${drive}, unit: ${unit}, sector: ${sector}, len: ${data.length}, status: ${status}`);
+  return status;
+}
+
+function sio_put_sector(drive, unit, sector, data) {
+  let atr = window.gui.getBinary(_drive_id(drive, unit))
   var status;
   if (atr) {
     atr.put_sector(sector, data)
@@ -196,7 +223,7 @@ function sio_put_sector(drive, sector, data) {
     status = 0xff;
   }
 
-  console.log(`sio_put_sector drive: ${drive}, sector: ${sector}, len: ${data.length}, status: ${status}`);
+  console.log(`sio_put_sector drive: ${drive}, unit: ${unit}, sector: ${sector}, len: ${data.length}, status: ${status}`);
   return status;
 }
 
@@ -374,38 +401,12 @@ function fetch_binary_data(key, url, slot) {
   })
 }
 
-function handle_file(file) {
-  let name = file.name;
-  file.arrayBuffer().then(function (data) {
-    set_binary(name, new Uint8Array(data));
-  })
-}
-
-function on_drop_handler(event) {
-  event.preventDefault();
-  let url = event.dataTransfer.getData("text/plain");
-  if (url) {
-    fetch_binary_data("", url).then((key) => {
-      console.log("key:", key);
-    });
-  } else {
-    for (file of event.dataTransfer.files) {
-      handle_file(file);
-    }
-  }
-}
-
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
 export function on_hash_change() {
   reload_from_fragment();
-}
-
-function set_title(text) {
-  let title = document.querySelector("title");
-  if (title) title.innerText = text;
 }
 
 async function reload_from_fragment() {
@@ -431,10 +432,6 @@ async function reload_from_fragment() {
   set_state("running");
 }
 
-function blur() {
-  document.activeElement.blur();
-}
-
 function auto_focus() {
   let canvas = document.getElementsByTagName("canvas");
   if (!canvas.length) {
@@ -443,7 +440,6 @@ function auto_focus() {
     canvas[0].focus();
   }
 }
-
 
 export async function run() {
   console.log("initialized")

@@ -54,7 +54,6 @@ const MEM_128: Option<usize> = Some(3);
 #[allow(dead_code)]
 const MEM_320: Option<usize> = Some(15);
 
-
 impl AtariSystem {
     pub fn new() -> AtariSystem {
         // initialize RAM with all 0xFFs
