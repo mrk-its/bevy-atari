@@ -24,7 +24,7 @@ web = [
 # ]
 
 [dependencies]
-tracing-wasm = "=0.2.0"
+tracing-wasm = "0.2.1"
 
 # winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
@@ -74,8 +74,7 @@ naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}
 
 [patch.crates-io.wgpu]
 git = "https://github.com/mrk-its/wgpu"
-branch = "misc"
-# path = "../wgpu/wgpu"
+branch = "master"
 
 [patch.crates-io.emulator_6502]
 git = "https://github.com/mrk-its/emulator_6502/"

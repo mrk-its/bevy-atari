@@ -36,23 +36,17 @@ dependencies = [
 
 [[package]]
 name = "android_log-sys"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8052e2d8aabbb8d556d6abbcce2a22b9590996c5f849b9c7ce4544a2e3b984e"
-
-[[package]]
-name = "android_log-sys"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "85965b6739a430150bdd138e2374a98af0c3ee0d030b3bb7fc3bddff58d0102e"
 
 [[package]]
 name = "android_logger"
-version = "0.8.6"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8cbd542dd180566fad88fd2729a53a62a734843c626638006a9d63ec0688484e"
+checksum = "2ec2333c185d826313162cee39d3fcc6a84ba08114a839bebf53b961e7e75773"
 dependencies = [
- "android_log-sys 0.1.2",
+ "android_log-sys",
  "env_logger",
  "lazy_static",
  "log",
@@ -69,9 +63,18 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.47"
+version = "1.0.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38d9ff5d688f1c13395289f67db01d4826b46dd694e7580accdc3e8430f2d98e"
+checksum = "62e1f47f7dc0422027a4e370dd4548d4d66b26782e513e98dca1e689e058a80e"
+
+[[package]]
+name = "approx"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "072df7202e63b127ab55acfe16ce97013d5b97bf160489336d3f1840fd78e99e"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "arrayvec"
@@ -140,7 +143,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bevy"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_internal",
 ]
@@ -148,7 +151,7 @@ dependencies = [
 [[package]]
 name = "bevy_app"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_derive",
  "bevy_ecs",
@@ -161,7 +164,7 @@ dependencies = [
 [[package]]
 name = "bevy_asset"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -174,8 +177,7 @@ dependencies = [
  "crossbeam-channel",
  "downcast-rs",
  "js-sys",
- "ndk-glue 0.2.1",
- "notify",
+ "ndk-glue 0.4.0",
  "parking_lot",
  "rand",
  "serde",
@@ -211,9 +213,9 @@ version = "0.1.0"
 dependencies = [
  "bevy",
  "bytemuck",
+ "crevice 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-lite",
  "parking_lot",
- "tracing-wasm",
  "web-sys",
  "wgpu",
 ]
@@ -221,7 +223,7 @@ dependencies = [
 [[package]]
 name = "bevy_core"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -236,7 +238,7 @@ dependencies = [
 [[package]]
 name = "bevy_core_pipeline"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -248,7 +250,7 @@ dependencies = [
 [[package]]
 name = "bevy_derive"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "Inflector",
  "bevy_macro_utils",
@@ -259,7 +261,7 @@ dependencies = [
 [[package]]
 name = "bevy_diagnostic"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_core",
@@ -271,7 +273,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "async-channel",
  "bevy_ecs_macros",
@@ -281,7 +283,6 @@ dependencies = [
  "downcast-rs",
  "fixedbitset",
  "fxhash",
- "rand",
  "serde",
  "thiserror",
 ]
@@ -289,7 +290,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs_macros"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -300,7 +301,7 @@ dependencies = [
 [[package]]
 name = "bevy_gilrs"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -312,7 +313,7 @@ dependencies = [
 [[package]]
 name = "bevy_input"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -323,7 +324,7 @@ dependencies = [
 [[package]]
 name = "bevy_internal"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -345,15 +346,15 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bevy_winit",
- "ndk-glue 0.2.1",
+ "ndk-glue 0.4.0",
 ]
 
 [[package]]
 name = "bevy_log"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
- "android_log-sys 0.2.0",
+ "android_log-sys",
  "bevy_app",
  "bevy_utils",
  "console_error_panic_hook",
@@ -365,7 +366,7 @@ dependencies = [
 [[package]]
 name = "bevy_macro_utils"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "cargo-manifest",
  "quote",
@@ -375,7 +376,7 @@ dependencies = [
 [[package]]
 name = "bevy_math"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_reflect",
  "glam",
@@ -384,7 +385,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_reflect_derive",
  "bevy_utils",
@@ -400,7 +401,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect_derive"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -412,7 +413,7 @@ dependencies = [
 [[package]]
 name = "bevy_render2"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -426,7 +427,7 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bitflags",
- "crevice",
+ "crevice 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari)",
  "downcast-rs",
  "futures-lite",
  "hex",
@@ -445,7 +446,7 @@ dependencies = [
 [[package]]
 name = "bevy_scene"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -463,7 +464,7 @@ dependencies = [
 [[package]]
 name = "bevy_sprite2"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -477,6 +478,7 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "bytemuck",
+ "crevice 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari)",
  "guillotiere",
  "rectangle-pack",
  "serde",
@@ -486,7 +488,7 @@ dependencies = [
 [[package]]
 name = "bevy_tasks"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -499,7 +501,7 @@ dependencies = [
 [[package]]
 name = "bevy_transform"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -512,7 +514,7 @@ dependencies = [
 [[package]]
 name = "bevy_utils"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "ahash",
  "bevy_derive",
@@ -525,10 +527,9 @@ dependencies = [
 [[package]]
 name = "bevy_window"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "bevy_app",
- "bevy_ecs",
  "bevy_math",
  "bevy_utils",
  "raw-window-handle",
@@ -538,8 +539,9 @@ dependencies = [
 [[package]]
 name = "bevy_winit"
 version = "0.5.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
+ "approx",
  "bevy_app",
  "bevy_ecs",
  "bevy_input",
@@ -651,18 +653,6 @@ name = "cfg_aliases"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd16c4719339c4530435d38e511904438d07cce7950afa3718a84ac36c10e89e"
-
-[[package]]
-name = "chrono"
-version = "0.4.19"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
-dependencies = [
- "libc",
- "num-integer",
- "num-traits",
- "winapi",
-]
 
 [[package]]
 name = "cocoa"
@@ -836,9 +826,9 @@ dependencies = [
 
 [[package]]
 name = "crc32fast"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81156fece84ab6a9f2afdb109ce3ae577e42b1228441eded99bd77f627953b1a"
+checksum = "3825b1e8580894917dc4468cb634a1b4e9745fddc854edad72d9c04644c0319f"
 dependencies = [
  "cfg-if 1.0.0",
 ]
@@ -846,10 +836,21 @@ dependencies = [
 [[package]]
 name = "crevice"
 version = "0.8.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d4f6c6d647171f93b5f65f1250ea929c7189b4330e9364be147d4571ae01f8f"
 dependencies = [
  "bytemuck",
- "crevice-derive",
+ "crevice-derive 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mint",
+]
+
+[[package]]
+name = "crevice"
+version = "0.8.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
+dependencies = [
+ "bytemuck",
+ "crevice-derive 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari)",
  "glam",
  "mint",
 ]
@@ -857,7 +858,18 @@ dependencies = [
 [[package]]
 name = "crevice-derive"
 version = "0.8.0"
-source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#11dfd79f9d896a40ce9c8a03a2fd6a560d85dea7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d88c3459fdadc1206f8ea5c4746547c92cbbf8ec9e6d91b2242847d5e00fde4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "crevice-derive"
+version = "0.8.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari#57b8d88a1fb316e7cab8fff967348854f133c8a8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1017,18 +1029,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "filetime"
-version = "0.2.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "975ccf83d8d9d0d84682850a38c8169027be83368805971cc4f238c2b245bc98"
-dependencies = [
- "cfg-if 1.0.0",
- "libc",
- "redox_syscall",
- "winapi",
-]
-
-[[package]]
 name = "fixedbitset"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1068,25 +1068,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
-name = "fsevent-sys"
-version = "4.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c0e564d24da983c053beff1bb7178e237501206840a3e6bf4e267b9e8ae734a"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "futures-core"
-version = "0.3.17"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88d1c26957f23603395cd326b0ffe64124b818f4449552f960d815cfba83a53d"
+checksum = "629316e42fe7c2a0b9a65b47d159ceaa5453ab14e8f0a3c5eedbb8cd55b4a445"
 
 [[package]]
 name = "futures-io"
-version = "0.3.17"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "522de2a0fe3e380f1bc577ba0474108faf3f6b18321dbf60b3b9c39a75073377"
+checksum = "e481354db6b5c353246ccf6a728b0c5511d752c08da7260546fc0933869daa11"
 
 [[package]]
 name = "futures-lite"
@@ -1159,9 +1150,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.20.0"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2c626156a479bfb5a4362c43f5abadd700af33ebc8db068089d9cb92493d6ab"
+checksum = "68270e16582ea40f9c5b2fcd588fbc9cb696577222e04a64d9085cc314806a8a"
 dependencies = [
  "bytemuck",
  "mint",
@@ -1299,26 +1290,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "inotify"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8069d3ec154eb856955c1c0fbffefbf5f3c40a104ec912d4797314c1801abff"
-dependencies = [
- "bitflags",
- "inotify-sys",
- "libc",
-]
-
-[[package]]
-name = "inotify-sys"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e05c02b5e89bff3b946cedeca278abc628fe811e604f027c45a8aa3cf793d0eb"
-dependencies = [
- "libc",
-]
-
-[[package]]
 name = "inplace_it"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1447,9 +1418,9 @@ dependencies = [
 
 [[package]]
 name = "matchers"
-version = "0.0.1"
+version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f099785f7595cc4b4553a174ce30dd7589ef93391ff414dbb67f62392b9e0ce1"
+checksum = "8263075bb86c5a1b1427b5ae862e8889656f126e9f77c484496e8b47cf5c5558"
 dependencies = [
  "regex-automata",
 ]
@@ -1491,28 +1462,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "162e591484b4b8fe9e1ca16ebf07ab584fdc3334508d76a788cd54d89cfc20dc"
 
 [[package]]
-name = "mio"
-version = "0.7.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8067b404fe97c70829f082dec8bcf4f71225d7eaea1d8645349cb76fa06205cc"
-dependencies = [
- "libc",
- "log",
- "miow",
- "ntapi",
- "winapi",
-]
-
-[[package]]
-name = "miow"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
-dependencies = [
- "winapi",
-]
-
-[[package]]
 name = "naga"
 version = "0.7.1"
 source = "git+https://github.com/gfx-rs/naga?rev=29571cc#29571cc4cfbb28558948b1b31ad764f55b69f37b"
@@ -1533,41 +1482,27 @@ dependencies = [
 
 [[package]]
 name = "ndk"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5eb167c1febed0a496639034d0c76b3b74263636045db5489eee52143c246e73"
-dependencies = [
- "jni-sys",
- "ndk-sys",
- "num_enum 0.4.3",
- "thiserror",
-]
-
-[[package]]
-name = "ndk"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8794322172319b972f528bf90c6b467be0079f1fa82780ffb431088e741a73ab"
 dependencies = [
  "jni-sys",
  "ndk-sys",
- "num_enum 0.5.4",
+ "num_enum",
  "thiserror",
 ]
 
 [[package]]
-name = "ndk-glue"
-version = "0.2.1"
+name = "ndk"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdf399b8b7a39c6fb153c4ec32c72fd5fe789df24a647f229c239aa7adb15241"
+checksum = "d64d6af06fde0e527b1ba5c7b79a6cc89cfc46325b0b2887dffe8f70197e0c3c"
 dependencies = [
- "android_logger",
- "lazy_static",
- "libc",
- "log",
- "ndk 0.2.1",
- "ndk-macro",
+ "bitflags",
+ "jni-sys",
  "ndk-sys",
+ "num_enum",
+ "thiserror",
 ]
 
 [[package]]
@@ -1580,6 +1515,21 @@ dependencies = [
  "libc",
  "log",
  "ndk 0.3.0",
+ "ndk-macro",
+ "ndk-sys",
+]
+
+[[package]]
+name = "ndk-glue"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3e9e94628f24e7a3cb5b96a2dc5683acd9230bf11991c2a1677b87695138420"
+dependencies = [
+ "android_logger",
+ "lazy_static",
+ "libc",
+ "log",
+ "ndk 0.4.0",
  "ndk-macro",
  "ndk-sys",
 ]
@@ -1599,9 +1549,9 @@ dependencies = [
 
 [[package]]
 name = "ndk-sys"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c44922cb3dbb1c70b5e5f443d63b64363a898564d739ba5198e3a9138442868d"
+checksum = "e1bcdd74c20ad5d95aacd60ef9ba40fdf77f767051040541df557b7a9b2a2121"
 
 [[package]]
 name = "nix"
@@ -1613,32 +1563,6 @@ dependencies = [
  "cc",
  "cfg-if 1.0.0",
  "libc",
-]
-
-[[package]]
-name = "notify"
-version = "5.0.0-pre.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51f18203a26893ca1d3526cf58084025d5639f91c44f8b70ab3b724f60e819a0"
-dependencies = [
- "bitflags",
- "crossbeam-channel",
- "filetime",
- "fsevent-sys",
- "inotify",
- "libc",
- "mio",
- "walkdir",
- "winapi",
-]
-
-[[package]]
-name = "ntapi"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
-dependencies = [
- "winapi",
 ]
 
 [[package]]
@@ -1694,34 +1618,12 @@ dependencies = [
 
 [[package]]
 name = "num_enum"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca565a7df06f3d4b485494f25ba05da1435950f4dc263440eda7a6fa9b8e36e4"
-dependencies = [
- "derivative",
- "num_enum_derive 0.4.3",
-]
-
-[[package]]
-name = "num_enum"
 version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f9bd055fb730c4f8f4f57d45d35cd6b3f0980535b056dc7ff119cee6a66ed6f"
 dependencies = [
  "derivative",
- "num_enum_derive 0.5.4",
-]
-
-[[package]]
-name = "num_enum_derive"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffa5a33ddddfee04c0283a7653987d634e880347e96b5b2ed64de07efb59db9d"
-dependencies = [
- "proc-macro-crate 0.1.5",
- "proc-macro2",
- "quote",
- "syn",
+ "num_enum_derive",
 ]
 
 [[package]]
@@ -2018,15 +1920,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
 
 [[package]]
-name = "same-file"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
-dependencies = [
- "winapi-util",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2069,9 +1962,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.71"
+version = "1.0.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "063bf466a64011ac24040a49009724ee60a57da1b437617ceb32e53ad61bfb19"
+checksum = "d0ffa0837f2dfa6fb90868c2b5468cad482e175f7dad97e7421951e663f2b527"
 dependencies = [
  "itoa",
  "ryu",
@@ -2192,9 +2085,9 @@ checksum = "8fb1df15f412ee2e9dfc1c504260fa695c1c3f10fe9f4a6ee2d2184d7d6450e2"
 
 [[package]]
 name = "syn"
-version = "1.0.81"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2afee18b8beb5a596ecb4a2dce128c719b4ba399d34126b9e4396e3f9860966"
+checksum = "8daf5dd0bb60cbd4137b1b587d2fc0ae729bc07cf01cd70b36a1ed5ade3b9d59"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2293,42 +2186,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-serde"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
-dependencies = [
- "serde",
- "tracing-core",
-]
-
-[[package]]
 name = "tracing-subscriber"
-version = "0.2.24"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdd0568dbfe3baf7048b7908d2b32bca0d81cd56bec6d2a8f894b01d74f86be3"
+checksum = "7507ec620f809cdf07cccb5bc57b13069a88031b795efd4079b1c71b66c1613d"
 dependencies = [
  "ansi_term",
- "chrono",
  "lazy_static",
  "matchers",
  "regex",
- "serde",
- "serde_json",
  "sharded-slab",
  "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
  "tracing-log",
- "tracing-serde",
 ]
 
 [[package]]
 name = "tracing-wasm"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ae741706df70547fca8715f74a8569677666e7be3454313af70f6e158034485"
+checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
 dependencies = [
  "tracing",
  "tracing-subscriber",
@@ -2374,17 +2253,6 @@ name = "waker-fn"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9d5b2c62b4012a3e1eca5a7e077d13b3bf498c4073e33ccd58626607748ceeca"
-
-[[package]]
-name = "walkdir"
-version = "2.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "808cf2735cd4b6866113f648b791c6adc5714537bc222d9347bb203386ffda56"
-dependencies = [
- "same-file",
- "winapi",
- "winapi-util",
-]
 
 [[package]]
 name = "wasi"
@@ -2471,7 +2339,7 @@ dependencies = [
 [[package]]
 name = "wgpu"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
+source = "git+https://github.com/mrk-its/wgpu?branch=master#dde73ed23695cda3965934e52406a3f962813afa"
 dependencies = [
  "arrayvec",
  "js-sys",
@@ -2491,7 +2359,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
+source = "git+https://github.com/mrk-its/wgpu?branch=master#dde73ed23695cda3965934e52406a3f962813afa"
 dependencies = [
  "arrayvec",
  "bitflags",
@@ -2513,7 +2381,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "0.11.2"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
+source = "git+https://github.com/mrk-its/wgpu?branch=master#dde73ed23695cda3965934e52406a3f962813afa"
 dependencies = [
  "arrayvec",
  "ash",
@@ -2550,7 +2418,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "0.11.0"
-source = "git+https://github.com/mrk-its/wgpu?branch=misc#90f62d70298dc56e803646991d42586d03025608"
+source = "git+https://github.com/mrk-its/wgpu?branch=master#dde73ed23695cda3965934e52406a3f962813afa"
 dependencies = [
  "bitflags",
 ]
