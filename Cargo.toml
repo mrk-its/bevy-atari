@@ -66,8 +66,8 @@ features = [
 ]
 
 [patch.crates-io]
-gilrs = {git = "https://gitlab.com/gilrs-project/gilrs/"}
-gilrs-core = {git = "https://gitlab.com/gilrs-project/gilrs/"}
+gilrs = {path = "../gilrs/gilrs"}
+gilrs-core = {path = "../gilrs/gilrs-core"}
 
 glow = {git="https://github.com/grovesNL/glow"}
 naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}

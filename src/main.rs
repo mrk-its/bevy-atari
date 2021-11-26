@@ -38,12 +38,13 @@ use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
 use bevy_atari_antic::AnticData;
+use focus::Focused;
 use system::AtariSystem;
 
 // #[global_allocator]
 // static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-#[derive(PartialEq, Copy, Clone, Default)]
+#[derive(PartialEq, Component, Copy, Clone, Default)]
 pub struct DisplayConfig {
     pub fps: bool,
     pub debug: bool,
@@ -64,13 +65,14 @@ enum BreakPoint {
     ScanLine(usize),
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Component, Default)]
 pub struct Debugger {
     paused: bool,
     break_point: Option<BreakPoint>,
 }
 
 impl Debugger {
+    #[allow(dead_code)]
     fn set_breakpoint(&mut self, break_point: BreakPoint) {
         self.paused = false;
         self.break_point = Some(break_point);
@@ -104,13 +106,21 @@ impl Default for EmulatorConfig {
     }
 }
 
+#[derive(Component, Default)]
+pub struct CPU {
+    cpu: MOS6502
+}
+
+#[derive(Component, Default)]
+pub struct AtariSlot(i32);
+
 #[derive(Bundle, Default)]
 pub struct AtariBundle {
-    slot: i32,
-    focused: bool,
+    slot: AtariSlot,
+    focused: Focused,
     system: AtariSystem,
     state: Debugger,
-    cpu: MOS6502,
+    cpu: CPU,
     antic_data_handle: Handle<AnticData>,
     texture: Handle<Image>,
 }
@@ -124,9 +134,9 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
 
 fn atari_system(
     mut query: Query<(
-        &bool,
+        &Focused,
         &mut AtariSystem,
-        &mut MOS6502,
+        &mut CPU,
         &mut Debugger,
         &Handle<AnticData>,
     )>,
@@ -134,7 +144,8 @@ fn atari_system(
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
 ) {
-    for (&focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
+    for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
+        let mut cpu = &mut cpu.cpu;
         if debugger.paused {
             continue;
         }
@@ -143,12 +154,12 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if focused && atari_system.handle_keyboard(&keyboard, &mut *cpu) {
+                if focused.is_focused() && atari_system.handle_keyboard(&keyboard, &mut cpu) {
                     cpu.interrupt_request();
                 }
             };
 
-            antic::tick(&mut *atari_system, &mut *cpu, &mut *antic_data);
+            antic::tick(&mut *atari_system, &mut cpu, &mut *antic_data);
 
             match cpu.get_program_counter() {
                 0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
@@ -218,7 +229,7 @@ fn atari_system(
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
 fn events(
-    mut query: Query<(&i32, &mut AtariSystem, &mut MOS6502, &mut Debugger)>,
+    mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
     mut state: ResMut<State<EmulatorState>>,
 ) {
     let mut _messages = js_api::MESSAGES.write();
@@ -230,7 +241,7 @@ fn events(
                     cold,
                     disable_basic,
                 } => {
-                    atari_system.reset(&mut *cpu, cold, disable_basic);
+                    atari_system.reset(&mut cpu.cpu, cold, disable_basic);
                 }
                 js_api::Message::SetState(new_state) => {
                     let result = match new_state.as_ref() {
@@ -251,7 +262,7 @@ fn events(
                 js_api::Message::BinaryData {
                     key, data, slot, ..
                 } => {
-                    if slot.is_none() || Some(*atari_slot as i32) == slot {
+                    if slot.is_none() || Some(atari_slot.0) == slot {
                         match key.as_str() {
                             "basic" => {
                                 atari_system.set_basic(data);
@@ -272,7 +283,7 @@ fn events(
                                 if let Some(data) = data {
                                     let data = gunzip(&data);
                                     let a800_state = atari800_state::Atari800State::new(&data);
-                                    a800_state.reload(&mut *atari_system, &mut *cpu);
+                                    a800_state.reload(&mut *atari_system, &mut cpu.cpu);
                                     // *frame = FrameState::default();
                                     state.set(EmulatorState::Running).ok();
                                     info!("LOADED! {:?}", *state);
@@ -304,7 +315,7 @@ fn events(
                         }
                         "pc" => {
                             if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                cpu.set_program_counter(pc)
+                                cpu.cpu.set_program_counter(pc)
                             }
                         }
                         "brk" => {
@@ -346,13 +357,13 @@ fn setup(
             let antic_data_handle = antic_data_assets.add(antic_data);
 
             let mut atari_bundle = AtariBundle {
-                slot: y * config.wall_size.0 + x,
-                focused: !config.is_multi(),
+                slot: AtariSlot(y * config.wall_size.0 + x),
+                focused: Focused::new(!config.is_multi()),
                 antic_data_handle,
                 ..Default::default()
             };
             atari_bundle.system.pokey.mute(config.is_multi());
-            atari_bundle.system.reset(&mut atari_bundle.cpu, true, true);
+            atari_bundle.system.reset(&mut atari_bundle.cpu.cpu, true, true);
             commands
                 .spawn()
                 .insert_bundle(atari_bundle)

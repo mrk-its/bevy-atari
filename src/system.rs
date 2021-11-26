@@ -22,6 +22,7 @@ bitflags! {
     }
 }
 
+#[derive(Component)]
 pub struct AtariSystem {
     consol: Multiplexer<u8>,
     joystick: [Multiplexer<u8>; 2],

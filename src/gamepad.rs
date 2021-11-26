@@ -3,14 +3,15 @@ use bevy::prelude::*;
 use bevy::prelude::GamepadButtonType;
 
 use crate::system::AtariSystem;
+use crate::focus::Focused;
 
 pub fn update(
-    mut query: Query<(&bool, &mut AtariSystem)>,
+    mut query: Query<(&Focused, &mut AtariSystem)>,
     gamepad_buttons: Res<Input<GamepadButton>>,
     axis: Res<Axis<GamepadAxis>>,
 ) {
     for (focused, mut atari_system) in query.iter_mut() {
-        if !focused {
+        if !focused.is_focused() {
             continue;
         }
         let mut consol = 0;
