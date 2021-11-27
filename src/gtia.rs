@@ -1,7 +1,5 @@
 // use crate::render_resources::GTIARegs;
 use bevy_atari_antic::CollisionsData;
-use parking_lot::RwLock;
-use std::sync::Arc;
 
 use bevy_atari_antic::GTIARegs;
 
@@ -76,7 +74,6 @@ pub struct Gtia {
     pub scan_line: usize,
     pub collision_update_scanline: usize,
     pub regs: GTIARegs,
-    pub collision_array: CollisionsData,
     collisions: [u8; 0x16], // R
     pub trig: [u8; 4],      // R
     pub gractl: GRACTL,
@@ -90,7 +87,6 @@ impl Default for Gtia {
         Self {
             regs: GTIARegs::default(),
             collisions: [0x00; 0x16],
-            collision_array: Arc::new(RwLock::new([0x0; 240])),
             trig: [0xff, 0xff, 0xff, 0x00],
             gractl: GRACTL::from_bits_truncate(0),
             consol: 0x7,
@@ -169,9 +165,9 @@ impl Gtia {
             && self.scan_line >= 8
             && self.scan_line < 248
         {
-            let collision_array = collisions.read();
+            let collision_array = collisions.inner.read();
             for i in self.collision_update_scanline.max(8)..self.scan_line {
-                self.update_collisions(collision_array[i - 8]);
+                self.update_collisions(collision_array.data[i - 8]);
             }
             self.collision_update_scanline = self.scan_line;
         }

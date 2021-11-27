@@ -142,6 +142,7 @@ fn atari_system(
     mut display_config: ResMut<DisplayConfig>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
+    render_device: Res<RenderDevice>,
 ) {
     for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
         let mut cpu = &mut cpu.cpu;
@@ -150,6 +151,10 @@ fn atari_system(
         }
         let mut prev_pc = 0;
         let antic_data = antic_data_assets.get_mut(antic_data_handle).unwrap();
+
+        if let Some(ref collisions_data) = antic_data.collisions_data {
+            collisions_data.read_collisions(&*render_device);
+        }
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
@@ -347,12 +352,14 @@ fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
+    render_device: Res<RenderDevice>,
     config: Res<EmulatorConfig>,
 ) {
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
             let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-            let antic_data = AnticData::new(main_image_handle.clone(), config.collisions);
+            let antic_data =
+                AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
             let antic_data_handle = antic_data_assets.add(antic_data);
 
             let mut atari_bundle = AtariBundle {
