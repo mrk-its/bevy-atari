@@ -117,7 +117,6 @@ pub struct AtariSlot(i32);
 #[derive(Bundle, Default)]
 pub struct AtariBundle {
     slot: AtariSlot,
-    focused: Focused,
     system: AtariSystem,
     state: Debugger,
     cpu: CPU,
@@ -134,7 +133,7 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
 
 fn atari_system(
     mut query: Query<(
-        &Focused,
+        Option<&Focused>,
         &mut AtariSystem,
         &mut CPU,
         &mut Debugger,
@@ -154,7 +153,7 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if focused.is_focused() && atari_system.handle_keyboard(&keyboard, &mut cpu) {
+                if focused.is_some() && atari_system.handle_keyboard(&keyboard, &mut cpu) {
                     cpu.interrupt_request();
                 }
             };
@@ -363,9 +362,11 @@ fn setup(
                 ..Default::default()
             };
             atari_bundle.system.pokey.mute(config.is_multi());
-            atari_bundle.system.reset(&mut atari_bundle.cpu.cpu, true, true);
-            commands
-                .spawn()
+            atari_bundle
+                .system
+                .reset(&mut atari_bundle.cpu.cpu, true, true);
+            let mut entity_commands = commands.spawn();
+            entity_commands
                 .insert_bundle(atari_bundle)
                 .insert_bundle(PipelinedSpriteBundle {
                     sprite: Sprite::default(),
@@ -380,6 +381,9 @@ fn setup(
                     },
                     ..Default::default()
                 });
+            if !config.is_multi() {
+                entity_commands.insert(Focused);
+            }
         }
     }
 

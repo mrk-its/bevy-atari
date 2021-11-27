@@ -6,26 +6,17 @@ use bevy::render2::texture::Image;
 use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
 use bevy_atari_antic::wgpu::Extent3d;
 
-
 #[derive(Component, Default)]
-pub struct Focused(bool);
-
-impl Focused {
-    pub fn new(is_focused: bool) -> Self {
-        return Self(is_focused)
-    }
-    pub fn is_focused(&self) -> bool {
-        return self.0
-    }
-    pub fn set_focused(&mut self, is_focused: bool) {
-        self.0 = is_focused;
-    }
-}
+pub struct Focused;
 
 pub fn update(
     windows: Res<Windows>,
+    mut commands: Commands,
     mouse_buttons: Res<Input<MouseButton>>,
-    mut query: Query<(&mut Focused, &mut AtariSystem, &Transform), (Without<Focus>, Without<Camera>)>,
+    mut query: Query<
+        (Entity, &mut AtariSystem, &Transform, Option<&Focused>),
+        (Without<Focus>, Without<Camera>),
+    >,
     mut focus_query: Query<&mut Transform, (With<Focus>, Without<Camera>)>,
     camera_query: Query<&Transform, With<Camera>>,
 ) {
@@ -63,16 +54,26 @@ pub fn update(
 
     let slot_size = Vec2::new(400.0, 256.0);
 
-    for (mut focused, mut atari_system, transform) in query.iter_mut() {
+    for (entity, mut atari_system, transform, was_focused) in query.iter_mut() {
+        let was_focused = was_focused.is_some();
         let translation = transform.translation.truncate();
         let sw = translation - slot_size / 2.0;
         let ne = translation + slot_size / 2.0;
 
-        focused.set_focused(wp.x >= sw.x && wp.y >= sw.y && wp.x < ne.x && wp.y < ne.y);
-        atari_system.pokey.mute(!focused.is_focused());
-        if focused.is_focused() {
+        let is_focused = wp.x >= sw.x && wp.y >= sw.y && wp.x < ne.x && wp.y < ne.y;
+        atari_system.pokey.mute(!is_focused);
+        if is_focused {
             focus_transform.translation = transform.translation;
             focus_transform.translation.z = -1.0;
+        }
+
+        if is_focused ^ was_focused {
+            let mut cmd = commands.entity(entity);
+            if is_focused {
+                cmd.insert(Focused);
+            } else {
+                cmd.remove::<Focused>();
+            }
         }
     }
 }
