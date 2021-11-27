@@ -156,7 +156,7 @@ impl Pokey {
         let time_diff = atari_time - self.delta_t - audio_context_time;
         if time_diff.abs() >= 0.05 {
             self.delta_t = atari_time - audio_context_time;
-            debug!("too big time diff: {}, syncing", time_diff,);
+            warn!("too big time diff: {}, syncing", time_diff,);
         }
 
         // #[allow(unused_unsafe)]
