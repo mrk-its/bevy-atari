@@ -25,7 +25,7 @@ web = [
 
 [dependencies]
 tracing-wasm = "0.2.1"
-
+bevy_egui = "0.7"
 # winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
 disasm6502 = "0.2"
@@ -73,12 +73,19 @@ glow = {git="https://github.com/grovesNL/glow"}
 naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}
 
 [patch.crates-io.wgpu]
-git = "https://github.com/mrk-its/wgpu"
-branch = "master"
+#git = "https://github.com/mrk-its/wgpu"
+#branch = "master"
+path = "../wgpu/wgpu"
 
 [patch.crates-io.emulator_6502]
 git = "https://github.com/mrk-its/emulator_6502/"
 branch="speed_improvements"
+
+[patch.crates-io.bevy_egui]
+path = "../bevy_egui"
+
+[patch."https://github.com/bevyengine/bevy"]
+bevy = {git="https://github.com/mrk-its/bevy", branch="bevy_atari"}
 
 # [profile.dev.package."*"]
 # opt-level = 2

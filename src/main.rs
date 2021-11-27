@@ -6,7 +6,7 @@ mod atari800_state;
 // pub mod atari_text;
 pub mod atr;
 mod cartridge;
-// mod debug;
+mod debug;
 pub mod gamepad;
 pub mod gtia;
 mod js_api;
@@ -20,6 +20,16 @@ pub mod sio;
 mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
+
+use bevy::render2::color::Color;
+use bevy_egui::egui;
+use bevy_egui::{EguiContext, EguiPlugin};
+
+use bevy::{
+    diagnostic::Diagnostics,
+    render2::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
+    sprite2::{PipelinedSpriteBundle, Sprite},
+};
 #[allow(unused_imports)]
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -29,10 +39,6 @@ use bevy::{
     winit::WinitConfig,
     PipelinedDefaultPlugins,
 };
-use bevy::{
-    render2::{camera::OrthographicCameraBundle, texture::Image},
-    sprite2::{PipelinedSpriteBundle, Sprite},
-};
 use bevy_atari_antic::AtariAnticPlugin;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
@@ -40,6 +46,7 @@ use emulator_6502::{Interface6502, MOS6502};
 use bevy_atari_antic::AnticData;
 use focus::Focused;
 use system::AtariSystem;
+use time_used_plugin::TimeUsedPlugin;
 
 // #[global_allocator]
 // static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -108,11 +115,11 @@ impl Default for EmulatorConfig {
 
 #[derive(Component, Default)]
 pub struct CPU {
-    cpu: MOS6502
+    cpu: MOS6502,
 }
 
 #[derive(Component, Default)]
-pub struct AtariSlot(i32);
+pub struct AtariSlot(pub i32);
 
 #[derive(Bundle, Default)]
 pub struct AtariBundle {
@@ -354,17 +361,19 @@ fn setup(
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
     config: Res<EmulatorConfig>,
+    mut egui_context: ResMut<EguiContext>,
 ) {
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
+            let slot = y * config.wall_size.0 + x;
+
             let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
             let antic_data =
                 AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
             let antic_data_handle = antic_data_assets.add(antic_data);
-
+            egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
             let mut atari_bundle = AtariBundle {
-                slot: AtariSlot(y * config.wall_size.0 + x),
-                focused: Focused::new(!config.is_multi()),
+                slot: AtariSlot(slot),
                 antic_data_handle,
                 ..Default::default()
             };
@@ -376,7 +385,10 @@ fn setup(
             entity_commands
                 .insert_bundle(atari_bundle)
                 .insert_bundle(PipelinedSpriteBundle {
-                    sprite: Sprite::default(),
+                    sprite: Sprite {
+                        color: Color::rgba(0.5, 0.5, 0.5, 1.0),
+                        ..Default::default()
+                    },
                     texture: main_image_handle,
                     transform: Transform {
                         translation: Vec3::new(
@@ -407,7 +419,7 @@ fn main() {
     let config = EmulatorConfig {
         collisions: true,
         wall_size: (1, 1),
-        scale: 2.0,
+        scale: 4.0,
     };
     let window_size = (if !config.is_multi() {
         Vec2::new(384.0, 240.0)
@@ -418,7 +430,7 @@ fn main() {
         )
     }) * config.scale;
 
-    let mut log_filter = "bevy_webgl2=warn".to_string();
+    let mut log_filter = "wgpu=warn".to_string();
     #[cfg(target_arch = "wasm32")]
     {
         let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
@@ -447,6 +459,7 @@ fn main() {
     });
 
     app.add_plugins(PipelinedDefaultPlugins);
+    app.add_plugin(EguiPlugin);
     app.add_plugin(AtariAnticPlugin {
         collisions: config.collisions,
     });
@@ -456,7 +469,7 @@ fn main() {
         ..Default::default()
     });
 
-    // app.add_plugin(FrameTimeDiagnosticsPlugin::default());
+    app.add_plugin(FrameTimeDiagnosticsPlugin::default());
     // app.add_plugin(LogDiagnosticsPlugin::default());
 
     if config.is_multi() {
@@ -481,5 +494,7 @@ fn main() {
         )
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
+        .add_system(debug::frame_stats.system())
+        .add_system(debug::regs.system())
         .run();
 }
