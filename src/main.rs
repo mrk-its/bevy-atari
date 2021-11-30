@@ -387,7 +387,7 @@ fn setup(
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
     config: Res<EmulatorConfig>,
-    mut egui_context: ResMut<EguiContext>,
+    // mut egui_context: ResMut<EguiContext>,
 ) {
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
@@ -397,7 +397,7 @@ fn setup(
             let antic_data =
                 AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
             let antic_data_handle = antic_data_assets.add(antic_data);
-            egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
+            // egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
             let mut atari_bundle = AtariBundle {
                 slot: AtariSlot(slot),
                 antic_data_handle,
@@ -488,7 +488,7 @@ fn main() {
     });
 
     app.add_plugins(PipelinedDefaultPlugins);
-    app.add_plugin(EguiPlugin);
+    // app.add_plugin(EguiPlugin);
     app.add_plugin(AtariAnticPlugin {
         collisions: config.collisions,
     });
@@ -524,6 +524,6 @@ fn main() {
         .add_system(resized_events.system())
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
-        .add_system(ui::show_ui.system())
+        // .add_system(ui::show_ui.system())
         .run();
 }
