@@ -84,7 +84,7 @@
         eject,
         run,
     } from './js/app.js'
-    import {reset} from './target/wasm.js'
+    import {reset, set_resolution} from './target/wasm.js'
 
     $("button.rec").click(rec_start_stop)
     $(window).bind("hashchange", on_hash_change);
@@ -99,11 +99,26 @@
     })
     $('body').click(e => window.audio_context.resume())
 
+    let canvas = $("#bevy-canvas");
+    canvas.on('fullscreenchange', (event) => {
+        // document.fullscreenElement will point to the element that
+        // is in fullscreen mode if there is one. If there isn't one,
+        // the value of the property is null.
+        if (document.fullscreenElement) {
+          console.log(`Element: ${document.fullscreenElement.id} entered full-screen mode.`);
+        } else {
+          console.log('Leaving full-screen mode.');
+          set_resolution(384 * 2, 240 * 2);
+        }
+      });
+
     $('#fullscreen').click(e => {
       e.preventDefault();
       let c = document.getElementById('bevy-canvas');
-      let x = (c.webkitRequestFullScreen || c.requestFullscreen);
-      x.call(c);
+      // let x = (c.webkitRequestFullScreen || c.requestFullscreen);
+      let ret = c.requestFullscreen().then(
+        () => set_resolution(window.innerWidth, window.innerHeight)
+      )
     })
     run()
   </script>

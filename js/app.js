@@ -273,6 +273,7 @@ $(window).bind("sap_writer", event => {
 });
 
 function pokey_post_message(msg) {
+  if(!pokeyNode) return;
   pokeyNode.port.postMessage(msg);
   if (sap_writer)
     sap_writer.handle_pokey_msg(msg)
@@ -444,23 +445,27 @@ function auto_focus() {
 export async function run() {
   console.log("initialized")
   var latencyHint = parseFloat(localStorage.latencyHint);
-  if (!(latencyHint >= 0)) latencyHint = localStorage.latencyHint || "interactive";
+  if (!(latencyHint >= 0)) latencyHint = localStorage.latencyHint || "playback";
   console.log("latencyHint: ", latencyHint);
   let audio_context = new AudioContext({
-    sampleRate: 56000,
+    sampleRate: 48000,
     latencyHint: latencyHint,
   });
   console.log("sampleRate: ", audio_context.sampleRate);
-  await audio_context.audioWorklet.addModule('pokey/pokey.js')
-  pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
-    outputChannelCount: [2],  // stereo
-  })
-  pokeyNode.connect(audio_context.destination)
+  if(audio_context.audioWorklet) {
+    await audio_context.audioWorklet.addModule('pokey/pokey.js')
+    pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
+      outputChannelCount: [2],  // stereo
+    })
+    pokeyNode.connect(audio_context.destination)
 
-  document.addEventListener(
-    'visibilitychange',
-    e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
-  );
+    document.addEventListener(
+      'visibilitychange',
+      e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
+    );
+  } else {
+    console.warn("audio_context.audioWorklet is undefined (serving through http?)");
+  }
   window.pokey_post_message = pokey_post_message
   window.audio_context = audio_context
   window.cmd = cmd

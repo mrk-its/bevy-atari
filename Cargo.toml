@@ -69,7 +69,8 @@ features = [
 gilrs = {path = "../gilrs/gilrs"}
 gilrs-core = {path = "../gilrs/gilrs-core"}
 
-glow = {git="https://github.com/grovesNL/glow"}
+# glow = {git="https://github.com/grovesNL/glow"}
+glow = {path="../glow"}
 naga = {git="https://github.com/gfx-rs/naga", rev="29571cc"}
 
 [patch.crates-io.wgpu]

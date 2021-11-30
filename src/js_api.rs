@@ -29,6 +29,10 @@ pub enum Message {
         disable_basic: bool,
     },
     SetState(String),
+    SetResolution {
+        width: f32,
+        height: f32,
+    },
 }
 
 #[allow(dead_code)]
@@ -83,6 +87,14 @@ pub fn reset(cold: bool, disable_basic: bool) {
         disable_basic,
     });
 }
+
+#[allow(dead_code)]
+#[wasm_bindgen]
+pub fn set_resolution(width: f32, height: f32) {
+    let mut messages = MESSAGES.write();
+    messages.push(Message::SetResolution { width, height });
+}
+
 use wasm_bindgen::JsValue;
 
 #[wasm_bindgen]

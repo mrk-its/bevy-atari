@@ -6,13 +6,13 @@ mod atari800_state;
 // pub mod atari_text;
 pub mod atr;
 mod cartridge;
-mod debug;
 pub mod gamepad;
 pub mod gtia;
 mod js_api;
 pub mod multiplexer;
 pub mod pia;
 pub mod pokey;
+mod ui;
 
 pub mod focus;
 
@@ -21,15 +21,9 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
-use bevy::render2::color::Color;
-use bevy_egui::egui;
+use bevy::{render2::view::Visibility, window::WindowResized};
 use bevy_egui::{EguiContext, EguiPlugin};
 
-use bevy::{
-    diagnostic::Diagnostics,
-    render2::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
-    sprite2::{PipelinedSpriteBundle, Sprite},
-};
 #[allow(unused_imports)]
 use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
@@ -39,6 +33,10 @@ use bevy::{
     winit::WinitConfig,
     PipelinedDefaultPlugins,
 };
+use bevy::{
+    render2::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
+    sprite2::PipelinedSpriteBundle,
+};
 use bevy_atari_antic::AtariAnticPlugin;
 use emulator_6502::{Interface6502, MOS6502};
 // use render::ANTIC_DATA_HANDLE;
@@ -46,7 +44,7 @@ use emulator_6502::{Interface6502, MOS6502};
 use bevy_atari_antic::AnticData;
 use focus::Focused;
 use system::AtariSystem;
-use time_used_plugin::TimeUsedPlugin;
+use ui::UIConfig;
 
 // #[global_allocator]
 // static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -236,18 +234,37 @@ fn atari_system(
     }
 }
 
+fn resized_events(
+    mut window_resized_events: EventReader<WindowResized>,
+    mut query: Query<(&mut Transform, &mut Visibility), With<FullScreen>>,
+    ui_config: Res<ui::UIConfig>,
+) {
+    for (mut transform, mut visibility) in query.iter_mut() {
+        for event in window_resized_events.iter() {
+            bevy::log::info!("window resized to {} {}", event.width, event.height);
+            transform.scale = compute_atari_screen_scale(event.width, event.height);
+        }
+        visibility.is_visible = !ui_config.small_screen;
+    }
+}
+
 // pub const SCANLINE_MESH_HANDLE: HandleUntyped =
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
 fn events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
     mut state: ResMut<State<EmulatorState>>,
+    mut windows: ResMut<Windows>,
 ) {
     let mut _messages = js_api::MESSAGES.write();
     for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
         let mut messages = (*_messages).clone();
         for event in messages.drain(..) {
             match event {
+                js_api::Message::SetResolution { width, height } => {
+                    let window = windows.get_primary_mut().unwrap();
+                    window.set_resolution(width, height);
+                }
                 js_api::Message::Reset {
                     cold,
                     disable_basic,
@@ -355,7 +372,16 @@ fn events(
     _messages.clear();
 }
 
+fn compute_atari_screen_scale(window_width: f32, window_height: f32) -> bevy::math::Vec3 {
+    let scale = (window_width / 384.0).min(window_height / 240.0);
+    Vec3::new(scale, scale, 1.0)
+}
+
+#[derive(Component)]
+pub struct FullScreen;
+
 fn setup(
+    window_descriptor: Res<WindowDescriptor>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
@@ -382,14 +408,14 @@ fn setup(
                 .system
                 .reset(&mut atari_bundle.cpu.cpu, true, true);
             let mut entity_commands = commands.spawn();
-            entity_commands
-                .insert_bundle(atari_bundle)
-                .insert_bundle(PipelinedSpriteBundle {
-                    sprite: Sprite {
-                        color: Color::rgba(0.5, 0.5, 0.5, 1.0),
-                        ..Default::default()
-                    },
+            entity_commands.insert_bundle(atari_bundle);
+            if !config.is_multi() {
+                entity_commands.insert(Focused);
+            }
+            if slot == 0 {
+                let mut full_screen_sprite = PipelinedSpriteBundle {
                     texture: main_image_handle,
+                    visibility: Visibility { is_visible: true },
                     transform: Transform {
                         translation: Vec3::new(
                             -400.0 / 2.0 * (config.wall_size.0 - 1) as f32 + (400 * x) as f32,
@@ -399,15 +425,17 @@ fn setup(
                         ..Default::default()
                     },
                     ..Default::default()
-                });
-            if !config.is_multi() {
-                entity_commands.insert(Focused);
+                };
+                full_screen_sprite.transform.scale =
+                    compute_atari_screen_scale(window_descriptor.width, window_descriptor.height);
+                commands.spawn_bundle(full_screen_sprite).insert(FullScreen);
             }
         }
     }
 
     let mut camera_bundle = OrthographicCameraBundle::new_2d();
-    camera_bundle.transform.scale = Vec3::new(1.0 / config.scale, 1.0 / config.scale, 1.0);
+    // camera_bundle.transform.scale = Vec3::new(1.0 / config.scale, 1.0 / config.scale, 1.0);
+    camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
     camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
     commands.spawn_bundle(camera_bundle);
 
@@ -419,7 +447,7 @@ fn main() {
     let config = EmulatorConfig {
         collisions: true,
         wall_size: (1, 1),
-        scale: 4.0,
+        scale: 2.0,
     };
     let window_size = (if !config.is_multi() {
         Vec2::new(384.0, 240.0)
@@ -439,6 +467,7 @@ fn main() {
         }
     }
     let mut app = App::new();
+    app.insert_resource(UIConfig::default());
     app.insert_resource(LogSettings {
         filter: log_filter,
         level: Level::INFO,
@@ -492,9 +521,9 @@ fn main() {
                 // .with_system(debug::debug_overlay_system.system().after("run_atari"))
                 // .with_system(debug::update_fps.system()),
         )
+        .add_system(resized_events.system())
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
-        .add_system(debug::frame_stats.system())
-        .add_system(debug::regs.system())
+        .add_system(ui::show_ui.system())
         .run();
 }
