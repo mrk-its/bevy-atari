@@ -5,6 +5,7 @@ CARGO_WASM_PATH = "${CARGO_TARGET_DIR}/wasm32-unknown-unknown/${ENV_DIR}/${CARGO
 CARGO_PROFILE = "dev"
 TARGET_DIR = "target"
 CARGO_MANIFEST_DIR = "${CARGO_MAKE_WORKING_DIRECTORY}"
+RUSTFLAGS="--cfg=web_sys_unstable_apis"
 
 [env.release]
 CARGO_RELEASE_ARGS = "--release"
@@ -24,7 +25,7 @@ args = ["target", "install", "wasm32-unknown-unknown"]
 command = "rustup"
 
 [tasks.cargo-build-web]
-args = ["build", "--target", "wasm32-unknown-unknown", "--features", "web", "@@split(CARGO_RELEASE_ARGS, )"]
+args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgl", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
 [tasks.build-web]

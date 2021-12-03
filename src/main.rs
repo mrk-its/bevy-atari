@@ -33,6 +33,7 @@ use bevy::{
     winit::WinitConfig,
     PipelinedDefaultPlugins,
 };
+
 use bevy::{
     render2::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
     sprite2::PipelinedSpriteBundle,
@@ -443,9 +444,10 @@ fn setup(
     // atari_bundle.state.break_point = Some(BreakPoint::PC(0x7100));
 }
 
-fn main() {
+#[bevy_main]
+async fn main() {
     let config = EmulatorConfig {
-        collisions: true,
+        collisions: cfg!(any(not(target_arch="wasm32"), feature="webgl")),
         wall_size: (1, 1),
         scale: 2.0,
     };
@@ -487,7 +489,7 @@ fn main() {
         ..Default::default()
     });
 
-    app.add_plugins(PipelinedDefaultPlugins);
+    app.add_plugins_async(PipelinedDefaultPlugins).await.unwrap();
     // app.add_plugin(EguiPlugin);
     app.add_plugin(AtariAnticPlugin {
         collisions: config.collisions,
