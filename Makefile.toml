@@ -24,14 +24,24 @@ args = ["install", "wasm-bindgen-cli", "--version", "0.2.69", "--root", "."]
 args = ["target", "install", "wasm32-unknown-unknown"]
 command = "rustup"
 
-[tasks.cargo-build-web]
-args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgl", "@@split(CARGO_RELEASE_ARGS, )"]
+[tasks.cargo-build-webgl]
+args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgl,egui", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
-[tasks.build-web]
+[tasks.build-webgl]
 args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
 command = "wasm-bindgen"
-dependencies = ["cargo-build-web", "wasm-bindgen-cli", "add-wasm32-target"]
+dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
+
+[tasks.cargo-build-webgpu]
+args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgpu", "@@split(CARGO_RELEASE_ARGS, )"]
+command = "cargo"
+
+[tasks.build-webgpu]
+args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
+command = "wasm-bindgen"
+dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
+
 
 [tasks.build-native]
 # args = ["build", "--features", "native", "@@split(CARGO_RELEASE_ARGS, )"]
@@ -45,7 +55,7 @@ dependencies = ["build-native"]
 [tasks.serve]
 command = "basic-http-server"
 args = ["-x"]
-dependencies = ["build-web", "basic-http-server"]
+dependencies = ["build-webgl", "basic-http-server"]
 
 [tasks.test]
 disabled = true

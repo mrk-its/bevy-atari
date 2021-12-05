@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate bitflags;
-use std::io::prelude::*;
+use std::{io::prelude::*, time::Duration};
 pub mod antic;
 mod atari800_state;
 // pub mod atari_text;
@@ -12,7 +12,11 @@ mod js_api;
 pub mod multiplexer;
 pub mod pia;
 pub mod pokey;
+
+pub mod resources;
+#[cfg(feature = "egui")]
 mod ui;
+use resources::UIConfig;
 
 pub mod focus;
 
@@ -21,7 +25,8 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
-use bevy::{render2::view::Visibility, window::WindowResized};
+use bevy::{render2::view::Visibility, utils::HashSet, window::WindowResized};
+#[cfg(feature = "egui")]
 use bevy_egui::{EguiContext, EguiPlugin};
 
 #[allow(unused_imports)]
@@ -44,8 +49,7 @@ use emulator_6502::{Interface6502, MOS6502};
 // use render_resources::{AnticData, CustomTexture, SimpleMaterial};
 use bevy_atari_antic::AnticData;
 use focus::Focused;
-use system::AtariSystem;
-use ui::UIConfig;
+use system::{Antic, AtariSystem};
 
 // #[global_allocator]
 // static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -71,21 +75,52 @@ enum BreakPoint {
     ScanLine(usize),
 }
 
+#[derive(Debug)]
+enum Step {
+    None,
+    Into,
+    Over { sp: u8 },
+    NextScanline { scanline: usize },
+}
+
+impl Default for Step {
+    fn default() -> Self {
+        Step::None
+    }
+}
+
 #[derive(Debug, Component, Default)]
 pub struct Debugger {
-    paused: bool,
-    break_point: Option<BreakPoint>,
+    pub paused: bool,
+    breakpoints: Vec<BreakPoint>,
+    step: Step,
 }
 
 impl Debugger {
-    #[allow(dead_code)]
-    fn set_breakpoint(&mut self, break_point: BreakPoint) {
-        self.paused = false;
-        self.break_point = Some(break_point);
-    }
-    fn clear_break_point(&mut self) {
+    // #[allow(dead_code)]
+    // fn set_breakpoint(&mut self, break_point: BreakPoint) {
+    //     self.paused = false;
+    //     // self.break_point = Some(break_point);
+    // }
+    fn pause(&mut self) {
         self.paused = true;
-        self.break_point = None;
+        // self.break_point = None;
+    }
+    fn step_into(&mut self) {
+        self.paused = false;
+        self.step = Step::Into;
+    }
+    fn step_over(&mut self, cpu: &MOS6502) {
+        self.paused = false;
+        self.step = Step::Over {
+            sp: cpu.get_stack_pointer(),
+        };
+    }
+    fn step_scanline(&mut self, antic: &Antic) {
+        self.paused = false;
+        self.step = Step::NextScanline {
+            scanline: antic.scan_line,
+        }
     }
 }
 
@@ -124,7 +159,7 @@ pub struct AtariSlot(pub i32);
 pub struct AtariBundle {
     slot: AtariSlot,
     system: AtariSystem,
-    state: Debugger,
+    debugger: Debugger,
     cpu: CPU,
     antic_data_handle: Handle<AnticData>,
     texture: Handle<Image>,
@@ -137,6 +172,42 @@ fn gunzip(data: &[u8]) -> Vec<u8> {
     result
 }
 
+#[derive(Default)]
+struct KeyAutoRepeater {
+    timer: Timer,
+}
+
+impl KeyAutoRepeater {
+    pub fn pressed<'a>(&mut self, input: &'a Input<KeyCode>) -> impl Iterator<Item = &'a KeyCode> {
+        let just_pressed = input.get_just_pressed().collect::<Vec<_>>();
+        let pressed = input.get_pressed();
+        if just_pressed.len() > 0 {
+            self.timer = Timer::new(Duration::from_secs_f32(0.4), false);
+        }
+        let finished = self.timer.finished();
+        self.timer.tick(Duration::from_secs_f32(0.02));
+        pressed.filter(move |v| just_pressed.contains(v) || finished)
+    }
+}
+
+fn debug_keyboard(
+    mut query: Query<(&mut Debugger, &CPU, &AtariSystem), With<Focused>>,
+    mut auto_repeat: Local<KeyAutoRepeater>,
+    keyboard: Res<Input<KeyCode>>,
+) {
+    if let Some((mut debugger, cpu, system)) = query.iter_mut().next() {
+        for key_code in auto_repeat.pressed(&keyboard) {
+            match key_code {
+                KeyCode::F6 => debugger.paused = !debugger.paused,
+                KeyCode::F7 => debugger.step_into(),
+                KeyCode::F8 => debugger.step_over(&cpu.cpu),
+                KeyCode::F9 => debugger.step_scanline(&system.antic),
+                _ => (),
+            }
+        }
+    }
+}
+
 fn atari_system(
     mut query: Query<(
         Option<&Focused>,
@@ -145,18 +216,18 @@ fn atari_system(
         &mut Debugger,
         &Handle<AnticData>,
     )>,
-    mut display_config: ResMut<DisplayConfig>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     keyboard: Res<Input<KeyCode>>,
     render_device: Res<RenderDevice>,
 ) {
     for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
         let mut cpu = &mut cpu.cpu;
+        let antic_data = antic_data_assets.get_mut(antic_data_handle).unwrap();
+
+        antic_data.config.debug_scan_line = atari_system.antic.scan_line as i32 - 8;
         if debugger.paused {
             continue;
         }
-        let mut prev_pc = 0;
-        let antic_data = antic_data_assets.get_mut(antic_data_handle).unwrap();
 
         if let Some(ref collisions_data) = antic_data.collisions_data {
             collisions_data.read_collisions(&*render_device);
@@ -177,52 +248,77 @@ fn atari_system(
             }
 
             if debugger.paused {
-                continue;
+                break;
             }
 
             cpu.cycle(&mut *atari_system);
-
-            if cpu.get_remaining_cycles() == 0 {
+            let finished_instr = cpu.get_remaining_cycles() == 0;
+            if finished_instr {
                 antic::post_instr_tick(&mut *atari_system, &antic_data.collisions_data);
-                match debugger.break_point {
-                    Some(BreakPoint::PC(pc)) => {
-                        if cpu.get_program_counter() == pc {
-                            debugger.clear_break_point();
-                            display_config.debug = true;
-                        }
-                    }
-                    Some(BreakPoint::NotPC(pc)) => {
-                        if cpu.get_program_counter() != pc {
-                            debugger.clear_break_point();
-                            display_config.debug = true;
-                        }
-                    }
-                    Some(BreakPoint::IndirectPC(addr)) => {
-                        let pc = atari_system.read(addr) as u16
-                            + atari_system.read(addr + 1) as u16 * 256;
-                        if prev_pc != pc {
-                            prev_pc = pc;
-                            info!("run addr: {:x?}", pc);
-                        }
-                        if cpu.get_program_counter() == pc {
-                            // frame.clear_break_point();
-                            debugger.paused = true;
-                            display_config.debug = true;
-                        }
-                    }
-                    _ => (),
-                }
             }
             atari_system.inc_cycle();
-            if atari_system.antic.cycle == 0 {
-                if let Some(BreakPoint::ScanLine(scan_line)) = &debugger.break_point {
-                    if *scan_line == atari_system.antic.scan_line {
-                        debugger.paused = true;
-                        debugger.break_point = None;
-                        display_config.debug = true;
-                        break;
+
+            if finished_instr {
+                let mut pause = false;
+                for breakpoint in &debugger.breakpoints {
+                    match breakpoint {
+                        BreakPoint::PC(pc) => {
+                            if cpu.get_program_counter() == *pc {
+                                pause = true;
+                                break;
+                            }
+                        }
+                        BreakPoint::NotPC(pc) => {
+                            if cpu.get_program_counter() != *pc {
+                                pause = true;
+                                break;
+                            }
+                        }
+                        BreakPoint::IndirectPC(addr) => {
+                            let pc = atari_system.read(*addr) as u16
+                                + atari_system.read(addr + 1) as u16 * 256;
+                            if pc != 0 && cpu.get_program_counter() == pc {
+                                pause = true;
+                                break;
+                            }
+                        }
+                        _ => (),
                     }
                 }
+                if !pause {
+                    match debugger.step {
+                        Step::None => (),
+                        Step::Into => {
+                            pause = true;
+                            debugger.step = Step::None
+                        }
+                        Step::Over { sp } => {
+                            if cpu.get_stack_pointer() == sp {
+                                pause = true;
+                                debugger.step = Step::None;
+                            }
+                        }
+                        Step::NextScanline { scanline } => {
+                            if atari_system.antic.scan_line != scanline {
+                                pause = true;
+                                debugger.step = Step::None;
+                            }
+                        }
+                    }
+                }
+                if pause {
+                    debugger.pause();
+                }
+            }
+            if atari_system.antic.cycle == 0 {
+                // if let Some(BreakPoint::ScanLine(scan_line)) = &debugger.break_point {
+                //     if *scan_line == atari_system.antic.scan_line {
+                //         debugger.paused = true;
+                //         debugger.break_point = None;
+                //         display_config.debug = true;
+                //         break;
+                //     }
+                // }
                 if atari_system.antic.scan_line == 248 {
                     atari_system.pokey.send_regs();
                     break;
@@ -232,20 +328,6 @@ fn atari_system(
                 break;
             }
         }
-    }
-}
-
-fn resized_events(
-    mut window_resized_events: EventReader<WindowResized>,
-    mut query: Query<(&mut Transform, &mut Visibility), With<FullScreen>>,
-    ui_config: Res<ui::UIConfig>,
-) {
-    for (mut transform, mut visibility) in query.iter_mut() {
-        for event in window_resized_events.iter() {
-            bevy::log::info!("window resized to {} {}", event.width, event.height);
-            transform.scale = compute_atari_screen_scale(event.width, event.height);
-        }
-        visibility.is_visible = !ui_config.small_screen;
     }
 }
 
@@ -349,7 +431,7 @@ fn events(
                         }
                         "brk" => {
                             if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                debugger.break_point = Some(BreakPoint::PC(pc));
+                                debugger.breakpoints.push(BreakPoint::PC(pc));
                                 info!("breakpoint set on pc={:04x}", pc);
                             }
                         }
@@ -388,7 +470,7 @@ fn setup(
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
     config: Res<EmulatorConfig>,
-    // mut egui_context: ResMut<EguiContext>,
+    #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
@@ -398,13 +480,26 @@ fn setup(
             let antic_data =
                 AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
             let antic_data_handle = antic_data_assets.add(antic_data);
-            // egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
+            #[cfg(feature = "egui")]
+            egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
             let mut atari_bundle = AtariBundle {
                 slot: AtariSlot(slot),
                 antic_data_handle,
                 ..Default::default()
             };
             atari_bundle.system.pokey.mute(config.is_multi());
+            // atari_bundle
+            //     .debugger
+            //     .breakpoints
+            //     .push(BreakPoint::IndirectPC(0x2e0));
+            // atari_bundle
+            //     .debugger
+            //     .breakpoints
+            //     .push(BreakPoint::IndirectPC(0x2e2));
+            // atari_bundle
+            //     .debugger
+            //     .breakpoints
+            //     .push(BreakPoint::IndirectPC(0x2e2));
             atari_bundle
                 .system
                 .reset(&mut atari_bundle.cpu.cpu, true, true);
@@ -440,14 +535,27 @@ fn setup(
     camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
     commands.spawn_bundle(camera_bundle);
 
-    // atari_bundle.state.break_point = Some(BreakPoint::IndirectPC(0x2e0));
     // atari_bundle.state.break_point = Some(BreakPoint::PC(0x7100));
+}
+
+pub fn resized_events(
+    mut window_resized_events: EventReader<WindowResized>,
+    mut query: Query<(&mut Transform, &mut Visibility), With<FullScreen>>,
+    ui_config: Res<resources::UIConfig>,
+) {
+    for (mut transform, mut visibility) in query.iter_mut() {
+        for event in window_resized_events.iter() {
+            bevy::log::info!("window resized to {} {}", event.width, event.height);
+            transform.scale = compute_atari_screen_scale(event.width, event.height);
+        }
+        visibility.is_visible = !ui_config.small_screen;
+    }
 }
 
 #[bevy_main]
 async fn main() {
     let config = EmulatorConfig {
-        collisions: cfg!(any(not(target_arch="wasm32"), feature="webgl")),
+        collisions: cfg!(any(not(target_arch = "wasm32"), feature = "webgl")),
         wall_size: (1, 1),
         scale: 2.0,
     };
@@ -489,11 +597,18 @@ async fn main() {
         ..Default::default()
     });
 
-    app.add_plugins_async(PipelinedDefaultPlugins).await.unwrap();
-    // app.add_plugin(EguiPlugin);
+    app.add_plugins_async(PipelinedDefaultPlugins)
+        .await
+        .unwrap();
+
+    #[cfg(feature = "egui")]
+    app.add_plugin(EguiPlugin).add_system(ui::show_ui.system());
+    app.add_system(resized_events.system());
+
     app.add_plugin(AtariAnticPlugin {
         collisions: config.collisions,
     });
+
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
     app.insert_resource(WinitConfig {
         force_fps: Some(50.0),
@@ -523,9 +638,9 @@ async fn main() {
                 // .with_system(debug::debug_overlay_system.system().after("run_atari"))
                 // .with_system(debug::update_fps.system()),
         )
-        .add_system(resized_events.system())
         // .add_system(debug::update_display_config.system())
         .add_system(events.system())
-        // .add_system(ui::show_ui.system())
+        .add_system(debug_keyboard.system())
+
         .run();
 }

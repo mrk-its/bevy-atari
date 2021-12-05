@@ -13,7 +13,9 @@ default = [
   "webgl",
 ]
 
+egui = ["bevy_egui"]
 webgl = ["bevy_atari_antic/webgl"]
+webgpu = []
 
 # x11 = [
 #   "winit/x11"
@@ -21,7 +23,7 @@ webgl = ["bevy_atari_antic/webgl"]
 
 [dependencies]
 tracing-wasm = "0.2.1"
-bevy_egui = "0.7"
+bevy_egui = {version="0.7", optional=true}
 # winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
 disasm6502 = "0.2"
@@ -37,9 +39,9 @@ js-sys = "0.3"
 bevy_atari_antic = {path="./bevy-atari-antic/", default-features=false}
 
 [dependencies.bevy]
-# git = "https://github.com/mrk-its/bevy"
-# branch = "bevy_atari"
-path = "../bevy"
+git = "https://github.com/bevyengine/bevy"
+branch = "main"
+# path = "../bevy"
 default_features = false
 
 [dependencies.web-sys]
@@ -79,11 +81,13 @@ git = "https://github.com/mrk-its/emulator_6502/"
 branch="speed_improvements"
 
 [patch.crates-io.bevy_egui]
-path = "../bevy_egui"
+git = "https://github.com/mrk-its/bevy_egui/"
+branch = "bevy-pipelined-optimized-wgpu-master"
+# path = "../bevy_egui"
 
 [patch."https://github.com/bevyengine/bevy"]
-# bevy = {git="https://github.com/mrk-its/bevy", branch="bevy_atari"}
-bevy = {path="../bevy"}
+bevy = {git="https://github.com/mrk-its/bevy", branch="bevy_atari_webgpu"}
+# bevy = {path="../bevy"}
 
 # [profile.dev.package."*"]
 # opt-level = 2

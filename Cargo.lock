@@ -159,6 +159,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bevy"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_internal",
 ]
@@ -166,6 +167,7 @@ dependencies = [
 [[package]]
 name = "bevy_app"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "anyhow",
  "bevy_derive",
@@ -179,6 +181,7 @@ dependencies = [
 [[package]]
 name = "bevy_asset"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -238,6 +241,7 @@ dependencies = [
 [[package]]
 name = "bevy_core"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_derive",
@@ -252,6 +256,7 @@ dependencies = [
 [[package]]
 name = "bevy_core_pipeline"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -263,6 +268,7 @@ dependencies = [
 [[package]]
 name = "bevy_derive"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "Inflector",
  "bevy_macro_utils",
@@ -273,6 +279,7 @@ dependencies = [
 [[package]]
 name = "bevy_diagnostic"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_core",
@@ -284,6 +291,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "async-channel",
  "bevy_ecs_macros",
@@ -300,6 +308,7 @@ dependencies = [
 [[package]]
 name = "bevy_ecs_macros"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -310,6 +319,7 @@ dependencies = [
 [[package]]
 name = "bevy_egui"
 version = "0.7.1"
+source = "git+https://github.com/mrk-its/bevy_egui/?branch=bevy-pipelined-optimized-wgpu-master#5d426bcf253845eca322055e936eaa15732a0be3"
 dependencies = [
  "bevy",
  "bytemuck",
@@ -324,6 +334,7 @@ dependencies = [
 [[package]]
 name = "bevy_gilrs"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -335,6 +346,7 @@ dependencies = [
 [[package]]
 name = "bevy_input"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -345,6 +357,7 @@ dependencies = [
 [[package]]
 name = "bevy_internal"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -372,6 +385,7 @@ dependencies = [
 [[package]]
 name = "bevy_log"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "android_log-sys",
  "bevy_app",
@@ -385,6 +399,7 @@ dependencies = [
 [[package]]
 name = "bevy_macro_utils"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "cargo-manifest",
  "quote",
@@ -394,6 +409,7 @@ dependencies = [
 [[package]]
 name = "bevy_math"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_reflect",
  "glam",
@@ -402,6 +418,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_reflect_derive",
  "bevy_utils",
@@ -417,6 +434,7 @@ dependencies = [
 [[package]]
 name = "bevy_reflect_derive"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_macro_utils",
  "proc-macro2",
@@ -428,6 +446,7 @@ dependencies = [
 [[package]]
 name = "bevy_render2"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -441,7 +460,7 @@ dependencies = [
  "bevy_utils",
  "bevy_window",
  "bitflags",
- "crevice 0.8.0",
+ "crevice 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu)",
  "downcast-rs",
  "futures-lite",
  "hex",
@@ -460,6 +479,7 @@ dependencies = [
 [[package]]
 name = "bevy_scene"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "anyhow",
  "bevy_app",
@@ -477,6 +497,7 @@ dependencies = [
 [[package]]
 name = "bevy_sprite2"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_asset",
@@ -490,7 +511,7 @@ dependencies = [
  "bevy_transform",
  "bevy_utils",
  "bytemuck",
- "crevice 0.8.0",
+ "crevice 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu)",
  "guillotiere",
  "rectangle-pack",
  "serde",
@@ -500,6 +521,7 @@ dependencies = [
 [[package]]
 name = "bevy_tasks"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "async-channel",
  "async-executor",
@@ -512,6 +534,7 @@ dependencies = [
 [[package]]
 name = "bevy_transform"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_ecs",
@@ -524,6 +547,7 @@ dependencies = [
 [[package]]
 name = "bevy_utils"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "ahash",
  "bevy_derive",
@@ -536,6 +560,7 @@ dependencies = [
 [[package]]
 name = "bevy_window"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "bevy_app",
  "bevy_math",
@@ -547,6 +572,7 @@ dependencies = [
 [[package]]
 name = "bevy_winit"
 version = "0.5.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "approx",
  "bevy_app",
@@ -867,16 +893,6 @@ dependencies = [
 [[package]]
 name = "crevice"
 version = "0.8.0"
-dependencies = [
- "bytemuck",
- "crevice-derive 0.8.0",
- "glam",
- "mint",
-]
-
-[[package]]
-name = "crevice"
-version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2d4f6c6d647171f93b5f65f1250ea929c7189b4330e9364be147d4571ae01f8f"
 dependencies = [
@@ -886,8 +902,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "crevice"
+version = "0.8.0"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
+dependencies = [
+ "bytemuck",
+ "crevice-derive 0.8.0 (git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu)",
+ "glam",
+ "mint",
+]
+
+[[package]]
 name = "crevice-derive"
 version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d88c3459fdadc1206f8ea5c4746547c92cbbf8ec9e6d91b2242847d5e00fde4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -897,8 +926,7 @@ dependencies = [
 [[package]]
 name = "crevice-derive"
 version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d88c3459fdadc1206f8ea5c4746547c92cbbf8ec9e6d91b2242847d5e00fde4"
+source = "git+https://github.com/mrk-its/bevy?branch=bevy_atari_webgpu#850d45108dba17ef4f5f2b65b0fdcebdaf6fd3e6"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1451,9 +1479,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.108"
+version = "0.2.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8521a1b57e76b1ec69af7599e75e38e7b7fad6610f037db8c79b127201b5d119"
+checksum = "f98a04dce437184842841303488f70d0188c5f51437d2a834dc097eafa909a01"
 
 [[package]]
 name = "libloading"
@@ -1943,9 +1971,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.32"
+version = "1.0.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba508cc11742c0dc5c1659771673afbab7a0efab23aa17e854cbab0837ed0b43"
+checksum = "fb37d2df5df740e582f28f8560cf425f52bb267d872fe58358eadb554909f07a"
 dependencies = [
  "unicode-xid",
 ]
