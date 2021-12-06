@@ -37,12 +37,26 @@ fn show_debugger(
     egui_context: &EguiContext,
     config: &mut UIConfig,
     debugger: &mut Debugger,
+    cpu: &CPU,
+    system: &AtariSystem,
 ) -> Response {
     bevy_egui::egui::Window::new("Debugger")
         .open(&mut config.debugger)
         .show(egui_context.ctx(), |ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            ui.checkbox(&mut debugger.paused, "paused");
+            if ui.button(if debugger.paused {"Resume (F6)"} else {"Pause (F6)"}).clicked() {
+                debugger.paused = !debugger.paused;
+            }
+            // ui.checkbox(&mut debugger.paused, "pause (F6)");
+            if ui.button("step into (F7)").clicked() {
+                debugger.step_into();
+            }
+            if ui.button("step over (F7)").clicked() {
+                debugger.step_over(&cpu.cpu);
+            }
+            if ui.button("next scanline (F8)").clicked() {
+                debugger.step_scanline(&system.antic)
+            }
         })
 }
 
@@ -383,7 +397,7 @@ pub fn show_ui(
     for (cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
         show_screen(&egui_context, &mut config, slot);
         show_cpu(&egui_context, &mut config, &cpu);
-        show_debugger(&egui_context, &mut config, &mut debugger);
+        show_debugger(&egui_context, &mut config, &mut debugger, &cpu, &atari_system);
         show_antic(&egui_context, &mut config, &mut atari_system);
         show_gtia(&egui_context, &mut config, &mut atari_system);
         show_disasm(&egui_context, &mut config, cpu, &mut atari_system);
