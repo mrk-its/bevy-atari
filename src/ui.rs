@@ -51,11 +51,14 @@ fn show_debugger(
             if ui.button("step into (F7)").clicked() {
                 debugger.step_into();
             }
-            if ui.button("step over (F7)").clicked() {
+            if ui.button("step over (F8)").clicked() {
                 debugger.step_over(&cpu.cpu);
             }
-            if ui.button("next scanline (F8)").clicked() {
-                debugger.step_scanline(&system.antic)
+            if ui.button("next scanline (F9)").clicked() {
+                debugger.next_scanline(&system.antic)
+            }
+            if ui.button("next frame (F10)").clicked() {
+                debugger.next_frame()
             }
         })
 }

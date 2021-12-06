@@ -75,12 +75,13 @@ enum BreakPoint {
     ScanLine(usize),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 enum Step {
     None,
     Into,
     Over { sp: u8 },
     NextScanline { scanline: usize },
+    NextFrame,
 }
 
 impl Default for Step {
@@ -116,11 +117,15 @@ impl Debugger {
             sp: cpu.get_stack_pointer(),
         };
     }
-    fn step_scanline(&mut self, antic: &Antic) {
+    fn next_scanline(&mut self, antic: &Antic) {
         self.paused = false;
         self.step = Step::NextScanline {
             scanline: antic.scan_line,
         }
+    }
+    fn next_frame(&mut self) {
+        self.paused = false;
+        self.step = Step::NextFrame;
     }
 }
 
@@ -201,7 +206,8 @@ fn debug_keyboard(
                 KeyCode::F6 => debugger.paused = !debugger.paused,
                 KeyCode::F7 => debugger.step_into(),
                 KeyCode::F8 => debugger.step_over(&cpu.cpu),
-                KeyCode::F9 => debugger.step_scanline(&system.antic),
+                KeyCode::F9 => debugger.next_scanline(&system.antic),
+                KeyCode::F10 => debugger.next_frame(),
                 _ => (),
             }
         }
@@ -287,7 +293,6 @@ fn atari_system(
                 }
                 if !pause {
                     match debugger.step {
-                        Step::None => (),
                         Step::Into => {
                             pause = true;
                             debugger.step = Step::None
@@ -304,6 +309,7 @@ fn atari_system(
                                 debugger.step = Step::None;
                             }
                         }
+                        _ => (),
                     }
                 }
                 if pause {
@@ -321,6 +327,10 @@ fn atari_system(
                 // }
                 if atari_system.antic.scan_line == 248 {
                     atari_system.pokey.send_regs();
+                    if debugger.step == Step::NextFrame {
+                        debugger.step = Step::None;
+                        debugger.pause();
+                    }
                     break;
                 }
             }
