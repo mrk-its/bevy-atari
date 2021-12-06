@@ -9,10 +9,12 @@ resolver = "2"
 
 [features]
 default = [
-  "bevy/bevy_gilrs",
+  "egui",
+  "gamepad",
   "webgl",
 ]
 
+gamepad = ["bevy/bevy_gilrs"]
 egui = ["bevy_egui"]
 webgl = ["bevy_atari_antic/webgl"]
 webgpu = []

@@ -25,7 +25,7 @@ args = ["target", "install", "wasm32-unknown-unknown"]
 command = "rustup"
 
 [tasks.cargo-build-webgl]
-args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgl,egui", "@@split(CARGO_RELEASE_ARGS, )"]
+args = ["build", "--target", "wasm32-unknown-unknown", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
 [tasks.build-webgl]
@@ -34,7 +34,7 @@ command = "wasm-bindgen"
 dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
 
 [tasks.cargo-build-webgpu]
-args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgpu", "@@split(CARGO_RELEASE_ARGS, )"]
+args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgpu,egui,gamepad", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
 
 [tasks.build-webgpu]
