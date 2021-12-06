@@ -483,6 +483,12 @@ export async function run() {
   window.gui = new GUI()
   window.gui.createInterface();
 
+  $("body").on("dragover", false).on("drop", e => {
+    let url = e.originalEvent.dataTransfer.getData('text/plain')
+    if(url) window.location.hash = '#' + url;
+    e.preventDefault();
+  });
+
   reload_from_fragment();
   auto_focus()
 

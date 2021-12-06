@@ -25,9 +25,10 @@
       background-color: black;
     }
 
-    #canvas-container {
+    #ui-container {
       margin: 0px auto;
       width: 768px;
+      user-select: none;
     }
 
     #analyser-container {
@@ -128,7 +129,7 @@
   <div style="display: flex; align-items: center; justify-content: center">
     <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto" style="margin: auto"></canvas>
   </div>
-  <div id="canvas-container">
+  <div id="ui-container">
     <div class="buttons">
       <button id="reset_warm">Restart (Warm)</button>
       <button id="reset_cold">Restart (Cold)</button>
