@@ -33,6 +33,10 @@ args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "
 command = "wasm-bindgen"
 dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
 
+[tasks.build-webgl-sha1]
+script = "sed -i \"s/'wasm_bg.wasm'/'wasm_bg.wasm?sha1=$(git rev-parse HEAD)'/\" ${TARGET_DIR}/wasm.js"
+dependencies = ["build-webgl"]
+
 [tasks.cargo-build-webgpu]
 args = ["build", "--target", "wasm32-unknown-unknown", "--no-default-features", "--features", "webgpu,egui,gamepad", "@@split(CARGO_RELEASE_ARGS, )"]
 command = "cargo"
@@ -40,8 +44,11 @@ command = "cargo"
 [tasks.build-webgpu]
 args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
 command = "wasm-bindgen"
-dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
+dependencies = ["cargo-build-webgpu", "wasm-bindgen-cli", "add-wasm32-target"]
 
+[tasks.build-webgpu-sha1]
+script = "sed -i \"s/'wasm_bg.wasm'/'wasm_bg.wasm?sha1=$(git rev-parse HEAD)'/\" ${TARGET_DIR}/wasm.js"
+dependencies = ["build-webgpu"]
 
 [tasks.build-native]
 # args = ["build", "--features", "native", "@@split(CARGO_RELEASE_ARGS, )"]
@@ -55,7 +62,7 @@ dependencies = ["build-native"]
 [tasks.serve]
 command = "basic-http-server"
 args = ["-x"]
-dependencies = ["build-webgl", "basic-http-server"]
+dependencies = ["build-webgl-sha1", "basic-http-server"]
 
 [tasks.test]
 disabled = true
