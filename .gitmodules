@@ -1,5 +1,5 @@
 [submodule "pokey"]
-	path = pokey
+	path = web/pokey
 	url = https://github.com/mrk-its/web-pokey
 [submodule "bevy-atari-antic"]
 	path = bevy-atari-antic

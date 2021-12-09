@@ -1,6 +1,7 @@
-import init, { set_joystick, set_consol, set_binary_data, cmd, reset, set_state } from '../target/wasm.js'
+import init, { set_binary_data, cmd, reset as _reset, set_state, set_resolution as _set_resolution} from '../wasm/wasm.js'
 
 import { SAPWriter } from './sap_writer.js'
+import { initFilesystem, mkdirs, readFile, writeFile } from './fs.js'
 
 const k_file_header = [150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137, 0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196, 7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0, 141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6, 165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173, 226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8, 208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0, 133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11, 133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9, 32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172, 121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169, 82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3, 169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32, 89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11, 173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140, 118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0];
 
@@ -10,6 +11,9 @@ const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20ope
 var sap_writer = null;
 var pokeyNode;
 export var audio_context;
+
+export const set_resolution = _set_resolution;
+export const reset = _reset;
 
 var atr_images = {}
 
@@ -26,7 +30,7 @@ class Binary {
 class ATR extends Binary {
   constructor(data, file_name, url, file_handle) {
 
-    if(data[0] == 255 && data[1] == 255) {
+    if (data[0] == 255 && data[1] == 255) {
       data = xex2atr(data);
       file_handle = null;
       file_name = "[auto-k-file].atr";
@@ -43,15 +47,29 @@ class ATR extends Binary {
     this.version = 0
   }
   get_sector(sector) {
-    if(sector <= 3) {
+    if (sector <= 3) {
       return this.data.subarray(16 + (sector - 1) * 128, 16 + sector * 128)
     }
     return this.data.subarray(16 + 3 * 128 + (sector - 4) * this.sector_size, 16 + 3 * 128 + (sector - 3) * this.sector_size);
   }
+
+  persist() {
+    if (this.persistTimeoutId) {
+      clearTimeout(this.persistTimeoutId)
+    };
+    console.log("delaying write...");
+    this.persistTimeoutId = setTimeout(() => {
+      writeFile(this.file_name, this.data).then(() => {
+        console.log("written!");
+      });
+    }, 500)
+  }
+
   put_sector(sector, data) {
     this.get_sector(sector).set(data);
     this.version += 1;
     if (this.on_modify) this.on_modify()
+    this.persist();
   }
 }
 
@@ -84,7 +102,7 @@ class GUI {
         e.preventDefault();
         let atr = _this.getBinary(id)
         if (!atr || !atr.file_handle) {
-          if(!atr) {
+          if (!atr) {
             console.warn("no atr");
             return;
           }
@@ -129,7 +147,7 @@ class GUI {
     eject.click((e) => {
       e.preventDefault();
       let binary = _this.ejectBinary(id);
-      if(binary && binary.url)
+      if (binary && binary.url)
         set_fragment(parse_fragment().filter(k => k[1] != binary.url))
     })
     container.append(actions)
@@ -147,7 +165,7 @@ class GUI {
 
   setBinary(id, binary) {
     this.binaries[id] = binary
-    if(binary.emulator_loadable)
+    if (binary.emulator_loadable)
       set_binary_data(id, binary.file_name, binary.data)
     let cont = $(`#${id}`)
     binary.on_modify = () => {
@@ -163,7 +181,7 @@ class GUI {
     let cont = $(`#${id}`)
     cont.removeClass("loaded")
     cont.find("span.name").text("")
-    if(binary.emulator_loadable) set_binary_data(id, "", [])
+    if (binary.emulator_loadable) set_binary_data(id, "", [])
     return binary
   }
   getBinary(id) {
@@ -178,7 +196,7 @@ function _drive_id(drive, unit) {
 function sio_get_status(drive, unit, data) {
   let atr = window.gui.getBinary(_drive_id(drive, unit));
   var status = 0xff;
-  if(atr) {
+  if (atr) {
     data[0] = atr.sector_size == 256 ? 0x20 : 0;
     data[1] = 0;
     data[2] = 0;
@@ -199,7 +217,7 @@ function sio_get_sector(drive, unit, sector, data) {
   var status;
   if (atr) {
     var read_data = atr.get_sector(sector);
-    if(read_data.length == data.length) {
+    if (read_data.length == data.length) {
       data.set(read_data)
       status = 0x01;
     } else {
@@ -273,7 +291,7 @@ $(window).bind("sap_writer", event => {
 });
 
 function pokey_post_message(msg) {
-  if(!pokeyNode) return;
+  if (!pokeyNode) return;
   pokeyNode.port.postMessage(msg);
   if (sap_writer)
     sap_writer.handle_pokey_msg(msg)
@@ -303,7 +321,7 @@ function parse_part(part) {
 function parse_fragment() {
   let hash = document.location.hash.substring(1)
   let sep = new RegExp('\\|\\||&&')
-  return hash.split(sep).map(parse_part).filter( i => i[1] && i[1].length)
+  return hash.split(sep).map(parse_part).filter(i => i[1] && i[1].length)
 }
 
 function set_fragment(parts) {
@@ -317,8 +335,8 @@ export function eject(event) {
   let url = node.attributes["data-url"].value;
 }
 
-function set_binary(key, url, data, slot) {
-  var filename = url_to_filename(url);
+function set_binary(key, url, path, data, slot) {
+  var filename = path
   let parts = filename.split(".")
   let ext = parts[parts.length - 1];
   if (!key) {
@@ -346,7 +364,7 @@ function set_binary(key, url, data, slot) {
       }
     } else if (ext == "xex") {
       let is_valid = (data[0] == 255 && data[1] == 255);
-      if(is_valid) {
+      if (is_valid) {
         key = "disk_1"
       } else {
         console.warn("invalid xex header");
@@ -393,13 +411,52 @@ function fetch_url(url) {
   })
 }
 
-function fetch_binary_data(key, url, slot) {
+async function hash(text) {
+  let buf = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder("utf-8").encode(text)
+  );
+  return Array.from(new Uint8Array(buf)).slice(0, 16).map(i => ('0' + i.toString(16)).slice(-2)).join('')
+}
+
+async function url_to_path(url) {
+  let url_obj = new URL(url);
+  var path = url_obj.hostname + decodeURIComponent(url_obj.pathname);
+  if (url_obj.search) {
+    let h = await hash(url_obj.search);
+    if (!path.endsWith("/")) path = path + "/";
+    path = path + h;
+  }
+  return path
+}
+
+async function fetch_binary_data(key, url, slot) {
+  if (!url.startsWith("http")) return;
   console.log("fetch_binary_data", key, url, slot)
-  return fetch_url(url).then(function (data) {
-    let type = set_binary(key, url, data, slot);
-    console.log("set_binary", key, url, "len:", data.length);
-    return type;
-  })
+  let path = await url_to_path(url);
+
+  var data;
+  try {
+    // if(document.location.hash.indexOf("clear-cache")>0) {
+    //   throw "skip";
+    // }
+    data = await readFile(path)
+    console.info(`${path} read from cache`)
+  } catch (err) {
+    console.log(`${err} - ${path} not in cache, fetching`)
+    data = await fetch_url(url);
+    console.log(data);
+    try {
+      await mkdirs(path);
+      await writeFile(path, data.buffer);
+      console.log(`${path} written to cache`);
+    } catch (err) {
+      console.log("ERR:", err);
+    }
+  }
+  let type = set_binary(key, url, path, data, slot);
+  console.log("set_binary", key, url, "len:", data.length);
+  return type;
 }
 
 function delay(ms) {
@@ -443,6 +500,7 @@ function auto_focus() {
 }
 
 export async function run() {
+  await initFilesystem("IndexedDB");
   console.log("initialized")
   var latencyHint = parseFloat(localStorage.latencyHint);
   if (!(latencyHint >= 0)) latencyHint = localStorage.latencyHint || "playback";
@@ -452,7 +510,7 @@ export async function run() {
     latencyHint: latencyHint,
   });
   console.log("sampleRate: ", audio_context.sampleRate);
-  if(audio_context.audioWorklet) {
+  if (audio_context.audioWorklet) {
     await audio_context.audioWorklet.addModule('pokey/pokey.js')
     pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
       outputChannelCount: [2],  // stereo
@@ -485,7 +543,7 @@ export async function run() {
 
   $("body").on("dragover", false).on("drop", e => {
     let url = e.originalEvent.dataTransfer.getData('text/plain')
-    if(url) window.location.hash = '#' + url;
+    if (url) window.location.hash = '#' + url;
     e.preventDefault();
   });
 

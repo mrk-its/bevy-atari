@@ -4,6 +4,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Good Enough Atari Emulator</title>
   <script src='https://code.jquery.com/jquery-latest.min.js' type='text/javascript'></script>
+  <script src='./js/browserfs.min.js' type='text/javascript'></script>
   <style>
     input[type=file] {
       color: rgba(0,0,0,0);
@@ -84,8 +85,9 @@
         on_hash_change,
         eject,
         run,
+        reset,
+        set_resolution
     } from './js/app.js'
-    import {reset, set_resolution} from './target/wasm.js'
 
     $("button.rec").click(rec_start_stop)
     $(window).bind("hashchange", on_hash_change);
@@ -121,7 +123,20 @@
         () => set_resolution(window.innerWidth, window.innerHeight)
       )
     })
-    run()
+    // window._fs = {}
+    // BrowserFS.install(window._fs);
+    // let backend = "IndexedDB"
+    // BrowserFS.FileSystem[backend].Create({}, function(err, ifbfs) {
+    //   if(!err) {
+    //     console.info(`BrowserFS configured with IndexedDB ${backend}`);
+    //     BrowserFS.initialize(ifbfs);
+    //     window.fs = window._fs.require("fs");
+    //     // fs.writeFile("/test.txt", "contents", console.info);
+    //     fs.readFile("/test.txt", console.info);
+    //   }
+    //   run();
+    // });
+    run();
   </script>
 </head>
 

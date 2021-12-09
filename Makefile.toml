@@ -29,12 +29,12 @@ args = ["build", "--target", "wasm32-unknown-unknown", "@@split(CARGO_RELEASE_AR
 command = "cargo"
 
 [tasks.build-webgl]
-args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
+args = ["--out-dir", "web/wasm", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
 command = "wasm-bindgen"
 dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
 
 [tasks.build-webgl-sha1]
-script = "sed -i \"s/'wasm_bg.wasm'/'wasm_bg.wasm?sha1=$(git rev-parse HEAD)'/\" ${TARGET_DIR}/wasm.js"
+script = "sed -i \"s/'wasm_bg.wasm'/'wasm_bg.wasm?sha1=$(git rev-parse HEAD)'/\" web/wasm/wasm.js"
 dependencies = ["build-webgl"]
 
 [tasks.cargo-build-webgpu]
@@ -61,7 +61,7 @@ dependencies = ["build-native"]
 
 [tasks.serve]
 command = "basic-http-server"
-args = ["-x"]
+args = ["-x", "web"]
 dependencies = ["build-webgl-sha1", "basic-http-server"]
 
 [tasks.test]
