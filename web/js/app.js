@@ -511,16 +511,20 @@ export async function run() {
   });
   console.log("sampleRate: ", audio_context.sampleRate);
   if (audio_context.audioWorklet) {
-    await audio_context.audioWorklet.addModule('pokey/pokey.js')
-    pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
-      outputChannelCount: [2],  // stereo
-    })
-    pokeyNode.connect(audio_context.destination)
+    try {
+      await audio_context.audioWorklet.addModule('pokey/pokey.js')
+      pokeyNode = new AudioWorkletNode(audio_context, 'POKEY', {
+        outputChannelCount: [2],  // stereo
+      })
+      pokeyNode.connect(audio_context.destination)
 
-    document.addEventListener(
-      'visibilitychange',
-      e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
-    );
+      document.addEventListener(
+        'visibilitychange',
+        e => document.hidden ? window.audio_context.suspend() : window.audio_context.resume()
+      );
+    } catch(err) {
+      console.error("WebAudio:", err);
+    }
   } else {
     console.warn("audio_context.audioWorklet is undefined (serving through http?)");
   }
