@@ -11,11 +11,13 @@ pub mod gtia;
 mod js_api;
 pub mod multiplexer;
 pub mod pia;
+pub mod platform;
 pub mod pokey;
 
 pub mod resources;
 #[cfg(feature = "egui")]
 mod ui;
+use platform::FileSystem;
 use resources::UIConfig;
 
 pub mod focus;
@@ -223,6 +225,7 @@ fn atari_system(
         &Handle<AnticData>,
     )>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
+    fs: Res<FileSystem>,
     keyboard: Res<Input<KeyCode>>,
     render_device: Res<RenderDevice>,
 ) {
@@ -338,11 +341,48 @@ fn atari_system(
                 break;
             }
         }
+        atari_system.store_disks(&fs);
     }
 }
 
 // pub const SCANLINE_MESH_HANDLE: HandleUntyped =
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
+
+fn set_binary(atari_system: &mut AtariSystem, cpu: &mut CPU, key: &str, path: &str, data: Option<Vec<u8>>) {
+    info!("set_binary: {} {} {:?}", key, path, data);
+    match key {
+        "basic" => {
+            atari_system.set_basic(data);
+        }
+        "osrom" => {
+            info!("loading osrom, len: {:?}", data.as_ref().map(|v| v.len()));
+            atari_system.set_osrom(data);
+        }
+        "disk_1" | "disk_2" | "disk_3" | "disk_4" => {
+            let n = (key.bytes().nth(5).unwrap() - 48 - 1) as usize;
+            atari_system.disks[n] = data.map(|data| atr::ATR::new(path, &data));
+        }
+        "car" => {
+            atari_system.set_cart(
+                data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
+                    .flatten(),
+            );
+        }
+        // "state" => {
+        //     if let Some(data) = data {
+        //         let data = gunzip(&data);
+        //         let a800_state = atari800_state::Atari800State::new(&data);
+        //         a800_state.reload(&mut *atari_system, &mut cpu.cpu);
+        //         // *frame = FrameState::default();
+        //         state.set(EmulatorState::Running).ok();
+        //         info!("LOADED! {:?}", *state);
+        //     }
+        // }
+        _ => {
+            warn!("unknown binary");
+        }
+    }
+}
 
 fn events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
@@ -381,39 +421,10 @@ fn events(
                     atari_system.update_consol(1, state);
                 }
                 js_api::Message::BinaryData {
-                    key, data, slot, ..
+                    key, data, slot, path
                 } => {
                     if slot.is_none() || Some(atari_slot.0) == slot {
-                        match key.as_str() {
-                            "basic" => {
-                                atari_system.set_basic(data);
-                            }
-                            "osrom" => {
-                                atari_system.set_osrom(data);
-                            }
-                            "disk_1" => {
-                                atari_system.disk_1 = data.map(|data| atr::ATR::new(&data));
-                            }
-                            "car" => {
-                                atari_system.set_cart(
-                                    data.map(|data| <dyn Cartridge>::from_bytes(&data).ok())
-                                        .flatten(),
-                                );
-                            }
-                            "state" => {
-                                if let Some(data) = data {
-                                    let data = gunzip(&data);
-                                    let a800_state = atari800_state::Atari800State::new(&data);
-                                    a800_state.reload(&mut *atari_system, &mut cpu.cpu);
-                                    // *frame = FrameState::default();
-                                    state.set(EmulatorState::Running).ok();
-                                    info!("LOADED! {:?}", *state);
-                                }
-                            }
-                            _ => {
-                                warn!("unknown binary");
-                            }
-                        }
+                        set_binary(&mut atari_system, &mut cpu, &key, &path, data);
                     }
                 }
                 js_api::Message::Command { cmd } => {
@@ -459,10 +470,30 @@ fn events(
                         _ => (),
                     }
                 }
+                _ => {
+                    info!("not handled: {:?}", event);
+                    continue;
+                }
             }
         }
     }
     _messages.clear();
+}
+
+fn fs_events(
+    mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger), With<Focused>>,
+    mut events: EventReader<platform::FsEvent>,
+) {
+    for event in events.iter() {
+        for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
+            match event {
+                platform::FsEvent::AttachBinary { key, path, data } => {
+                    set_binary(&mut atari_system, &mut cpu, &key, path, Some(data.clone())); // TODO - get rid of clone
+                }
+                _ => continue,
+            }
+        }
+    }
 }
 
 fn compute_atari_screen_scale(window_width: f32, window_height: f32) -> bevy::math::Vec3 {
@@ -479,9 +510,11 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
+    fs: Res<platform::FileSystem>,
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
+    // fs.attach_binary("osrom", "atarionline.pl/utils/9. ROM-y/Systemy operacyjne/Atari OS v2 83.10.05.rom");
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
             let slot = y * config.wall_size.0 + x;
@@ -587,6 +620,10 @@ async fn main() {
         }
     }
     let mut app = App::new();
+    app.insert_resource(platform::FileSystem::default());
+    app.add_event::<platform::FsEvent>();
+    app.add_system(platform::pump_fs_events);
+    app.add_system(fs_events);
     app.insert_resource(UIConfig::default());
     app.insert_resource(LogSettings {
         filter: log_filter,

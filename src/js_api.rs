@@ -17,7 +17,7 @@ pub enum Message {
     },
     BinaryData {
         key: String,
-        filename: String,
+        path: String,
         data: Option<Vec<u8>>,
         slot: Option<i32>,
     },
@@ -53,12 +53,12 @@ pub fn set_consol(state: u8) {
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn set_binary_data(key: String, filename: String, data: Vec<u8>, slot: Option<i32>) {
+pub fn set_binary_data(key: String, path: String, data: Vec<u8>, slot: Option<i32>) {
     let mut messages = MESSAGES.write();
     let data = if data.len() > 0 { Some(data) } else { None };
     messages.push(Message::BinaryData {
         key,
-        filename,
+        path,
         data,
         slot,
     });
@@ -97,10 +97,19 @@ pub fn set_resolution(width: f32, height: f32) {
 
 use wasm_bindgen::JsValue;
 
-#[wasm_bindgen]
+#[wasm_bindgen(catch)]
 extern "C" {
     pub fn pokey_post_message(a: &JsValue);
     pub fn sio_get_status(device: u8, unit: u8, data: &mut [u8]) -> u8;
     pub fn sio_get_sector(device: u8, unit: u8, sector: u16, data: &mut [u8]) -> u8;
     pub fn sio_put_sector(device: u8, unit: u8, sector: u16, data: &[u8]) -> u8;
+
+    #[wasm_bindgen(catch)]
+    pub async fn ls(path: &str) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(catch)]
+    pub async fn readFile(path: &str) -> Result<JsValue, JsValue>;
+
+    #[wasm_bindgen(catch)]
+    pub async fn writeFile(path: &str, contents: &[u8]) -> Result<(), JsValue>;
 }

@@ -30,6 +30,10 @@ export async function mkdirs(path) {
     }
 }
 
+export async function readDir(path) {
+    return await asyncify(fs.readdir, path);
+}
+
 export async function readFile(path) {
     return await asyncify(fs.readFile, path);
 }
@@ -37,6 +41,10 @@ export async function readFile(path) {
 
 export async function writeFile(path, buffer) {
     await asyncify(fs.writeFile, path, new _fs.Buffer(buffer));
+}
+
+export async function rm(path) {
+    return await asyncify(fs.unlink, path)
 }
 
 let _fs = {}

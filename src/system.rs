@@ -1,6 +1,7 @@
 use crate::atr::ATR;
 use crate::cartridge::Cartridge;
 use crate::multiplexer::Multiplexer;
+use crate::platform::FileSystem;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
@@ -39,7 +40,7 @@ pub struct AtariSystem {
     pub gtia: Gtia,
     pub pokey: Pokey,
     pub pia: PIA,
-    pub disk_1: Option<ATR>,
+    pub disks: [Option<ATR>; 4],
     ticks: usize,
     pub cart: Option<Box<dyn Cartridge>>,
 }
@@ -67,7 +68,6 @@ impl AtariSystem {
         let pokey = Pokey::default();
         let gtia = Gtia::default();
         let pia = PIA::default();
-        let disk_1 = None;
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
 
@@ -90,7 +90,7 @@ impl AtariSystem {
             gtia,
             pokey,
             pia,
-            disk_1,
+            disks: Default::default(),
             ticks: 0,
             cart: None,
         };
@@ -500,6 +500,43 @@ impl AtariSystem {
     pub fn inc_cycle(&mut self) {
         self.antic.inc_cycle();
         self.pokey.total_cycles = self.antic.total_cycles;
+    }
+
+    pub fn get_status(&mut self, drive: usize, addr: u16, len: u16) -> u8 {
+        if drive >= self.disks.len() || self.disks[drive].is_none() {
+            return 0xff
+        }
+        let mut data = vec![0; len as usize];
+        let ret = self.disks[drive].as_ref().unwrap().get_status(&mut data);
+        self.copy_from_slice(addr, &data);
+        ret
+    }
+
+    pub fn get_sector(&mut self, drive: usize, sector: usize, addr: u16, len: u16) -> u8 {
+        if drive >= self.disks.len() || self.disks[drive].is_none() {
+            return 0xff
+        }
+        let mut data = vec![0; len as usize];
+        let ret = self.disks[drive].as_ref().unwrap().get_sector(sector, &mut data);
+        self.copy_from_slice(addr, &data);
+        ret
+    }
+
+    pub fn put_sector(&mut self, drive: usize, sector: usize, addr: u16, len: u16) -> u8 {
+        if drive >= self.disks.len() || self.disks[drive].is_none() {
+            return 0xff
+        }
+        let mut data = vec![0; len as usize];
+        self.copy_to_slice(addr, &mut data);
+        self.disks[drive].as_mut().unwrap().put_sector(sector, &data)
+    }
+
+    pub fn store_disks(&mut self, fs: &FileSystem) {
+        for disk in self.disks.iter_mut() {
+            if let Some(atr) = disk {
+                atr.store(fs);
+            }
+        }
     }
 }
 
