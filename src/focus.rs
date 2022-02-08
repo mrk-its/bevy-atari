@@ -1,9 +1,9 @@
 use crate::system::AtariSystem;
 use bevy::prelude::MouseButton;
 use bevy::prelude::*;
-use bevy::render2::camera::Camera;
-use bevy::render2::texture::Image;
-use bevy::sprite2::{PipelinedSpriteBundle, Sprite};
+use bevy::render::camera::Camera;
+use bevy::render::texture::Image;
+use bevy::sprite::{SpriteBundle, Sprite};
 use bevy_atari_antic::wgpu::Extent3d;
 
 #[derive(Component, Default)]
@@ -96,7 +96,7 @@ pub fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands
         .spawn()
         .insert(Focus {})
-        .insert_bundle(PipelinedSpriteBundle {
+        .insert_bundle(SpriteBundle {
             sprite: Sprite {
                 custom_size: Some(Vec2::new(384.0 + 4.0, 240.0 + 4.0)),
                 ..Default::default()

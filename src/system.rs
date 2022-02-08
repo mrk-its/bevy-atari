@@ -504,7 +504,7 @@ impl AtariSystem {
 
     pub fn get_status(&mut self, drive: usize, addr: u16, len: u16) -> u8 {
         if drive >= self.disks.len() || self.disks[drive].is_none() {
-            return 0xff
+            return 0xff;
         }
         let mut data = vec![0; len as usize];
         let ret = self.disks[drive].as_ref().unwrap().get_status(&mut data);
@@ -514,21 +514,27 @@ impl AtariSystem {
 
     pub fn get_sector(&mut self, drive: usize, sector: usize, addr: u16, len: u16) -> u8 {
         if drive >= self.disks.len() || self.disks[drive].is_none() {
-            return 0xff
+            return 0xff;
         }
         let mut data = vec![0; len as usize];
-        let ret = self.disks[drive].as_ref().unwrap().get_sector(sector, &mut data);
+        let ret = self.disks[drive]
+            .as_ref()
+            .unwrap()
+            .get_sector(sector, &mut data);
         self.copy_from_slice(addr, &data);
         ret
     }
 
     pub fn put_sector(&mut self, drive: usize, sector: usize, addr: u16, len: u16) -> u8 {
         if drive >= self.disks.len() || self.disks[drive].is_none() {
-            return 0xff
+            return 0xff;
         }
         let mut data = vec![0; len as usize];
         self.copy_to_slice(addr, &mut data);
-        self.disks[drive].as_mut().unwrap().put_sector(sector, &data)
+        self.disks[drive]
+            .as_mut()
+            .unwrap()
+            .put_sector(sector, &data)
     }
 
     pub fn store_disks(&mut self, fs: &FileSystem) {

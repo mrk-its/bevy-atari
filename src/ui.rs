@@ -17,10 +17,10 @@ use bevy::{
 
 type Response = Option<InnerResponse<Option<()>>>;
 
-fn show_config(egui_context: &EguiContext, config: &mut UIConfig) -> Response {
+fn show_config(egui_context: &mut EguiContext, config: &mut UIConfig) -> Response {
     bevy_egui::egui::Window::new("Config")
         .anchor(egui::Align2::LEFT_TOP, egui::Vec2::new(16.0, 16.0))
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.checkbox(&mut config.cpu, "CPU");
             ui.checkbox(&mut config.antic, "ANTIC");
             ui.checkbox(&mut config.gtia, "GTIA");
@@ -34,7 +34,7 @@ fn show_config(egui_context: &EguiContext, config: &mut UIConfig) -> Response {
         })
 }
 fn show_debugger(
-    egui_context: &EguiContext,
+    egui_context: &mut EguiContext,
     config: &mut UIConfig,
     debugger: &mut Debugger,
     cpu: &CPU,
@@ -42,9 +42,16 @@ fn show_debugger(
 ) -> Response {
     bevy_egui::egui::Window::new("Debugger")
         .open(&mut config.debugger)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            if ui.button(if debugger.paused {"Resume (F6)"} else {"Pause (F6)"}).clicked() {
+            if ui
+                .button(if debugger.paused {
+                    "Resume (F6)"
+                } else {
+                    "Pause (F6)"
+                })
+                .clicked()
+            {
                 debugger.paused = !debugger.paused;
             }
             // ui.checkbox(&mut debugger.paused, "pause (F6)");
@@ -63,12 +70,12 @@ fn show_debugger(
         })
 }
 
-fn show_cpu(egui_context: &EguiContext, config: &mut UIConfig, cpu: &CPU) -> Response {
+fn show_cpu(egui_context: &mut EguiContext, config: &mut UIConfig, cpu: &CPU) -> Response {
     let cpu = &cpu.cpu;
     let pc = cpu.get_program_counter();
     bevy_egui::egui::Window::new("CPU")
         .open(&mut config.cpu)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             let flags = cpu.get_status_register();
             let flags_str = "NV-BDIZC"
@@ -100,10 +107,10 @@ fn show_cpu(egui_context: &EguiContext, config: &mut UIConfig, cpu: &CPU) -> Res
         })
 }
 
-fn show_antic(egui_context: &EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
+fn show_antic(egui_context: &mut EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
     bevy_egui::egui::Window::new("ANTIC")
         .open(&mut config.antic)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             egui::Grid::new("antic_regs").num_columns(2).show(ui, |ui| {
                 let antic = &atari_system.antic;
@@ -143,10 +150,10 @@ fn show_antic(egui_context: &EguiContext, config: &mut UIConfig, atari_system: &
         });
 }
 
-fn show_gtia(egui_context: &EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
+fn show_gtia(egui_context: &mut EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
     bevy_egui::egui::Window::new("GTIA")
         .open(&mut config.gtia)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
 
             egui::Grid::new("gtia_regs").num_columns(4).show(ui, |ui| {
@@ -249,7 +256,7 @@ fn show_gtia(egui_context: &EguiContext, config: &mut UIConfig, atari_system: &m
 }
 
 fn show_disasm(
-    egui_context: &EguiContext,
+    egui_context: &mut EguiContext,
     config: &mut UIConfig,
     cpu: &CPU,
     atari_system: &mut AtariSystem,
@@ -257,7 +264,7 @@ fn show_disasm(
     let pc = cpu.cpu.get_program_counter();
     bevy_egui::egui::Window::new("Disassembler")
         .open(&mut config.disasm)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             let mut bytes: [u8; 48] = [0; 48];
             atari_system.copy_to_slice(pc, &mut bytes);
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -280,7 +287,7 @@ fn show_disasm(
 }
 
 fn show_memory(
-    egui_context: &EguiContext,
+    egui_context: &mut EguiContext,
     index: usize,
     config: &mut UIConfig,
     atari_system: &mut AtariSystem,
@@ -289,7 +296,7 @@ fn show_memory(
     bevy_egui::egui::Window::new(format!("Memory{}", index + 1))
         .open(&mut mem_config.enabled)
         .min_width(600.0)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             let addr = u16::from_str_radix(&mem_config.address, 16).unwrap_or_default();
             let mut bytes: [u8; 256] = [0; 256];
             atari_system.copy_to_slice(addr, &mut bytes);
@@ -311,10 +318,10 @@ fn show_memory(
         });
 }
 
-fn show_screen(egui_context: &EguiContext, config: &mut UIConfig, slot: &AtariSlot) {
+fn show_screen(egui_context: &mut EguiContext, config: &mut UIConfig, slot: &AtariSlot) {
     bevy_egui::egui::Window::new("Screen")
         .open(&mut config.small_screen)
-        .show(egui_context.ctx(), |ui| {
+        .show(egui_context.ctx_mut(), |ui| {
             ui.add(egui::widgets::Image::new(
                 egui::TextureId::User(slot.0 as u64),
                 [384.0 * 2.0, 240.0 * 2.0],
@@ -323,7 +330,7 @@ fn show_screen(egui_context: &EguiContext, config: &mut UIConfig, slot: &AtariSl
 }
 
 fn show_fps(
-    egui_context: &EguiContext,
+    egui_context: &mut EguiContext,
     config: &mut UIConfig,
     diagnostics: &Diagnostics,
 ) -> Response {
@@ -336,7 +343,7 @@ fn show_fps(
                 return bevy_egui::egui::Window::new(format!("fps: {:.1}", 1.0 / ft))
                     .anchor(egui::Align2::RIGHT_TOP, egui::Vec2::new(-16.0, 16.0))
                     .id(egui::Id::new("fps"))
-                    .show(egui_context.ctx(), |ui| {
+                    .show(egui_context.ctx_mut(), |ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                         ui.label(format!(
                             "time: {:4.1} ms {:4.1}%",
@@ -351,7 +358,7 @@ fn show_fps(
 }
 
 pub fn show_ui(
-    egui_context: Res<EguiContext>,
+    mut egui_context: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
     mut query: Query<(&CPU, &mut AtariSystem, &AtariSlot, &mut Debugger), With<Focused>>,
     mut config: ResMut<UIConfig>,
@@ -381,8 +388,8 @@ pub fn show_ui(
         }
     }
 
-    let r1 = show_fps(&egui_context, &mut config, &diagnostics);
-    let r2 = show_config(&egui_context, &mut config);
+    let r1 = show_fps(&mut egui_context, &mut config, &diagnostics);
+    let r2 = show_config(&mut egui_context, &mut config);
 
     let is_collapsed = if let Some(InnerResponse { inner: None, .. }) = r2 {
         true
@@ -398,14 +405,20 @@ pub fn show_ui(
     }
     config.reset_auto_hide();
     for (cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
-        show_screen(&egui_context, &mut config, slot);
-        show_cpu(&egui_context, &mut config, &cpu);
-        show_debugger(&egui_context, &mut config, &mut debugger, &cpu, &atari_system);
-        show_antic(&egui_context, &mut config, &mut atari_system);
-        show_gtia(&egui_context, &mut config, &mut atari_system);
-        show_disasm(&egui_context, &mut config, cpu, &mut atari_system);
+        show_screen(&mut egui_context, &mut config, slot);
+        show_cpu(&mut egui_context, &mut config, &cpu);
+        show_debugger(
+            &mut egui_context,
+            &mut config,
+            &mut debugger,
+            &cpu,
+            &atari_system,
+        );
+        show_antic(&mut egui_context, &mut config, &mut atari_system);
+        show_gtia(&mut egui_context, &mut config, &mut atari_system);
+        show_disasm(&mut egui_context, &mut config, cpu, &mut atari_system);
         for index in 0..4 {
-            show_memory(&egui_context, index, &mut config, &mut atari_system);
+            show_memory(&mut egui_context, index, &mut config, &mut atari_system);
         }
     }
 }

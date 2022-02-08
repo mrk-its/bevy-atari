@@ -59,7 +59,12 @@ impl<T: FileApi + Default + Clone, E: std::fmt::Debug + 'static> FileSystemInter
         self.file_op(async move { api.read(path).await.map(create_response) });
     }
 
-    pub fn write(&self, path: &str, contents: Vec<u8>, create_response: impl FnOnce(()) -> E + 'static) {
+    pub fn write(
+        &self,
+        path: &str,
+        contents: Vec<u8>,
+        create_response: impl FnOnce(()) -> E + 'static,
+    ) {
         let api = self.api.clone();
         let path = path.to_owned();
         self.file_op(async move { api.write(&path, &contents).await.map(create_response) });
@@ -117,7 +122,8 @@ impl FileSystem {
     }
     pub fn write(&self, path: &str, contents: &[u8]) {
         let path2 = path.to_owned();
-        self.inner.write(&path, contents.to_owned(), move |_| FsEvent::Written(path2));
+        self.inner
+            .write(&path, contents.to_owned(), move |_| FsEvent::Written(path2));
     }
 }
 

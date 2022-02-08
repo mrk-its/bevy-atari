@@ -27,7 +27,7 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
-use bevy::{render2::view::Visibility, utils::HashSet, window::WindowResized};
+use bevy::{render::view::Visibility, utils::HashSet, window::WindowResized};
 #[cfg(feature = "egui")]
 use bevy_egui::{EguiContext, EguiPlugin};
 
@@ -36,14 +36,14 @@ use bevy::{
     diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin},
     log::{Level, LogSettings},
     prelude::*,
-    render2::view::Msaa,
+    render::view::Msaa,
     winit::WinitConfig,
-    PipelinedDefaultPlugins,
+    DefaultPlugins,
 };
 
 use bevy::{
-    render2::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
-    sprite2::PipelinedSpriteBundle,
+    render::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
+    sprite::SpriteBundle,
 };
 use bevy_atari_antic::AtariAnticPlugin;
 use emulator_6502::{Interface6502, MOS6502};
@@ -348,7 +348,13 @@ fn atari_system(
 // pub const SCANLINE_MESH_HANDLE: HandleUntyped =
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
-fn set_binary(atari_system: &mut AtariSystem, cpu: &mut CPU, key: &str, path: &str, data: Option<Vec<u8>>) {
+fn set_binary(
+    atari_system: &mut AtariSystem,
+    cpu: &mut CPU,
+    key: &str,
+    path: &str,
+    data: Option<Vec<u8>>,
+) {
     info!("set_binary: {} {} {:?}", key, path, data);
     match key {
         "basic" => {
@@ -421,7 +427,10 @@ fn events(
                     atari_system.update_consol(1, state);
                 }
                 js_api::Message::BinaryData {
-                    key, data, slot, path
+                    key,
+                    data,
+                    slot,
+                    path,
                 } => {
                     if slot.is_none() || Some(atari_slot.0) == slot {
                         set_binary(&mut atari_system, &mut cpu, &key, &path, data);
@@ -488,7 +497,8 @@ fn fs_events(
         for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
             match event {
                 platform::FsEvent::AttachBinary { key, path, data } => {
-                    set_binary(&mut atari_system, &mut cpu, &key, path, Some(data.clone())); // TODO - get rid of clone
+                    set_binary(&mut atari_system, &mut cpu, &key, path, Some(data.clone()));
+                    // TODO - get rid of clone
                 }
                 _ => continue,
             }
@@ -552,7 +562,7 @@ fn setup(
                 entity_commands.insert(Focused);
             }
             if slot == 0 {
-                let mut full_screen_sprite = PipelinedSpriteBundle {
+                let mut full_screen_sprite = SpriteBundle {
                     texture: main_image_handle,
                     visibility: Visibility { is_visible: true },
                     transform: Transform {
@@ -595,8 +605,8 @@ pub fn resized_events(
     }
 }
 
-#[bevy_main]
-async fn main() {
+// #[bevy_main]
+fn main() {
     let config = EmulatorConfig {
         collisions: cfg!(any(not(target_arch = "wasm32"), feature = "webgl")),
         wall_size: (1, 1),
@@ -644,9 +654,7 @@ async fn main() {
         ..Default::default()
     });
 
-    app.add_plugins_async(PipelinedDefaultPlugins)
-        .await
-        .unwrap();
+    app.add_plugins(DefaultPlugins);
 
     #[cfg(feature = "egui")]
     app.add_plugin(EguiPlugin).add_system(ui::show_ui.system());
@@ -658,7 +666,7 @@ async fn main() {
 
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
     app.insert_resource(WinitConfig {
-        force_fps: Some(50.0),
+        // force_fps: Some(50.0),
         ..Default::default()
     });
 

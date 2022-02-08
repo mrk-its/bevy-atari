@@ -1,7 +1,6 @@
 use crate::js_api;
-use wasm_bindgen::JsValue;
 use bevy::utils::BoxedFuture;
-
+use wasm_bindgen::JsValue;
 
 #[derive(Default, Clone, Copy)]
 pub struct FileApiImpl;
