@@ -27,7 +27,7 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
-use bevy::{render::view::Visibility, utils::HashSet, window::WindowResized};
+use bevy::{render::view::Visibility, utils::HashSet, window::WindowResized, tasks::IoTaskPool};
 #[cfg(feature = "egui")]
 use bevy_egui::{EguiContext, EguiPlugin};
 
@@ -524,7 +524,8 @@ fn setup(
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
-    // fs.attach_binary("osrom", "atarionline.pl/utils/9. ROM-y/Systemy operacyjne/Atari OS v2 83.10.05.rom");
+    fs.attach_binary("osrom", "os.rom");
+    bevy::utils::tracing::info!("HERE!!!");
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
             let slot = y * config.wall_size.0 + x;
@@ -630,10 +631,6 @@ fn main() {
         }
     }
     let mut app = App::new();
-    app.insert_resource(platform::FileSystem::default());
-    app.add_event::<platform::FsEvent>();
-    app.add_system(platform::pump_fs_events);
-    app.add_system(fs_events);
     app.insert_resource(UIConfig::default());
     app.insert_resource(LogSettings {
         filter: log_filter,
@@ -655,6 +652,13 @@ fn main() {
     });
 
     app.add_plugins(DefaultPlugins);
+
+    let task_pool = app.world.get_resource::<IoTaskPool>().expect("IoTaskPool").0.clone();
+
+    app.insert_resource(platform::FileSystem::new(task_pool.clone()));
+    app.add_event::<platform::FsEvent>();
+    app.add_system(platform::pump_fs_events);
+    app.add_system(fs_events);
 
     #[cfg(feature = "egui")]
     app.add_plugin(EguiPlugin).add_system(ui::show_ui.system());

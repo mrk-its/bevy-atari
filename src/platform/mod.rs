@@ -6,9 +6,16 @@ use std::sync::Arc;
 use bevy::tasks::TaskPool;
 use bevy::utils::BoxedFuture;
 
+use bevy::utils::tracing::info;
+
 #[cfg(target_arch = "wasm32")]
 #[path = "web.rs"]
 mod fs_impl;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "native.rs"]
+mod fs_impl;
+
 
 #[derive(Debug)]
 pub enum FsEvent {
@@ -56,6 +63,7 @@ impl<T: FileApi + Default + Clone, E: std::fmt::Debug + 'static> FileSystemInter
 
     pub fn read(&self, path: &'static str, create_response: impl FnOnce(Vec<u8>) -> E + 'static) {
         let api = self.api.clone();
+        info!("HERE!!");
         self.file_op(async move { api.read(path).await.map(create_response) });
     }
 
@@ -90,13 +98,13 @@ pub struct FileSystem {
     pub(crate) inner: Arc<FileSystemInternal<fs_impl::FileApiImpl, FsEvent>>,
 }
 
-impl Default for FileSystem {
-    fn default() -> Self {
+impl FileSystem {
+    pub fn new(task_pool: TaskPool) -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
         Self {
             inner: Arc::new(FileSystemInternal {
                 api: fs_impl::FileApiImpl::default(),
-                task_pool: TaskPool::default(),
+                task_pool,
                 sender,
                 receiver,
             }),
@@ -106,6 +114,7 @@ impl Default for FileSystem {
 
 impl FileSystem {
     pub fn attach_binary(&self, key: &'static str, path: &'static str) {
+        bevy::utils::tracing::info!("attach binary");
         self.inner.read(path, |data| FsEvent::AttachBinary {
             key: key.to_string(),
             path: path.to_string(),
