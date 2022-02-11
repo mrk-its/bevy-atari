@@ -86,10 +86,8 @@ impl FileSystemInternal {
             + Send,
     ) {
         let sender = self.sender.clone();
-        bevy::log::info!("spawning...");
         self.task_pool
             .spawn(async move {
-                bevy::log::info!("spawned!");
                 let x = future.await;
                 let response = match x {
                     Ok(response) => sender.send(Some(response)),
