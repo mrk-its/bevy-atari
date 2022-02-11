@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate bitflags;
-use std::{io::prelude::*, time::Duration};
+use std::time::Duration;
 pub mod antic;
 mod atari800_state;
 // pub mod atari_text;
@@ -8,6 +8,7 @@ pub mod atr;
 mod cartridge;
 pub mod gamepad;
 pub mod gtia;
+#[cfg(target_arch = "wasm32")]
 mod js_api;
 pub mod multiplexer;
 pub mod pia;
@@ -27,7 +28,7 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
-use bevy::{render::view::Visibility, utils::HashSet, window::WindowResized, tasks::IoTaskPool};
+use bevy::{render::view::Visibility, tasks::IoTaskPool, window::WindowResized};
 #[cfg(feature = "egui")]
 use bevy_egui::{EguiContext, EguiPlugin};
 
@@ -63,7 +64,7 @@ pub struct DisplayConfig {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-enum EmulatorState {
+pub enum EmulatorState {
     Idle,
     Running,
 }
@@ -172,12 +173,12 @@ pub struct AtariBundle {
     texture: Handle<Image>,
 }
 
-fn gunzip(data: &[u8]) -> Vec<u8> {
-    let mut decoder = flate2::read::GzDecoder::new(&data[..]);
-    let mut result = Vec::new();
-    decoder.read_to_end(&mut result).unwrap();
-    result
-}
+// fn gunzip(data: &[u8]) -> Vec<u8> {
+//     let mut decoder = flate2::read::GzDecoder::new(&data[..]);
+//     let mut result = Vec::new();
+//     decoder.read_to_end(&mut result).unwrap();
+//     result
+// }
 
 #[derive(Default)]
 struct KeyAutoRepeater {
@@ -350,12 +351,11 @@ fn atari_system(
 
 fn set_binary(
     atari_system: &mut AtariSystem,
-    cpu: &mut CPU,
+    _cpu: &mut CPU,
     key: &str,
     path: &str,
     data: Option<Vec<u8>>,
 ) {
-    info!("set_binary: {} {} {:?}", key, path, data);
     match key {
         "basic" => {
             atari_system.set_basic(data);
@@ -390,114 +390,18 @@ fn set_binary(
     }
 }
 
-fn events(
-    mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
-    mut state: ResMut<State<EmulatorState>>,
-    mut windows: ResMut<Windows>,
-) {
-    let mut _messages = js_api::MESSAGES.write();
-    for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
-        let mut messages = (*_messages).clone();
-        for event in messages.drain(..) {
-            match event {
-                js_api::Message::SetResolution { width, height } => {
-                    let window = windows.get_primary_mut().unwrap();
-                    window.set_resolution(width, height);
-                }
-                js_api::Message::Reset {
-                    cold,
-                    disable_basic,
-                } => {
-                    atari_system.reset(&mut cpu.cpu, cold, disable_basic);
-                }
-                js_api::Message::SetState(new_state) => {
-                    let result = match new_state.as_ref() {
-                        "running" => state.set(EmulatorState::Running),
-                        "idle" => state.set(EmulatorState::Idle),
-                        _ => panic!("invalid state requested"),
-                    }
-                    .ok()
-                    .is_some();
-                    info!("set_state: {:?}: {:?}", new_state, result);
-                }
-                js_api::Message::JoyState { port, dirs, fire } => {
-                    atari_system.set_joystick(1, port, dirs, fire)
-                }
-                js_api::Message::SetConsol { state } => {
-                    atari_system.update_consol(1, state);
-                }
-                js_api::Message::BinaryData {
-                    key,
-                    data,
-                    slot,
-                    path,
-                } => {
-                    if slot.is_none() || Some(atari_slot.0) == slot {
-                        set_binary(&mut atari_system, &mut cpu, &key, &path, data);
-                    }
-                }
-                js_api::Message::Command { cmd } => {
-                    let parts = cmd.split(" ").collect::<Vec<_>>();
-                    match parts[0] {
-                        "mem" => {
-                            if let Ok(start) = u16::from_str_radix(parts[1], 16) {
-                                let mut data = [0 as u8; 256];
-                                atari_system.copy_to_slice(start, &mut data);
-                                info!("{:x?}", data);
-                            }
-                        }
-                        "write" => {
-                            if let Ok(addr) = u16::from_str_radix(parts[1], 16) {
-                                if let Ok(value) = u8::from_str_radix(parts[2], 16) {
-                                    atari_system.write(addr, value);
-                                    info!("write {:04x} <- {:02x}", addr, value);
-                                }
-                            }
-                        }
-                        "pc" => {
-                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                cpu.cpu.set_program_counter(pc)
-                            }
-                        }
-                        "brk" => {
-                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
-                                debugger.breakpoints.push(BreakPoint::PC(pc));
-                                info!("breakpoint set on pc={:04x}", pc);
-                            }
-                        }
-                        "trainer_init" => {
-                            atari_system.trainer_init();
-                        }
-                        "trainer_changed" => {
-                            let cnt = atari_system.trainer_changed(true);
-                            info!("matched: {}", cnt);
-                        }
-                        "trainer_unchanged" => {
-                            let cnt = atari_system.trainer_changed(false);
-                            info!("matched: {}", cnt);
-                        }
-                        _ => (),
-                    }
-                }
-                _ => {
-                    info!("not handled: {:?}", event);
-                    continue;
-                }
-            }
-        }
-    }
-    _messages.clear();
-}
-
 fn fs_events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger), With<Focused>>,
     mut events: EventReader<platform::FsEvent>,
 ) {
     for event in events.iter() {
-        for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
+        for (_atari_slot, mut atari_system, mut cpu, mut _debugger) in query.iter_mut() {
             match event {
                 platform::FsEvent::AttachBinary { key, path, data } => {
                     set_binary(&mut atari_system, &mut cpu, &key, path, Some(data.clone()));
+                    if key == "osrom" {
+                        atari_system.reset(&mut cpu.cpu, true, true)
+                    }
                     // TODO - get rid of clone
                 }
                 _ => continue,
@@ -525,7 +429,6 @@ fn setup(
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
     fs.attach_binary("osrom", "os.rom");
-    bevy::utils::tracing::info!("HERE!!!");
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
             let slot = y * config.wall_size.0 + x;
@@ -653,7 +556,12 @@ fn main() {
 
     app.add_plugins(DefaultPlugins);
 
-    let task_pool = app.world.get_resource::<IoTaskPool>().expect("IoTaskPool").0.clone();
+    let task_pool = app
+        .world
+        .get_resource::<IoTaskPool>()
+        .expect("IoTaskPool")
+        .0
+        .clone();
 
     app.insert_resource(platform::FileSystem::new(task_pool.clone()));
     app.add_event::<platform::FsEvent>();
@@ -682,6 +590,9 @@ fn main() {
             .add_startup_system(focus::setup.system());
     }
 
+    #[cfg(target_arch = "wasm32")]
+    app.add_system(js_api::events.system());
+
     app
         .insert_resource(DisplayConfig {
             fps: true,
@@ -698,7 +609,6 @@ fn main() {
                 // .with_system(debug::update_fps.system()),
         )
         // .add_system(debug::update_display_config.system())
-        .add_system(events.system())
         .add_system(debug_keyboard.system())
 
         .run();

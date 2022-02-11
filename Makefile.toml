@@ -18,7 +18,7 @@ install_crate = {crate_name = "basic-http-server", binary = "basic-http-server",
 
 [tasks.wasm-bindgen-cli]
 command = "cargo"
-args = ["install", "wasm-bindgen-cli", "--version", "0.2.78", "--root", "."]
+args = ["install", "wasm-bindgen-cli", "--version", "0.2.79", "--root", "."]
 
 [tasks.add-wasm32-target]
 args = ["target", "install", "wasm32-unknown-unknown"]
@@ -30,7 +30,7 @@ command = "cargo"
 
 [tasks.build-webgl]
 args = ["--out-dir", "web/wasm", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
-command = "wasm-bindgen"
+command = "bin/wasm-bindgen"
 dependencies = ["cargo-build-webgl", "wasm-bindgen-cli", "add-wasm32-target"]
 
 [tasks.build-webgl-sha1]
@@ -43,7 +43,7 @@ command = "cargo"
 
 [tasks.build-webgpu]
 args = ["--out-dir", "${TARGET_DIR}", "--out-name", "wasm", "--target", "web", "--no-typescript", "${CARGO_WASM_PATH}"]
-command = "wasm-bindgen"
+command = "bin/wasm-bindgen"
 dependencies = ["cargo-build-webgpu", "wasm-bindgen-cli", "add-wasm32-target"]
 
 [tasks.build-webgpu-sha1]
@@ -52,12 +52,12 @@ dependencies = ["build-webgpu"]
 
 [tasks.build-native]
 # args = ["build", "--features", "native", "@@split(CARGO_RELEASE_ARGS, )"]
-args = ["build", "--features", "native", "--release"]
+args = ["build", "--release"]
 command = "cargo"
 
 [tasks.run]
-command = "${CARGO_TARGET_DIR}/${ENV_DIR}/${CARGO_MAKE_BINARY_EXECUTABLE_NAME}"
-dependencies = ["build-native"]
+args = ["run", "--release"]
+command = "cargo"
 
 [tasks.serve]
 command = "basic-http-server"

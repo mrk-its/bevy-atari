@@ -107,7 +107,11 @@ fn show_cpu(egui_context: &mut EguiContext, config: &mut UIConfig, cpu: &CPU) ->
         })
 }
 
-fn show_antic(egui_context: &mut EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
+fn show_antic(
+    egui_context: &mut EguiContext,
+    config: &mut UIConfig,
+    atari_system: &mut AtariSystem,
+) {
     bevy_egui::egui::Window::new("ANTIC")
         .open(&mut config.antic)
         .show(egui_context.ctx_mut(), |ui| {
@@ -150,7 +154,11 @@ fn show_antic(egui_context: &mut EguiContext, config: &mut UIConfig, atari_syste
         });
 }
 
-fn show_gtia(egui_context: &mut EguiContext, config: &mut UIConfig, atari_system: &mut AtariSystem) {
+fn show_gtia(
+    egui_context: &mut EguiContext,
+    config: &mut UIConfig,
+    atari_system: &mut AtariSystem,
+) {
     bevy_egui::egui::Window::new("GTIA")
         .open(&mut config.gtia)
         .show(egui_context.ctx_mut(), |ui| {

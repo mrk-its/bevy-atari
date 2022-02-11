@@ -25,7 +25,7 @@ impl super::FileApi for FileApiImpl {
         &'a self,
         path: &'a str,
         contents: &'a [u8],
-    ) -> BoxedFuture<'a, Result<(), JsFileError>> {
+    ) -> BoxedFuture<'a, Result<(), Self::FileError>> {
         Box::pin(async move {
             js_api::writeFile(path, contents)
                 .await
@@ -33,7 +33,10 @@ impl super::FileApi for FileApiImpl {
         })
     }
 
-    fn read_dir<'a>(&'a self, path: &'a str) -> BoxedFuture<'a, Result<Vec<String>, JsFileError>> {
+    fn read_dir<'a>(
+        &'a self,
+        path: &'a str,
+    ) -> BoxedFuture<'a, Result<Vec<String>, Self::FileError>> {
         Box::pin(async move {
             js_api::ls(path)
                 .await

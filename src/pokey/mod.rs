@@ -1,6 +1,8 @@
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
+
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, JsValue};
 
 const RANDOM: usize = 0x0A;

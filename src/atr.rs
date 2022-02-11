@@ -1,5 +1,5 @@
 use bevy::utils::Instant;
-use std::{fs::File, time::Duration};
+use std::time::Duration;
 
 use crate::platform::FileSystem;
 

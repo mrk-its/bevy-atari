@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use emulator_6502::{Interface6502, MOS6502};
 
-use crate::js_api;
 use crate::system::AtariSystem;
 
 #[allow(dead_code)]

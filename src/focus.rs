@@ -3,7 +3,7 @@ use bevy::prelude::MouseButton;
 use bevy::prelude::*;
 use bevy::render::camera::Camera;
 use bevy::render::texture::Image;
-use bevy::sprite::{SpriteBundle, Sprite};
+use bevy::sprite::{Sprite, SpriteBundle};
 use bevy_atari_antic::wgpu::Extent3d;
 
 #[derive(Component, Default)]

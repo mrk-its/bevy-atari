@@ -6,8 +6,6 @@ use std::sync::Arc;
 use bevy::tasks::TaskPool;
 use bevy::utils::BoxedFuture;
 
-use bevy::utils::tracing::info;
-
 #[cfg(target_arch = "wasm32")]
 #[path = "web.rs"]
 mod fs_impl;
@@ -15,7 +13,6 @@ mod fs_impl;
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "native.rs"]
 mod fs_impl;
-
 
 #[derive(Debug)]
 pub enum FsEvent {
@@ -43,27 +40,29 @@ pub trait FileApi {
     ) -> BoxedFuture<'a, Result<Vec<String>, Self::FileError>>;
 }
 
-pub struct FileSystemInternal<T: FileApi + Default + Clone + 'static, E: std::fmt::Debug + 'static>
-{
-    api: T,
+pub struct FileSystemInternal {
+    api: fs_impl::FileApiImpl,
     task_pool: TaskPool,
-    pub sender: Sender<Option<E>>,
-    pub receiver: Receiver<Option<E>>,
+    pub sender: Sender<Option<FsEvent>>,
+    pub receiver: Receiver<Option<FsEvent>>,
 }
 
-impl<T: FileApi + Default + Clone, E: std::fmt::Debug + 'static> FileSystemInternal<T, E> {
+impl FileSystemInternal {
     pub fn read_dir(
         &self,
         path: &'static str,
-        create_response: impl FnOnce(Vec<String>) -> E + 'static,
+        create_response: impl FnOnce(Vec<String>) -> FsEvent + Send + 'static,
     ) {
         let api = self.api.clone();
         self.file_op(async move { api.read_dir(path).await.map(create_response) });
     }
 
-    pub fn read(&self, path: &'static str, create_response: impl FnOnce(Vec<u8>) -> E + 'static) {
+    pub fn read(
+        &self,
+        path: &'static str,
+        create_response: impl FnOnce(Vec<u8>) -> FsEvent + Send + 'static,
+    ) {
         let api = self.api.clone();
-        info!("HERE!!");
         self.file_op(async move { api.read(path).await.map(create_response) });
     }
 
@@ -71,31 +70,42 @@ impl<T: FileApi + Default + Clone, E: std::fmt::Debug + 'static> FileSystemInter
         &self,
         path: &str,
         contents: Vec<u8>,
-        create_response: impl FnOnce(()) -> E + 'static,
+        create_response: impl FnOnce(()) -> FsEvent + Send + 'static,
     ) {
         let api = self.api.clone();
         let path = path.to_owned();
         self.file_op(async move { api.write(&path, &contents).await.map(create_response) });
     }
 
-    pub fn file_op(&self, future: impl Future<Output = Result<E, T::FileError>> + 'static) {
+    pub fn file_op(
+        &self,
+        #[cfg(target_arch = "wasm32")] future: impl Future<Output = Result<FsEvent, <fs_impl::FileApiImpl as FileApi>::FileError>>
+            + 'static,
+        #[cfg(not(target_arch = "wasm32"))] future: impl Future<Output = Result<FsEvent, <fs_impl::FileApiImpl as FileApi>::FileError>>
+            + 'static
+            + Send,
+    ) {
         let sender = self.sender.clone();
-        self.task_pool.spawn_local(async move {
-            let x = future.await;
-            let response = match x {
-                Ok(response) => sender.send(Some(response)),
-                _ => {
-                    bevy::log::warn!("{:?}", x);
-                    return;
-                }
-            };
-            bevy::log::info!("async fs response: {:?}", response);
-        });
+        bevy::log::info!("spawning...");
+        self.task_pool
+            .spawn(async move {
+                bevy::log::info!("spawned!");
+                let x = future.await;
+                let response = match x {
+                    Ok(response) => sender.send(Some(response)),
+                    _ => {
+                        bevy::log::warn!("{:?}", x);
+                        return;
+                    }
+                };
+                bevy::log::info!("async fs response: {:?}", response);
+            })
+            .detach();
     }
 }
 
 pub struct FileSystem {
-    pub(crate) inner: Arc<FileSystemInternal<fs_impl::FileApiImpl, FsEvent>>,
+    pub(crate) inner: Arc<FileSystemInternal>,
 }
 
 impl FileSystem {
@@ -139,7 +149,6 @@ impl FileSystem {
 pub fn pump_fs_events(fs: Res<FileSystem>, mut events: EventWriter<FsEvent>) {
     for event in fs.inner.receiver.try_iter() {
         if let Some(event) = event {
-            bevy::log::info!("fs event: {:?}", event);
             events.send(event);
         }
     }

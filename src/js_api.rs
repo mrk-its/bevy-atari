@@ -1,6 +1,10 @@
+use crate::{AtariSlot, AtariSystem, BreakPoint, Debugger, EmulatorState, CPU};
+use bevy::prelude::*;
+use emulator_6502::Interface6502;
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 use wasm_bindgen::prelude::wasm_bindgen;
+use wasm_bindgen::JsValue;
 
 #[allow(dead_code)]
 pub static MESSAGES: Lazy<RwLock<Vec<Message>>> = Lazy::new(|| RwLock::new(vec![]));
@@ -95,8 +99,6 @@ pub fn set_resolution(width: f32, height: f32) {
     messages.push(Message::SetResolution { width, height });
 }
 
-use wasm_bindgen::JsValue;
-
 #[wasm_bindgen(catch)]
 extern "C" {
     pub fn pokey_post_message(a: &JsValue);
@@ -112,4 +114,103 @@ extern "C" {
 
     #[wasm_bindgen(catch)]
     pub async fn writeFile(path: &str, contents: &[u8]) -> Result<(), JsValue>;
+}
+
+pub fn events(
+    mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
+    mut state: ResMut<State<EmulatorState>>,
+    mut windows: ResMut<Windows>,
+) {
+    let mut _messages = MESSAGES.write();
+    for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
+        let mut messages = (*_messages).clone();
+        for event in messages.drain(..) {
+            match event {
+                Message::SetResolution { width, height } => {
+                    let window = windows.get_primary_mut().unwrap();
+                    window.set_resolution(width, height);
+                }
+                Message::Reset {
+                    cold,
+                    disable_basic,
+                } => {
+                    atari_system.reset(&mut cpu.cpu, cold, disable_basic);
+                }
+                Message::SetState(new_state) => {
+                    let result = match new_state.as_ref() {
+                        "running" => state.set(EmulatorState::Running),
+                        "idle" => state.set(EmulatorState::Idle),
+                        _ => panic!("invalid state requested"),
+                    }
+                    .ok()
+                    .is_some();
+                    info!("set_state: {:?}: {:?}", new_state, result);
+                }
+                Message::JoyState { port, dirs, fire } => {
+                    atari_system.set_joystick(1, port, dirs, fire)
+                }
+                Message::SetConsol { state } => {
+                    atari_system.update_consol(1, state);
+                }
+                Message::BinaryData {
+                    key,
+                    data,
+                    slot,
+                    path,
+                } => {
+                    if slot.is_none() || Some(atari_slot.0) == slot {
+                        crate::set_binary(&mut atari_system, &mut cpu, &key, &path, data);
+                    }
+                }
+                Message::Command { cmd } => {
+                    let parts = cmd.split(" ").collect::<Vec<_>>();
+                    match parts[0] {
+                        "mem" => {
+                            if let Ok(start) = u16::from_str_radix(parts[1], 16) {
+                                let mut data = [0 as u8; 256];
+                                atari_system.copy_to_slice(start, &mut data);
+                                info!("{:x?}", data);
+                            }
+                        }
+                        "write" => {
+                            if let Ok(addr) = u16::from_str_radix(parts[1], 16) {
+                                if let Ok(value) = u8::from_str_radix(parts[2], 16) {
+                                    atari_system.write(addr, value);
+                                    info!("write {:04x} <- {:02x}", addr, value);
+                                }
+                            }
+                        }
+                        "pc" => {
+                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                                cpu.cpu.set_program_counter(pc)
+                            }
+                        }
+                        "brk" => {
+                            if let Ok(pc) = u16::from_str_radix(parts[1], 16) {
+                                debugger.breakpoints.push(BreakPoint::PC(pc));
+                                info!("breakpoint set on pc={:04x}", pc);
+                            }
+                        }
+                        "trainer_init" => {
+                            atari_system.trainer_init();
+                        }
+                        "trainer_changed" => {
+                            let cnt = atari_system.trainer_changed(true);
+                            info!("matched: {}", cnt);
+                        }
+                        "trainer_unchanged" => {
+                            let cnt = atari_system.trainer_changed(false);
+                            info!("matched: {}", cnt);
+                        }
+                        _ => (),
+                    }
+                }
+                _ => {
+                    info!("not handled: {:?}", event);
+                    continue;
+                }
+            }
+        }
+    }
+    _messages.clear();
 }
