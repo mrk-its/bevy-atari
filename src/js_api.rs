@@ -205,10 +205,6 @@ pub fn events(
                         _ => (),
                     }
                 }
-                _ => {
-                    info!("not handled: {:?}", event);
-                    continue;
-                }
             }
         }
     }
