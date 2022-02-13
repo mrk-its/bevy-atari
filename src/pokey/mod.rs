@@ -3,7 +3,12 @@ use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen::{JsCast, JsValue};
+#[path = "web.rs"]
+mod audio;
+
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "native.rs"]
+mod audio;
 
 const RANDOM: usize = 0x0A;
 const KBCODE: usize = 0x09;
@@ -59,8 +64,7 @@ pub struct PokeyRegWrite {
 }
 
 pub struct Pokey {
-    #[cfg(target_arch = "wasm32")]
-    audio_context: Option<web_sys::AudioContext>,
+    audio_context: audio::Context,
     muted: bool,
     freq: [u8; 4],
     ctl: [AUDC; 4],
@@ -78,14 +82,7 @@ pub struct Pokey {
 impl Default for Pokey {
     fn default() -> Self {
         let rng = SmallRng::from_seed([0; if cfg!(target_arch = "wasm32") { 16 } else { 32 }]);
-        #[cfg(target_arch = "wasm32")]
-        let audio_context = {
-            let window = web_sys::window().expect("no global `window` exists");
-            js_sys::Reflect::get(&window, &"audio_context".into())
-                .expect("no window.audio_context")
-                .dyn_into::<web_sys::AudioContext>()
-                .ok()
-        };
+
         Self {
             muted: false,
             rng,
@@ -99,8 +96,7 @@ impl Default for Pokey {
             total_cycles: 0,
             reg_writes: Vec::new(),
             delta_t: 0.0,
-            #[cfg(target_arch = "wasm32")]
-            audio_context,
+            audio_context: Default::default(),
         }
     }
 }
@@ -108,7 +104,6 @@ unsafe impl Send for Pokey {}
 unsafe impl Sync for Pokey {}
 
 impl Pokey {
-    const LATENCY: f64 = 0.05;
     pub fn read(&mut self, addr: usize) -> u8 {
         let addr = addr & 0xf;
         let value = match addr {
@@ -126,20 +121,8 @@ impl Pokey {
     }
     // const IDLE_DELAY: usize = 2;
 
-    #[cfg(target_arch = "wasm32")]
     pub fn send_regs(&mut self) {
-        if self.muted {
-            return;
-        }
-        // let window = web_sys::window().expect("no global `window` exists");
-
-        let audio_context = match self.audio_context {
-            Some(ref audio_context) => audio_context,
-            None => return,
-        };
-
-        let state = audio_context.state();
-        if state != web_sys::AudioContextState::Running {
+        if self.muted || !self.audio_context.is_running() {
             // skipping writes this way may lead to bad pokey state
             // for example some channels may still generate sound
             // or we may have wrong audctl value
@@ -151,45 +134,19 @@ impl Pokey {
             return;
         }
 
-        let audio_context_time = audio_context.current_time();
+        let audio_context_time = self.audio_context.current_time();
 
         let atari_time = self.total_cycles as f64 / (312.0 * 114.0 * 50.0);
 
         let time_diff = atari_time - self.delta_t - audio_context_time;
         if time_diff.abs() >= 0.05 {
             self.delta_t = atari_time - audio_context_time;
-            debug!("too big time diff: {}, syncing", time_diff,);
+            info!("too big time diff: {}, syncing", time_diff,);
         }
 
-        // #[allow(unused_unsafe)]
-        // let port = unsafe {
-        //     js_sys::Reflect::get(&window, &"pokey_port".into())
-        //         .expect("no pokey_port exists")
-        //         .dyn_into::<web_sys::MessagePort>()
-        //         .expect("cannot cast to MessagePort")
-        // };
-        let regs = std::mem::take(&mut self.reg_writes);
-
-        let js_regs = regs
-            .iter()
-            .flat_map(|r| {
-                [
-                    r.index as f64,
-                    r.value as f64,
-                    r.timestamp as f64 / (312.0 * 114.0 * 50.0) - self.delta_t + Self::LATENCY,
-                ]
-            })
-            .map(|f| JsValue::from_f64(f))
-            .collect::<js_sys::Array>();
-        let js_regs = JsValue::from(js_regs);
-
-        crate::js_api::pokey_post_message(&js_regs);
-
-        // port.post_message(&js_regs).expect("cannot post_message");
-        // info!("pokey regs: {:?} {:?}", regs, port);
+        self.audio_context.send_regs(&self.reg_writes, self.delta_t);
+        self.reg_writes.clear();
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn send_regs(&mut self) {}
 
     pub fn scanline_tick(&mut self, _scanline: usize) {}
 

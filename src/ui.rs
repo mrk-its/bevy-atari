@@ -1,6 +1,7 @@
 use bevy::input::mouse::MouseMotion;
 use bevy_egui::egui;
 use bevy_egui::egui::InnerResponse;
+use bevy_egui::egui::RichText;
 use bevy_egui::EguiContext;
 
 use crate::focus::Focused;
@@ -279,15 +280,15 @@ fn show_disasm(
             ui.vertical(|ui| {
                 if let Ok(instructions) = disasm6502::from_addr_array(&bytes, pc) {
                     for i in instructions.iter().take(16) {
-                        let line = format!(" {:04x} {:11} ", i.address, i.as_str());
-                        let mut label = egui::Label::new(line);
+                        let mut line =
+                            RichText::new(format!(" {:04x} {:11} ", i.address, i.as_str()));
                         if i.address == pc {
-                            label = label
+                            line = line
                                 .background_color(egui::Color32::from_rgb(64, 64, 64))
-                                .text_color(egui::Color32::WHITE);
+                                .color(egui::Color32::WHITE);
                         }
 
-                        ui.add(label);
+                        ui.add(egui::Label::new(line));
                     }
                 }
             });

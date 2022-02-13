@@ -27,14 +27,14 @@ bitflags! {
 pub struct AtariSystem {
     consol: Multiplexer<u8>,
     joystick: [Multiplexer<u8>; 2],
-    read_banks: [*const MemBank; 32],
+    pub read_banks: [*const MemBank; 32],
     write_banks: [*mut MemBank; 32],
-    rom_write_bank: MemBank,
+    rom_write_bank: Vec<u8>,
     ram: Vec<u8>,
     ram_copy: Vec<u8>,
     ram_mask: Vec<u8>,
-    osrom: [u8; 0x4000],
-    basic: Option<[u8; 0x2000]>,
+    pub osrom: Vec<u8>,
+    basic: Option<Vec<u8>>,
     ext_mem_bank_mask: Option<usize>,
     pub antic: Antic,
     pub gtia: Gtia,
@@ -61,8 +61,8 @@ impl AtariSystem {
         // initialize RAM with all 0xFFs
         let mut ram: Vec<u8> = Vec::new();
         ram.resize_with(320 * 1024, || 0);
-        let rom_write_bank = [0; 2048];
-        let osrom = [0x00; 0x4000];
+        let rom_write_bank = vec![0; 0x800];
+        let osrom = vec![0; 0x4000];
         let basic = None;
         let antic = Antic::default();
         let pokey = Pokey::default();
@@ -280,8 +280,8 @@ impl AtariSystem {
         }
     }
 
-    pub fn set_osrom(&mut self, data: Option<Vec<u8>>) {
-        let data: &[u8] = if let Some(data) = data.as_ref() {
+    pub fn set_osrom(&mut self, data: Option<&[u8]>) {
+        let data: &[u8] = if let Some(data) = data {
             data
         } else {
             &[0; 0x4000]
@@ -289,10 +289,10 @@ impl AtariSystem {
         self.osrom.copy_from_slice(data);
     }
 
-    pub fn set_basic(&mut self, data: Option<Vec<u8>>) {
+    pub fn set_basic(&mut self, data: Option<&[u8]>) {
         self.basic = data.map(|data| {
-            let mut basic = [0; 0x2000];
-            basic.copy_from_slice(&data);
+            let mut basic = vec![0; 8192];
+            basic.copy_from_slice(data);
             basic
         });
     }
@@ -322,7 +322,7 @@ impl AtariSystem {
         self.ram[0..0x10000].copy_from_slice(atari800_state.memory.data);
         // self.ram2.copy_from_slice(atari800_state.memory.under_atarixl_os);
         self.osrom.copy_from_slice(atari800_state.memory.os);
-        self.basic = Some([0; 0x2000]);
+        self.basic = Some(vec![0; 8192]);
         self.basic
             .as_mut()
             .unwrap()

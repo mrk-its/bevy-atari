@@ -28,6 +28,9 @@ mod system;
 pub mod time_used_plugin;
 use crate::cartridge::Cartridge;
 
+include!(concat!(env!("OUT_DIR"), "/build_config.rs"));
+
+#[allow(unused_imports)]
 use bevy::{render::view::Visibility, tasks::IoTaskPool, window::WindowResized};
 #[cfg(feature = "egui")]
 use bevy_egui::{EguiContext, EguiPlugin};
@@ -56,12 +59,6 @@ use system::{Antic, AtariSystem};
 
 // #[global_allocator]
 // static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-#[derive(PartialEq, Component, Copy, Clone, Default)]
-pub struct DisplayConfig {
-    pub fps: bool,
-    pub debug: bool,
-}
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum EmulatorState {
@@ -226,7 +223,6 @@ fn atari_system(
         &Handle<AnticData>,
     )>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
-    fs: Res<FileSystem>,
     keyboard: Res<Input<KeyCode>>,
     render_device: Res<RenderDevice>,
 ) {
@@ -342,7 +338,6 @@ fn atari_system(
                 break;
             }
         }
-        atari_system.store_disks(&fs);
     }
 }
 
@@ -354,7 +349,7 @@ fn set_binary(
     _cpu: &mut CPU,
     key: &str,
     path: &str,
-    data: Option<Vec<u8>>,
+    data: Option<&[u8]>,
 ) {
     match key {
         "basic" => {
@@ -390,23 +385,23 @@ fn set_binary(
     }
 }
 
+#[allow(dead_code)]
 fn fs_events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger), With<Focused>>,
     mut events: EventReader<platform::FsEvent>,
+    fs: Res<FileSystem>,
 ) {
-    for event in events.iter() {
-        for (_atari_slot, mut atari_system, mut cpu, mut _debugger) in query.iter_mut() {
+    for (_atari_slot, mut atari_system, mut cpu, mut _debugger) in query.iter_mut() {
+        for event in events.iter() {
             match event {
                 platform::FsEvent::AttachBinary { key, path, data } => {
-                    set_binary(&mut atari_system, &mut cpu, &key, path, Some(data.clone()));
-                    if key == "osrom" {
-                        atari_system.reset(&mut cpu.cpu, true, true)
-                    }
-                    // TODO - get rid of clone
+                    set_binary(&mut atari_system, &mut cpu, &key, path, Some(data));
+                    atari_system.reset(&mut cpu.cpu, true, true)
                 }
                 _ => continue,
             }
         }
+        atari_system.store_disks(&fs);
     }
 }
 
@@ -424,11 +419,9 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
-    fs: Res<platform::FileSystem>,
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
-    fs.attach_binary("osrom", "os.rom");
     for y in 0..config.wall_size.1 {
         for x in 0..config.wall_size.0 {
             let slot = y * config.wall_size.0 + x;
@@ -445,6 +438,10 @@ fn setup(
                 ..Default::default()
             };
             atari_bundle.system.pokey.mute(config.is_multi());
+
+            #[cfg(not(target_arch="wasm32"))]
+            embed_binaries(&mut atari_bundle.system, &mut atari_bundle.cpu);
+
             // atari_bundle
             //     .debugger
             //     .breakpoints
@@ -525,6 +522,7 @@ fn main() {
         )
     }) * config.scale;
 
+    #[allow(unused_mut)]
     let mut log_filter = "wgpu=warn".to_string();
     #[cfg(target_arch = "wasm32")]
     {
@@ -534,6 +532,7 @@ fn main() {
         }
     }
     let mut app = App::new();
+    app.insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)));
     app.insert_resource(UIConfig::default());
     app.insert_resource(LogSettings {
         filter: log_filter,
@@ -542,31 +541,20 @@ fn main() {
     app.insert_resource(config.clone());
     app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
-        title: "GoodEnoughAtariEmulator".to_string(),
+        title: WINDOW_TITLE.to_string(),
         width: window_size.x,
         height: window_size.y,
-        resizable: false,
         scale_factor_override: Some(1.0),
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
+        resizable: false,
+        #[cfg(target_arch = "wasm32")]
         canvas: Some("#bevy-canvas".to_string()),
-        vsync: true,
+        vsync: false,
         ..Default::default()
     });
 
     app.add_plugins(DefaultPlugins);
-
-    let task_pool = app
-        .world
-        .get_resource::<IoTaskPool>()
-        .expect("IoTaskPool")
-        .0
-        .clone();
-
-    app.insert_resource(platform::FileSystem::new(task_pool.clone()));
-    app.add_event::<platform::FsEvent>();
-    app.add_system(platform::pump_fs_events);
-    app.add_system(fs_events);
 
     #[cfg(feature = "egui")]
     app.add_plugin(EguiPlugin).add_system(ui::show_ui.system());
@@ -578,7 +566,7 @@ fn main() {
 
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
     app.insert_resource(WinitConfig {
-        // force_fps: Some(50.0),
+        force_fps: Some(50.0),
         ..Default::default()
     });
 
@@ -593,23 +581,31 @@ fn main() {
     #[cfg(target_arch = "wasm32")]
     app.add_system(js_api::events.system());
 
-    app
-        .insert_resource(DisplayConfig {
-            fps: true,
-            debug: false,
-        })
-        .add_startup_system(setup)
+    // let task_pool = app
+    //     .world
+    //     .get_resource::<IoTaskPool>()
+    //     .expect("IoTaskPool")
+    //     .0
+    //     .clone();
+
+    // app.add_event::<platform::FsEvent>();
+    // app.add_system(platform::pump_fs_events);
+    // app.add_system(fs_events);
+
+    // let fs = platform::FileSystem::new(task_pool.clone());
+    // fs.attach_binary("osrom", "os.rom");
+    // fs.attach_binary("car", "flob.1.0.3b.car");
+
+    // app.insert_resource(fs);
+
+    app.add_startup_system(setup)
         // .add_startup_system(debug::setup.system())
         .add_state(EmulatorState::Running)
         .add_system_to_stage(CoreStage::PreUpdate, gamepad::update.system())
         .add_system_set(
             SystemSet::on_update(EmulatorState::Running)
-                .with_system(atari_system.system().label("run_atari"))
-                // .with_system(debug::debug_overlay_system.system().after("run_atari"))
-                // .with_system(debug::update_fps.system()),
+                .with_system(atari_system.system().label("run_atari")),
         )
-        // .add_system(debug::update_display_config.system())
         .add_system(debug_keyboard.system())
-
         .run();
 }

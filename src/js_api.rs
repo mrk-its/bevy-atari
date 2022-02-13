@@ -159,6 +159,10 @@ pub fn events(
                     path,
                 } => {
                     if slot.is_none() || Some(atari_slot.0) == slot {
+                        let data = match data.as_ref() {
+                            Some(data) => Some(&data[..]),
+                            None => None,
+                        };
                         crate::set_binary(&mut atari_system, &mut cpu, &key, &path, data);
                     }
                 }

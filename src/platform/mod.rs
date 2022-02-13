@@ -122,7 +122,7 @@ impl FileSystem {
 
 impl FileSystem {
     pub fn attach_binary(&self, key: &'static str, path: &'static str) {
-        bevy::utils::tracing::info!("attach binary");
+        bevy::log::info!("attach {} binary: {}", key, path);
         self.inner.read(path, |data| FsEvent::AttachBinary {
             key: key.to_string(),
             path: path.to_string(),
