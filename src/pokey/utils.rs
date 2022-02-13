@@ -62,6 +62,11 @@ impl PolyGenerator for Poly17 {
     }
 }
 
+pub trait Filter {
+    fn add_sample(&mut self, value: f32);
+    fn get(&self) -> f32;
+}
+
 pub struct FIRFilter {
     coefficients: &'static [f32],
     buffer: Vec<f32>,
@@ -77,15 +82,15 @@ impl FIRFilter {
             current_pos: 0,
         }
     }
-    pub fn add_sample(&mut self, value: f32) {
+}
+
+impl Filter for FIRFilter {
+    fn add_sample(&mut self, value: f32) {
         self.buffer[self.current_pos] = value;
         self.current_pos = (self.current_pos + 1) % self.buffer.len();
     }
-    #[allow(dead_code)]
-    pub fn get_last(&self) -> f32 {
-        self.buffer[(self.current_pos + self.buffer.len() - 1) % self.buffer.len()]
-    }
-    pub fn get(&self) -> f32 {
+
+    fn get(&self) -> f32 {
         let len = self.buffer.len();
         let mut acc = 0.0;
         let mut j = self.current_pos;

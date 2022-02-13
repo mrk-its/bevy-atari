@@ -1,6 +1,6 @@
 use bevy::prelude::info;
 mod utils;
-use utils::{FIRFilter, Poly17, Poly4, Poly5, Poly9, PolyGenerator, FIR_37_TO_1};
+use utils::{FIRFilter, Filter, Poly17, Poly4, Poly5, Poly9, PolyGenerator, FIR_37_TO_1};
 
 use web_audio_api::context::{
     AudioContext, AudioContextLatencyCategory, AudioContextOptions, AudioContextRegistration,
@@ -44,12 +44,12 @@ impl Context {
 
 impl Default for Context {
     fn default() -> Self {
-        let _opts = AudioContextOptions {
-            sample_rate: Some(48000),
-            latency_hint: Some(AudioContextLatencyCategory::Interactive),
+        let opts = AudioContextOptions {
+            sample_rate: Some(44100),
+            latency_hint: Some(AudioContextLatencyCategory::Balanced),
             channels: Some(2),
         };
-        let context = AudioContext::new(None);
+        let context = AudioContext::new(Some(opts));
         info!("sample_rate: {}", context.sample_rate());
         let pokey_node = PokeyNode::new(&context);
         pokey_node.connect(&context.destination());
@@ -156,13 +156,12 @@ impl AudioProcessor for PokeyProcessor {
         let regs = (0..9)
             .map(|i| params.get(&self.regs[i]))
             .collect::<Vec<_>>();
-        // info!("{} {} {} {} {} {} {} {} {}", regs[0][0], regs[1][0], regs[2][0], regs[3][0], regs[4][0], regs[5][0], regs[6][0], regs[7][0], regs[8][0]);
-        for (i, b) in buf.iter_mut().enumerate() {
-            for i in 0..3 {
-                self.pokey.set_audf(i, regs[i * 2][i] as u8);
-                self.pokey.set_audc(i, regs[i * 2 + 1][i] as u8);
+        for (n, b) in buf.iter_mut().enumerate() {
+            for i in 0..4 {
+                self.pokey.set_audf(i, regs[i * 2][n] as u8);
+                self.pokey.set_audc(i, regs[i * 2 + 1][n] as u8);
             }
-            self.pokey.set_audctl(regs[8][i] as u8);
+            self.pokey.set_audctl(regs[8][n] as u8);
             *b = self.pokey.get();
         }
 
@@ -172,7 +171,7 @@ impl AudioProcessor for PokeyProcessor {
 
 struct Pokey {
     divider: usize,
-    fir_filter: FIRFilter,
+    filter: Box<dyn Filter + Send>,
     clock_cnt: isize,
     cycle_cnt: usize,
     audf: [u8; 4],
@@ -198,15 +197,15 @@ struct Pokey {
 
 impl Pokey {
     fn new(sample_rate: usize) -> Self {
-        let (divider, fir_filter) = match sample_rate {
+        let (divider, filter) = match sample_rate {
             // 44100 => 40,
-            48000 => (37, FIRFilter::new(FIR_37_TO_1)),
+            48000 => (37, Box::new(FIRFilter::new(FIR_37_TO_1))),
             // 56000 => 32,
             _ => panic!("sample rate {} is not supported", sample_rate),
         };
         let mut pokey = Self {
             divider,
-            fir_filter,
+            filter,
             clock_cnt: Default::default(),
             cycle_cnt: Default::default(),
             audf: Default::default(),
@@ -214,7 +213,7 @@ impl Pokey {
             cnt: Default::default(),
             square_output: Default::default(),
             output: Default::default(),
-            audctl: 0xff,
+            audctl: 0x00,
             fast_1: Default::default(),
             fast_3: Default::default(),
             link12: Default::default(),
@@ -236,9 +235,6 @@ impl Pokey {
 
 impl Pokey {
     fn set_audctl(&mut self, value: u8) {
-        if self.audctl == value {
-            return;
-        }
         self.audctl = value;
         self.fast_1 = (value & 0x40) > 0;
         self.fast_3 = (value & 0x20) > 0;
@@ -317,7 +313,7 @@ impl Pokey {
 
             if !self.link12 {
                 if self.fast_1 || clock_underflow {
-                    self.cnt[0] = self.cnt[0].wrapping_sub(1);
+                    self.cnt[0] -= 1;
                     if self.cnt[0] < 0 {
                         self.reload_single(0)
                     }
@@ -384,15 +380,15 @@ impl Pokey {
             let ch2 = (self.hipass2_flipflop ^ self.output[1]) | vol_only(1);
             let ch3 = self.output[2] | vol_only(2);
             let ch4 = self.output[3] | vol_only(3);
-            //   let normalize = |vol: u8| vol as f32 / 60.0;
+            // let normalize = |vol: u8| vol as f32 / 60.0;
             let normalize_altirra =
                 |vol| (1.0 - (-2.9 * (vol as f32 / 60.0)).exp()) / (1.0 - (-2.9f32).exp());
             let sample = normalize_altirra(
                 ch1 as u8 * vol(0) + ch2 as u8 * vol(1) + ch3 as u8 * vol(2) + ch4 as u8 * vol(3),
             );
-            self.fir_filter.add_sample(sample);
+            self.filter.add_sample(sample);
         }
-        self.fir_filter.get()
+        self.filter.get()
         // return self.high_pass_filter.get(self.fir_filter.get());
     }
 }
