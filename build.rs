@@ -7,7 +7,12 @@ fn main() {
     let embed_binaries = env::var("EMBED_BINARIES")
         .map(|s| {
             s.split(",")
-                .map(|s| s.to_string().splitn(2, "=").map(|s| s.to_string()).collect::<Vec<_>>())
+                .map(|s| {
+                    s.to_string()
+                        .splitn(2, "=")
+                        .map(|s| s.to_string())
+                        .collect::<Vec<_>>()
+                })
                 .collect::<Vec<_>>()
         })
         .ok();
@@ -25,7 +30,10 @@ fn main() {
                 let path = &bin[1];
                 let path = format!("{}/{}", manifest_dir, path);
                 contents.push_str(&format!("let data = include_bytes!({:?});\n", path));
-                contents.push_str(&format!("set_binary(system, cpu, {:?}, {:?},Some(data));\n", key, path))
+                contents.push_str(&format!(
+                    "set_binary(system, cpu, {:?}, {:?},Some(data));\n",
+                    key, path
+                ))
             }
             contents.push_str("}\n");
         }

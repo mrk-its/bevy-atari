@@ -39,7 +39,7 @@ fn show_debugger(
     config: &mut UIConfig,
     debugger: &mut Debugger,
     cpu: &CPU,
-    system: &AtariSystem,
+    system: &mut AtariSystem,
 ) -> Response {
     bevy_egui::egui::Window::new("Debugger")
         .open(&mut config.debugger)
@@ -53,14 +53,14 @@ fn show_debugger(
                 })
                 .clicked()
             {
-                debugger.paused = !debugger.paused;
+                debugger.pause_resume();
             }
             // ui.checkbox(&mut debugger.paused, "pause (F6)");
             if ui.button("step into (F7)").clicked() {
                 debugger.step_into();
             }
             if ui.button("step over (F8)").clicked() {
-                debugger.step_over(&cpu.cpu);
+                debugger.step_over(system, &cpu.cpu);
             }
             if ui.button("next scanline (F9)").clicked() {
                 debugger.next_scanline(&system.antic)
@@ -421,7 +421,7 @@ pub fn show_ui(
             &mut config,
             &mut debugger,
             &cpu,
-            &atari_system,
+            &mut atari_system,
         );
         show_antic(&mut egui_context, &mut config, &mut atari_system);
         show_gtia(&mut egui_context, &mut config, &mut atari_system);

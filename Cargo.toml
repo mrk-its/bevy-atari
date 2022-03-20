@@ -35,6 +35,11 @@ flate2 = "1.0"
 gilrs = {version="0.8", features = ["wasm-bindgen"]}
 # wee_alloc = {version="0.4.5", features = ["static_array_backend"]}
 bevy_atari_antic = {path="./bevy-atari-antic/", default-features=false}
+gdbstub = "0.6"
+gdbstub_mos_arch = {path="../gdbstub_mos_arch"}
+
+[target.'cfg(target_os="linux")'.dependencies]
+winit = {version = "0.26", features = ["x11"], default-features = false}
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = "0.3"

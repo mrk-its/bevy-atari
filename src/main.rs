@@ -7,9 +7,11 @@ mod atari800_state;
 pub mod atr;
 mod cartridge;
 pub mod gamepad;
+pub mod gdb;
 pub mod gtia;
 #[cfg(target_arch = "wasm32")]
 mod js_api;
+pub mod messages;
 pub mod multiplexer;
 pub mod pia;
 pub mod platform;
@@ -18,6 +20,7 @@ pub mod pokey;
 pub mod resources;
 #[cfg(feature = "egui")]
 mod ui;
+use gdb::GdbMessage;
 use platform::FileSystem;
 use resources::UIConfig;
 
@@ -67,8 +70,8 @@ pub enum EmulatorState {
 }
 
 #[allow(dead_code)]
-#[derive(Debug)]
-enum BreakPoint {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BreakPoint {
     PC(u16),
     IndirectPC(u16),
     NotPC(u16),
@@ -94,6 +97,7 @@ impl Default for Step {
 pub struct Debugger {
     pub paused: bool,
     breakpoints: Vec<BreakPoint>,
+    gdb_sender: Option<gdb::GdbSender>,
     step: Step,
 }
 
@@ -104,17 +108,34 @@ impl Debugger {
     //     // self.break_point = Some(break_point);
     // }
     fn pause(&mut self) {
-        self.paused = true;
-        // self.break_point = None;
+        if !self.paused {
+            self.paused = true;
+            self.send_message(GdbMessage::Paused);
+            // self.break_point = None;
+        }
+    }
+    fn cont(&mut self) {
+        self.paused = false;
+    }
+    fn pause_resume(&mut self) {
+        if self.paused {
+            self.cont()
+        } else {
+            self.pause()
+        }
     }
     fn step_into(&mut self) {
         self.paused = false;
         self.step = Step::Into;
     }
-    fn step_over(&mut self, cpu: &MOS6502) {
+    fn step_over(&mut self, system: &mut AtariSystem, cpu: &MOS6502) {
         self.paused = false;
-        self.step = Step::Over {
-            sp: cpu.get_stack_pointer(),
+        self.step = if system.read(cpu.get_program_counter()) == 0x20 {
+            Step::Over {
+                sp: cpu.get_stack_pointer(),
+            }
+        } else {
+            Step::Into
         };
     }
     fn next_scanline(&mut self, antic: &Antic) {
@@ -126,6 +147,29 @@ impl Debugger {
     fn next_frame(&mut self) {
         self.paused = false;
         self.step = Step::NextFrame;
+    }
+    fn clear_breakpoints(&mut self) {
+        self.breakpoints.clear();
+    }
+    fn add_breakpoint(&mut self, bp: BreakPoint) {
+        info!("add_breakpoint {:x?}", bp);
+        self.breakpoints.push(bp);
+    }
+    fn del_breakpoint(&mut self, bp: BreakPoint) {
+        info!("del_breakpoint {:x?}", bp);
+        let mut index = 0;
+        while index < self.breakpoints.len() {
+            if self.breakpoints[index] == bp {
+                self.breakpoints.swap_remove(index);
+                continue;
+            }
+            index += 1;
+        }
+    }
+    fn send_message(&mut self, msg: GdbMessage) {
+        if let Some(sender) = self.gdb_sender.as_ref() {
+            sender.send(msg).unwrap(); // TODO
+        }
     }
 }
 
@@ -196,16 +240,16 @@ impl KeyAutoRepeater {
 }
 
 fn debug_keyboard(
-    mut query: Query<(&mut Debugger, &CPU, &AtariSystem), With<Focused>>,
+    mut query: Query<(&mut Debugger, &CPU, &mut AtariSystem), With<Focused>>,
     mut auto_repeat: Local<KeyAutoRepeater>,
     keyboard: Res<Input<KeyCode>>,
 ) {
-    if let Some((mut debugger, cpu, system)) = query.iter_mut().next() {
+    if let Some((mut debugger, cpu, mut system)) = query.iter_mut().next() {
         for key_code in auto_repeat.pressed(&keyboard) {
             match key_code {
                 KeyCode::F6 => debugger.paused = !debugger.paused,
                 KeyCode::F7 => debugger.step_into(),
-                KeyCode::F8 => debugger.step_over(&cpu.cpu),
+                KeyCode::F8 => debugger.step_over(&mut system, &cpu.cpu),
                 KeyCode::F9 => debugger.next_scanline(&system.antic),
                 KeyCode::F10 => debugger.next_frame(),
                 _ => (),
@@ -341,6 +385,59 @@ fn atari_system(
     }
 }
 
+// function xex2atr(data) {
+//     let n_sectors = Math.floor((data.length + 127) / 128) + 3;
+//     let size = n_sectors * 128 / 16; // size in paragraphs;
+//     let size_h = Math.floor(size / 256);
+//     let size_l = size % 256;
+//     let atr_buf = new Uint8Array(n_sectors * 128 + 16);
+//     atr_buf.set(k_file_header, 0);
+//     atr_buf.set(data, k_file_header.length);
+//     atr_buf[2] = size_l;
+//     atr_buf[3] = size_h;
+//     atr_buf[25] = data.length % 256;
+//     atr_buf[26] = Math.floor(data.length / 256);
+//     return atr_buf;
+//   }
+
+const K_FILE_HEADER: [u8; 400] = [
+    150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137,
+    0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196,
+    7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0,
+    141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6,
+    165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173,
+    226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8,
+    208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0,
+    133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11,
+    133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7,
+    133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32,
+    235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9,
+    32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172,
+    121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169,
+    82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3,
+    169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32,
+    89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11,
+    173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140,
+    118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0,
+];
+
+fn xex2atr(data: &[u8]) -> Vec<u8> {
+    let n_sectors = (data.len() + 127) / 128 + 3;
+    let size = n_sectors * 128 / 16; // size in paragraphs;
+    let size_h = (size / 256) as u8;
+    let size_l = (size % 256) as u8;
+
+    let mut atr_buf = vec![0; n_sectors * 128 + 16];
+
+    atr_buf[0..400].copy_from_slice(&K_FILE_HEADER);
+    atr_buf[400..400 + data.len()].copy_from_slice(data);
+    atr_buf[2] = size_l;
+    atr_buf[3] = size_h;
+    atr_buf[25] = (data.len() % 256) as u8;
+    atr_buf[26] = (data.len() / 256) as u8;
+    atr_buf
+}
+
 // pub const SCANLINE_MESH_HANDLE: HandleUntyped =
 //     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
@@ -362,6 +459,16 @@ fn set_binary(
         "disk_1" | "disk_2" | "disk_3" | "disk_4" => {
             let n = (key.bytes().nth(5).unwrap() - 48 - 1) as usize;
             atari_system.disks[n] = data.map(|data| atr::ATR::new(path, &data));
+        }
+        "xex" => {
+            let data = data.map(xex2atr);
+            set_binary(
+                atari_system,
+                _cpu,
+                "disk_1",
+                path,
+                data.as_ref().map(|v| v.as_slice()),
+            );
         }
         "car" => {
             atari_system.set_cart(
@@ -419,6 +526,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
+    mut gdb_channel: ResMut<gdb::GdbChannel>,
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
@@ -435,25 +543,17 @@ fn setup(
             let mut atari_bundle = AtariBundle {
                 slot: AtariSlot(slot),
                 antic_data_handle,
+                debugger: Debugger {
+                    gdb_sender: Some(gdb_channel.0.clone()),
+                    ..Default::default()
+                },
                 ..Default::default()
             };
             atari_bundle.system.pokey.mute(config.is_multi());
 
-            #[cfg(not(target_arch="wasm32"))]
+            #[cfg(not(target_arch = "wasm32"))]
             embed_binaries(&mut atari_bundle.system, &mut atari_bundle.cpu);
 
-            // atari_bundle
-            //     .debugger
-            //     .breakpoints
-            //     .push(BreakPoint::IndirectPC(0x2e0));
-            // atari_bundle
-            //     .debugger
-            //     .breakpoints
-            //     .push(BreakPoint::IndirectPC(0x2e2));
-            // atari_bundle
-            //     .debugger
-            //     .breakpoints
-            //     .push(BreakPoint::IndirectPC(0x2e2));
             atari_bundle
                 .system
                 .reset(&mut atari_bundle.cpu.cpu, true, true);
@@ -578,8 +678,10 @@ fn main() {
             .add_startup_system(focus::setup.system());
     }
 
-    #[cfg(target_arch = "wasm32")]
-    app.add_system(js_api::events.system());
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugin(gdb::GdbPlugin::default());
+
+    app.add_system(messages::events.system());
 
     // let task_pool = app
     //     .world
