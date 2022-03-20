@@ -68,7 +68,7 @@ pub fn events(
                     debugger.pause();
                 }
                 Message::SingleStep => {
-                    debugger.step_over(&mut atari_system, &cpu.cpu);
+                    debugger.step_into();
                 }
                 Message::ReadRegisters => {
                     let mut regs: MosRegs = Default::default();
