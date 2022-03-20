@@ -21,10 +21,10 @@ fn main() {
     let mut contents = String::new();
 
     contents.push_str(&format!("const WINDOW_TITLE: &str = {:?};\n", window_title));
+    contents.push_str("pub fn embed_binaries(system: &mut AtariSystem, cpu: &mut CPU) {\n");
 
     match embed_binaries {
         Some(binaries) => {
-            contents.push_str("pub fn embed_binaries(system: &mut AtariSystem, cpu: &mut CPU) {\n");
             for bin in binaries {
                 let key = &bin[0];
                 let path = &bin[1];
@@ -35,10 +35,10 @@ fn main() {
                     key, path
                 ))
             }
-            contents.push_str("}\n");
         }
         None => (),
     };
+    contents.push_str("}\n");
 
     fs::write(dest_path, contents).unwrap();
     println!("cargo:rerun-if-env-changed=WINDOW_TITLE");
