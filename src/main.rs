@@ -678,7 +678,6 @@ fn main() {
             .add_startup_system(focus::setup.system());
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     app.add_plugin(gdb::GdbPlugin::default());
 
     app.add_system(messages::events.system());

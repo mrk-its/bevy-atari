@@ -1,6 +1,5 @@
 use crossbeam_channel::{Receiver, Sender};
 use std::collections::HashMap;
-use std::thread;
 use std::time::Duration;
 
 use bevy::prelude::{info, warn, Plugin};
@@ -62,7 +61,7 @@ impl Emu {
         }
         loop {
             if let Ok(msg) = self.receiver.recv_timeout(Duration::from_millis(1000)) {
-                if let Paused = msg {
+                if let GdbMessage::Paused = msg {
                     info!("target is paused");
                     self.state = TargetState::Paused;
                     return;
@@ -354,18 +353,22 @@ fn wait_for_gdb_connection(port: u16) -> io::Result<TcpStream> {
     Ok(stream) // `TcpStream` implements `gdbstub::Connection`
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn init(receiver: Receiver<GdbMessage>) {
     let mut target = Emu::new(receiver);
 
-    thread::spawn(move || loop {
+    std::thread::spawn(move || loop {
         if let Ok(stream) = wait_for_gdb_connection(GDB_PORT) {
             let conn: Box<dyn ConnectionExt<Error = std::io::Error>> = Box::new(stream);
-            let mut debugger = gdbstub::stub::GdbStub::new(conn);
+            let debugger = gdbstub::stub::GdbStub::new(conn);
             let result = debugger.run_blocking::<MyGdbBlockingEventLoop>(&mut target);
             info!("disconnect reason: {:?}", result);
         }
     });
 }
+
+#[cfg(target_arch = "wasm32")]
+pub fn init(receiver: Receiver<GdbMessage>) {}
 
 #[derive(Debug)]
 pub struct InMemoryFile {
