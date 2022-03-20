@@ -1,6 +1,8 @@
 use bevy::prelude::info;
 mod utils;
-use utils::{FIRFilter, Filter, Poly17, Poly4, Poly5, Poly9, PolyGenerator, FIR_37_TO_1};
+use utils::{
+    FIRFilter, Filter, FilterCascade40_1, Poly17, Poly4, Poly5, Poly9, PolyGenerator, FIR_37_TO_1,
+};
 
 use web_audio_api::context::{
     AudioContext, AudioContextLatencyCategory, AudioContextOptions, AudioContextRegistration,
@@ -45,9 +47,9 @@ impl Context {
 impl Default for Context {
     fn default() -> Self {
         let opts = AudioContextOptions {
-            sample_rate: Some(44100),
-            latency_hint: Some(AudioContextLatencyCategory::Balanced),
-            channels: Some(2),
+            sample_rate: Some(48000),
+            latency_hint: None,
+            channels: None,
         };
         let context = AudioContext::new(Some(opts));
         info!("sample_rate: {}", context.sample_rate());
@@ -197,8 +199,8 @@ struct Pokey {
 
 impl Pokey {
     fn new(sample_rate: usize) -> Self {
-        let (divider, filter) = match sample_rate {
-            // 44100 => 40,
+        let (divider, filter): (usize, Box<dyn Filter + Send>) = match sample_rate {
+            44100 => (40, Box::new(FilterCascade40_1::default())),
             48000 => (37, Box::new(FIRFilter::new(FIR_37_TO_1))),
             // 56000 => 32,
             _ => panic!("sample rate {} is not supported", sample_rate),
