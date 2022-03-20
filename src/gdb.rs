@@ -122,7 +122,7 @@ impl SingleThreadBase for Emu {
 
     fn write_registers(
         &mut self,
-        regs: &<Self::Arch as gdbstub::arch::Arch>::Registers,
+        _regs: &<Self::Arch as gdbstub::arch::Arch>::Registers,
     ) -> gdbstub::target::TargetResult<(), Self> {
         todo!()
     }
@@ -145,8 +145,8 @@ impl SingleThreadBase for Emu {
 
     fn write_addrs(
         &mut self,
-        start_addr: <Self::Arch as gdbstub::arch::Arch>::Usize,
-        data: &[u8],
+        _start_addr: <Self::Arch as gdbstub::arch::Arch>::Usize,
+        _data: &[u8],
     ) -> gdbstub::target::TargetResult<(), Self> {
         todo!()
     }
@@ -227,7 +227,7 @@ impl SingleThreadResume for Emu {
 }
 
 impl target::ext::base::singlethread::SingleThreadSingleStep for Emu {
-    fn step(&mut self, signal: Option<Signal>) -> Result<(), Self::Error> {
+    fn step(&mut self, _signal: Option<Signal>) -> Result<(), Self::Error> {
         send_message(Message::SingleStep);
         Ok(())
     }
@@ -319,7 +319,9 @@ impl run_blocking::BlockingEventLoop for MyGdbBlockingEventLoop {
     > {
         info!("waiting for stop");
         let reason = loop {
-            if let Ok(message) = target.receiver.recv_timeout(Duration::from_secs_f32(0.2)) {
+            if let Ok(GdbMessage::Paused) =
+                target.receiver.recv_timeout(Duration::from_secs_f32(0.2))
+            {
                 break Ok(run_blocking::Event::TargetStopped(
                     SingleThreadStopReason::Signal(Signal::SIGTRAP),
                 ));
@@ -333,7 +335,7 @@ impl run_blocking::BlockingEventLoop for MyGdbBlockingEventLoop {
     }
 
     fn on_interrupt(
-        target: &mut Self::Target,
+        _target: &mut Self::Target,
     ) -> Result<Option<Self::StopReason>, <Self::Target as Target>::Error> {
         send_message(Message::Pause);
         Ok(None)

@@ -526,7 +526,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
-    mut gdb_channel: ResMut<gdb::GdbChannel>,
+    gdb_channel: ResMut<gdb::GdbChannel>,
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {

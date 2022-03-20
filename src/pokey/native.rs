@@ -5,8 +5,7 @@ use utils::{
 };
 
 use web_audio_api::context::{
-    AudioContext, AudioContextLatencyCategory, AudioContextOptions, AudioContextRegistration,
-    AudioParamId, BaseAudioContext,
+    AudioContext, AudioContextOptions, AudioContextRegistration, AudioParamId, BaseAudioContext,
 };
 use web_audio_api::node::{AudioNode, ChannelConfig, ChannelConfigOptions};
 use web_audio_api::param::{AudioParam, AudioParamDescriptor, AutomationRate};
