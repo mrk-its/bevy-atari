@@ -78,6 +78,7 @@ pub fn events(
                     regs.x = cpu.cpu.get_x_register();
                     regs.y = cpu.cpu.get_y_register();
                     regs.s = cpu.cpu.get_stack_pointer();
+                    atari_system.copy_to_slice(0xcb, &mut regs.rc);
                     debugger.send_message(GdbMessage::Registers(regs));
                 }
                 Message::ReadMemory(offs, len) => {
