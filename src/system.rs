@@ -194,6 +194,10 @@ impl AtariSystem {
         }
     }
 
+    pub fn is_rom_enabled(&self) -> bool {
+        self.pia.portb_out().contains(PORTB::OSROM_ENABLED)
+    }
+
     fn _bank_ptr(&mut self, addr: usize, antic: bool, write: bool) -> *const MemBank {
         // 0x00..0x3f - RAM
         // 0x40..0x7f - RAM / EXT_RAM / SELFTEST / ANTIC

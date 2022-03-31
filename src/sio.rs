@@ -33,6 +33,9 @@ pub fn sio_exit(atari_system: &mut AtariSystem, cpu: &mut MOS6502, status: u8) {
 }
 
 pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
+    if !atari_system.is_rom_enabled() {
+        return;
+    }
     let device = atari_system.read(DDEVIC);
     let unit = atari_system.read(DUNIT);
     let cmd = atari_system.read(DCMND);
