@@ -5,7 +5,7 @@ set -x
 #  exit 1
 #fi
 
-git checkout web && git reset --hard master || (echo "cannot reset web branch"; exit 1)
+git checkout -b web && git reset --hard master || (echo "cannot reset web branch"; exit 1)
 
 cargo make build-webgl-sha1 -p release
 DEST=docs
@@ -19,11 +19,10 @@ cp -v web/pokey/pokey.js $DEST/pokey
 cp -v -a web/js $DEST
 
 rm -fr docs_test
-cp -a docs docs_test && mv docs_test docs/test
+cp -a $DEST docs_test && mv docs_test $DEST/test
 
-git add docs
+git add $DEST
 git config user.name github-actions
 git config user.email github-actions@github.com
 git commit -m "stable release"
-
-git push -f
+git push -f --set-upstream origin web
