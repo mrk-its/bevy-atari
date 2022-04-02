@@ -5,7 +5,7 @@ set -x
 #  exit 1
 #fi
 
-git checkout web && git reset --hard master || exit 1;
+git checkout web -- && git reset --hard master || exit 1;
 
 test $(git branch --show-current) == web || exit 1;
 
