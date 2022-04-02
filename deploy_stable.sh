@@ -22,5 +22,8 @@ rm -fr docs_test
 cp -a docs docs_test && mv docs_test docs/test
 
 git add docs
+git config user.name github-actions
+git config user.email github-actions@github.com
 git commit -m "stable release"
+
 git push -f
