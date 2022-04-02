@@ -81,7 +81,7 @@ features = [
 [patch.crates-io]
 gilrs = {git="https://gitlab.com/mrk2/gilrs.git", branch="remove_stdweb"}
 gilrs-core = {git="https://gitlab.com/mrk2/gilrs.git", branch="remove_stdweb"}
-bevy = {git = "https://github.com/mrk-its/bevy.git", branch="v0.6.0-fps"}
+bevy = {git = "https://github.com/mrk-its/bevy.git", branch="0.6.1-fps"}
 
 # glow = {git="https://github.com/grovesNL/glow"}
 # glow = {path="../glow"}
