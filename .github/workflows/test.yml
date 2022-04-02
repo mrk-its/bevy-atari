@@ -11,5 +11,6 @@ jobs:
         with:
           components: rustfmt
           toolchain: stable
+          target: wasm32-unknown-unknown
       - uses: davidB/rust-cargo-make@v1
       - run: cargo make build-webgl-sha1 -p release
