@@ -31,7 +31,7 @@ jobs:
           mkdir -p build_dir/target
           mkdir -p build_dir/pokey
 
-          cp -v web/index.html build_dir
+          envsubst < web/index.html > build_dir/index.html
           cp -v -a web/wasm build_dir/wasm
           cp -v web/pokey/pokey.js build_dir/pokey
           cp -v -a web/js build_dir
