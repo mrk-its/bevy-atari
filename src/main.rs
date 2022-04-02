@@ -682,22 +682,22 @@ fn main() {
 
     app.add_system(messages::events.system());
 
-    // let task_pool = app
-    //     .world
-    //     .get_resource::<IoTaskPool>()
-    //     .expect("IoTaskPool")
-    //     .0
-    //     .clone();
+    let task_pool = app
+        .world
+        .get_resource::<IoTaskPool>()
+        .expect("IoTaskPool")
+        .0
+        .clone();
 
-    // app.add_event::<platform::FsEvent>();
-    // app.add_system(platform::pump_fs_events);
-    // app.add_system(fs_events);
+    app.add_event::<platform::FsEvent>();
+    app.add_system(platform::pump_fs_events);
+    app.add_system(fs_events);
 
-    // let fs = platform::FileSystem::new(task_pool.clone());
+    let fs = platform::FileSystem::new(task_pool.clone());
     // fs.attach_binary("osrom", "os.rom");
     // fs.attach_binary("car", "flob.1.0.3b.car");
 
-    // app.insert_resource(fs);
+    app.insert_resource(fs);
 
     app.add_startup_system(setup)
         // .add_startup_system(debug::setup.system())
