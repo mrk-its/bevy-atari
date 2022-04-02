@@ -19,8 +19,6 @@ use gdbstub::target::ext::host_io::{
 use gdbstub::target::{self, Target, TargetError, TargetResult};
 use gdbstub_mos_arch::{MOSArch, MosBreakpointKind, MosRegs};
 
-const GDB_PORT: u16 = 9001;
-
 use std::io;
 use std::net::{TcpListener, TcpStream};
 
@@ -47,6 +45,7 @@ struct Emu {
 }
 
 impl Emu {
+    #[allow(dead_code)]
     fn new(receiver: Receiver<GdbMessage>) -> Self {
         Self {
             files: Default::default(),
@@ -342,6 +341,7 @@ impl run_blocking::BlockingEventLoop for MyGdbBlockingEventLoop {
     }
 }
 
+#[allow(dead_code)]
 fn wait_for_gdb_connection(port: u16) -> io::Result<TcpStream> {
     let sockaddr = format!("0.0.0.0:{}", port);
     info!("Waiting for a GDB connection on {:?}...", sockaddr);
@@ -360,7 +360,7 @@ pub fn init(receiver: Receiver<GdbMessage>) {
     let mut target = Emu::new(receiver);
 
     std::thread::spawn(move || loop {
-        if let Ok(stream) = wait_for_gdb_connection(GDB_PORT) {
+        if let Ok(stream) = wait_for_gdb_connection(9001) {
             let conn: Box<dyn ConnectionExt<Error = std::io::Error>> = Box::new(stream);
             let debugger = gdbstub::stub::GdbStub::new(conn);
             let result = debugger.run_blocking::<MyGdbBlockingEventLoop>(&mut target);
@@ -370,7 +370,7 @@ pub fn init(receiver: Receiver<GdbMessage>) {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn init(receiver: Receiver<GdbMessage>) {}
+pub fn init(_receiver: Receiver<GdbMessage>) {}
 
 #[derive(Debug)]
 pub struct InMemoryFile {

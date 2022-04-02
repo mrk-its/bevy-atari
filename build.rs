@@ -19,8 +19,8 @@ fn main() {
     let dest_path = Path::new(&out_dir).join("build_config.rs");
 
     let mut contents = String::new();
-
     contents.push_str(&format!("const WINDOW_TITLE: &str = {:?};\n", window_title));
+    contents.push_str("#[allow(unused_variables)]\n");
     contents.push_str("pub fn embed_binaries(system: &mut AtariSystem, cpu: &mut CPU) {\n");
 
     match embed_binaries {
