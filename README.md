@@ -19,10 +19,7 @@ It is still far from perfect (and won't compete with Alirra for emulation qualit
 * Simplified ANTIC / GTIA emulation - mid-screen registry changes are not visible on the screen instantly
 * POKEY interrupts are not supported yet.
 * no SIO emulation yet (for now IO is done by SIO patch)
-* only single, read-only disk drive emulation (more drives and write support are planned).
 * no casette image emulation.
-* no integrated debugger yet.
-* No POKEY emulation in native builds yet (planned)
 
 There are also tons of other bugs, causing screen glitches or simply crashing emulated programs. If you find any, or if you simply have a feature request, please fill an [issue](https://github.com/mrk-its/bevy-atari/issues)
 
