@@ -1,5 +1,8 @@
-name: test-build
-on: [push]
+name: build & deploy stable
+on:
+  push:
+    branches:
+      - master
 jobs:
   test-build:
     runs-on: ubuntu-latest
@@ -13,4 +16,4 @@ jobs:
           toolchain: stable
           target: wasm32-unknown-unknown
       - uses: davidB/rust-cargo-make@v1
-      - run: cargo make build-webgl-sha1 -p release
+      - run: ./deploy_stable.sh
