@@ -24,5 +24,6 @@ jobs:
       - run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
+      - run: cargo make build-webgl-sha1 -p release
       - name: deploy script
-        run: ./deploy_${GITHUB_REF_NAME}.sh
+        run: scripts/deploy_${GITHUB_REF_NAME}.sh
