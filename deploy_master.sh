@@ -5,7 +5,9 @@ set -x
 #  exit 1
 #fi
 
-git checkout -b web && git reset --hard master || (echo "cannot reset web branch"; exit 1)
+git checkout web && git reset --hard master || exit 1;
+
+test $(git branch --show-current) == web || exit 1;
 
 cargo make build-webgl-sha1 -p release
 DEST=docs

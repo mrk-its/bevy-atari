@@ -1,12 +1,17 @@
-name: build & deploy stable
+name: build & deploy
 on:
   push:
     branches:
       - master
+      - dev
 jobs:
   test-build:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          ref: web
       - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
@@ -16,4 +21,8 @@ jobs:
           toolchain: stable
           target: wasm32-unknown-unknown
       - uses: davidB/rust-cargo-make@v1
-      - run: ./deploy_stable.sh
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+      - name: deploy script
+        run: ./deploy_${GITHUB_REF_NAME}.sh
