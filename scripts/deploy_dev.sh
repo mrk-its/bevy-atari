@@ -1,10 +1,8 @@
-source $(dirname $0)/common.sh
-
 git checkout web --recurse-submodules --
 
 rm -fr docs/test
 
-mv $BUILD_DIR docs/test
+mv build_dir docs/test
 
 
 git add docs/test

@@ -1,11 +1,9 @@
-source $(dirname $0)/common.sh
-
 git checkout -b web && git reset --hard master || (echo "cannot reset web branch"; exit 1)
 
 rm -fr docs
 
-cp -a $BUILD_DIR docs
-cp -a $BUILD_DIR docs/test
+cp -a build_dir docs
+cp -a build_dir docs/test
 
 git add docs
 

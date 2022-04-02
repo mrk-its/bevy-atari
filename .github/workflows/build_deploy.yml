@@ -25,5 +25,16 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@github.com
       - run: cargo make build-webgl-sha1 -p release
+      - name: prepare build dir
+        run: |
+          rm -fr build_dir
+          mkdir -p build_dir/target
+          mkdir -p build_dir/pokey
+
+          cp -v web/index.html build_dir
+          cp -v -a web/wasm build_dir/wasm
+          cp -v web/pokey/pokey.js build_dir/pokey
+          cp -v -a web/js build_dir
+
       - name: deploy script
         run: scripts/deploy_${GITHUB_REF_NAME}.sh
