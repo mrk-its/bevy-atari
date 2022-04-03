@@ -338,6 +338,29 @@ fn show_screen(egui_context: &mut EguiContext, config: &mut UIConfig, slot: &Ata
         });
 }
 
+fn show_reset(
+    egui_context: &mut EguiContext,
+    config: &mut UIConfig,
+    system: &mut AtariSystem,
+    cpu: &mut CPU,
+) -> Response {
+    bevy_egui::egui::Window::new("Reset")
+        .title_bar(false)
+        .anchor(egui::Align2::CENTER_TOP, egui::Vec2::new(0.0, 16.0))
+        .auto_sized()
+        .show(egui_context.ctx_mut(), |ui| {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut config.basic, "Basic");
+                if ui.button("Reset (Warm)").clicked() {
+                    system.reset(&mut cpu.cpu, false, !config.basic);
+                }
+                if ui.button("Reset (Cold)").clicked() {
+                    system.reset(&mut cpu.cpu, true, !config.basic);
+                }
+            });
+        })
+}
+
 fn show_fps(
     egui_context: &mut EguiContext,
     config: &mut UIConfig,
@@ -369,7 +392,7 @@ fn show_fps(
 pub fn show_ui(
     mut egui_context: ResMut<EguiContext>,
     diagnostics: Res<Diagnostics>,
-    mut query: Query<(&CPU, &mut AtariSystem, &AtariSlot, &mut Debugger), With<Focused>>,
+    mut query: Query<(&mut CPU, &mut AtariSystem, &AtariSlot, &mut Debugger), With<Focused>>,
     mut config: ResMut<UIConfig>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     windows: Res<Windows>,
@@ -396,24 +419,23 @@ pub fn show_ui(
             }) => r.hovered(),
         }
     }
+    for (mut cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
+        let r1 = show_fps(&mut egui_context, &mut config, &diagnostics);
+        let r2 = show_config(&mut egui_context, &mut config);
+        show_reset(&mut egui_context, &mut config, &mut atari_system, &mut cpu);
+        let is_collapsed = if let Some(InnerResponse { inner: None, .. }) = r2 {
+            true
+        } else {
+            false
+        };
 
-    let r1 = show_fps(&mut egui_context, &mut config, &diagnostics);
-    let r2 = show_config(&mut egui_context, &mut config);
-
-    let is_collapsed = if let Some(InnerResponse { inner: None, .. }) = r2 {
-        true
-    } else {
-        false
-    };
-
-    if !(force_show(&r1) || force_show(&r2)) && config.all_unchecked() {
-        return;
-    }
-    if is_collapsed {
-        return;
-    }
-    config.reset_auto_hide();
-    for (cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
+        if !(force_show(&r1) || force_show(&r2)) && config.all_unchecked() {
+            return;
+        }
+        if is_collapsed {
+            return;
+        }
+        config.reset_auto_hide();
         show_screen(&mut egui_context, &mut config, slot);
         show_cpu(&mut egui_context, &mut config, &cpu);
         show_debugger(
@@ -425,9 +447,10 @@ pub fn show_ui(
         );
         show_antic(&mut egui_context, &mut config, &mut atari_system);
         show_gtia(&mut egui_context, &mut config, &mut atari_system);
-        show_disasm(&mut egui_context, &mut config, cpu, &mut atari_system);
+        show_disasm(&mut egui_context, &mut config, &cpu, &mut atari_system);
         for index in 0..4 {
             show_memory(&mut egui_context, index, &mut config, &mut atari_system);
         }
+        break;
     }
 }

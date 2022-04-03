@@ -29,7 +29,7 @@ pub enum Message {
     },
     Reset {
         cold: bool,
-        disable_basic: bool,
+        disable_basic: Option<bool>,
     },
     SetState(String),
     SetResolution {
@@ -55,6 +55,7 @@ pub fn events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
     mut state: ResMut<State<EmulatorState>>,
     mut windows: ResMut<Windows>,
+    mut ui_config: ResMut<crate::resources::UIConfig>,
 ) {
     let mut _messages = MESSAGES.write();
     for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
@@ -103,7 +104,7 @@ pub fn events(
                     cold,
                     disable_basic,
                 } => {
-                    atari_system.reset(&mut cpu.cpu, cold, disable_basic);
+                    atari_system.reset(&mut cpu.cpu, cold, disable_basic.unwrap_or(!ui_config.basic));
                     debugger.paused = false;
                 }
                 Message::SetState(new_state) => {
@@ -133,6 +134,9 @@ pub fn events(
                             Some(data) => Some(&data[..]),
                             None => None,
                         };
+                        if key == "basic" {
+                            ui_config.basic = data.is_some();
+                        }
                         crate::set_binary(&mut atari_system, &mut cpu, &key, &path, data);
                     }
                 }

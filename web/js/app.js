@@ -259,7 +259,7 @@ async function reload_from_fragment() {
   for (let key of to_remove) {
     set_binary_data(key, "", []);
   }
-  reset(true, true);
+  reset(true);
   console.log("calling set_state: running");
   set_state("running");
 }

@@ -8,6 +8,7 @@ pub struct UIConfig {
     pub disasm: bool,
     pub fps: bool,
     pub debugger: bool,
+    pub basic: bool,
 }
 
 impl UIConfig {
@@ -64,6 +65,7 @@ impl Default for UIConfig {
             gtia: false,
             disasm: false,
             fps: true,
+            basic: false,
         }
     }
 }

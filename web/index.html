@@ -97,10 +97,6 @@
     $("button.rec").click(rec_start_stop)
     $(window).bind("hashchange", on_hash_change);
 
-    $('#reset_warm').click(e => reset(false, false))
-    $('#reset_cold').click(e => reset(true, false))
-    $('#reset_cold_nobasic').click(e => reset(true, true))
-
     $('button, a').click(e => {
       audio_context.resume()
       $("#bevy-canvas").focus()
@@ -147,15 +143,10 @@
 
 <body>
   <div style="display: flex; align-items: center; justify-content: center">
-    <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto" style="margin: auto"></canvas>
+    <canvas id="bevy-canvas" tabindex="0" data-raw-handle="1" alt="bevy" cursor="auto" style="margin: auto; width: 768px; height: 480px;" width="768" height="480"></canvas>
   </div>
   <div id="ui-container">
     <div class="buttons">
-      <button id="reset_warm">Restart (Warm)</button>
-      <button id="reset_cold">Restart (Cold)</button>
-      <button id="reset_cold_nobasic">Restart (Cold, Disable Basic)</button>
-      <!-- <input type="file" onchange="open_local_file(event);blur()"></input> -->
-      <!--button onclick="open_local_file(event); blur()" style="float: right">Open</button -->
       <a id="fullscreen" href="#">fullscreen</a>
     </div>
     <div class="slots files"></div>

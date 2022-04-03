@@ -43,7 +43,7 @@ pub fn set_state(state: String) {
 
 #[allow(dead_code)]
 #[wasm_bindgen]
-pub fn reset(cold: bool, disable_basic: bool) {
+pub fn reset(cold: bool, disable_basic: Option<bool>) {
     send_message(Message::Reset {
         cold,
         disable_basic,
