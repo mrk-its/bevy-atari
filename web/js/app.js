@@ -1,4 +1,4 @@
-import init, { set_binary_data, cmd, reset as _reset, set_state, set_resolution as _set_resolution} from '../wasm/wasm.js'
+import init, { set_binary_data, cmd, reset as _reset, set_state, set_resolution as _set_resolution, keystrokes} from '../wasm/wasm.js'
 
 import { SAPWriter } from './sap_writer.js'
 import { initFilesystem, mkdirs, readFile, writeFile, readDir, rm } from './fs.js'
@@ -246,7 +246,11 @@ async function reload_from_fragment() {
   await delay(100);
   let todo = [];
   for (let [key, url, slot] of parse_fragment()) {
-    todo.push(fetch_binary_data(key, url, parseInt(slot)));
+    if(BINARY_KEYS.indexOf(key) >= 0) {
+      todo.push(fetch_binary_data(key, url, parseInt(slot)));
+    } else if(key == "keystrokes") {
+      keystrokes(decodeURIComponent(url))
+    }
   };
   let result = await Promise.all(todo);
   let result_set = new Set(result);

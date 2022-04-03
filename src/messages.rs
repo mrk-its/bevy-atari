@@ -44,6 +44,9 @@ pub enum Message {
     SingleStep,
     Pause,
     Continue,
+    KeyStrokes {
+        text: String,
+    },
 }
 
 pub fn send_message(msg: Message) {
@@ -104,7 +107,11 @@ pub fn events(
                     cold,
                     disable_basic,
                 } => {
-                    atari_system.reset(&mut cpu.cpu, cold, disable_basic.unwrap_or(!ui_config.basic));
+                    atari_system.reset(
+                        &mut cpu.cpu,
+                        cold,
+                        disable_basic.unwrap_or(!ui_config.basic),
+                    );
                     debugger.paused = false;
                 }
                 Message::SetState(new_state) => {
@@ -139,6 +146,9 @@ pub fn events(
                         }
                         crate::set_binary(&mut atari_system, &mut cpu, &key, &path, data);
                     }
+                }
+                Message::KeyStrokes { text } => {
+                    atari_system.keystrokes(&text);
                 }
                 Message::Command { cmd } => {
                     let parts = cmd.split(" ").collect::<Vec<_>>();

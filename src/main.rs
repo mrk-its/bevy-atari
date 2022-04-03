@@ -267,7 +267,7 @@ fn atari_system(
         &Handle<AnticData>,
     )>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
-    keyboard: Res<Input<KeyCode>>,
+    mut keyboard: ResMut<Input<KeyCode>>,
     render_device: Res<RenderDevice>,
 ) {
     for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
@@ -285,7 +285,7 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if focused.is_some() && atari_system.handle_keyboard(&keyboard, &mut cpu) {
+                if focused.is_some() && atari_system.handle_keyboard(&mut keyboard, &mut cpu) {
                     cpu.interrupt_request();
                 }
             };

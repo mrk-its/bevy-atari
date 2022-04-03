@@ -31,6 +31,12 @@ pub fn set_binary_data(key: String, path: String, data: Vec<u8>, slot: Option<i3
 
 #[allow(dead_code)]
 #[wasm_bindgen]
+pub fn keystrokes(text: String) {
+    send_message(Message::KeyStrokes { text });
+}
+
+#[allow(dead_code)]
+#[wasm_bindgen]
 pub fn cmd(cmd: String) {
     send_message(Message::Command { cmd });
 }

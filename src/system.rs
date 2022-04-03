@@ -43,6 +43,7 @@ pub struct AtariSystem {
     pub disks: [Option<ATR>; 4],
     ticks: usize,
     pub cart: Option<Box<dyn Cartridge>>,
+    pub keycodes: Vec<Option<(KeyCode, bool)>>,
 }
 unsafe impl Send for AtariSystem {}
 unsafe impl Sync for AtariSystem {}
@@ -93,6 +94,7 @@ impl AtariSystem {
             disks: Default::default(),
             ticks: 0,
             cart: None,
+            keycodes: Vec::new(),
         };
         atari_system.setup_memory_banks();
         atari_system
@@ -428,7 +430,39 @@ impl AtariSystem {
         self.gtia.consol = !self.consol.get_output() & 7;
     }
 
-    pub fn handle_keyboard(&mut self, keyboard: &Res<Input<KeyCode>>, cpu: &mut MOS6502) -> bool {
+    pub fn keystrokes(&mut self, text: &str) {
+        for c in text.chars() {
+            let codes = char_to_keycodes(c);
+            for c in codes {
+                self.keycodes.push(Some((*c, true)));
+            }
+            for c in codes {
+                self.keycodes.push(Some((*c, false)));
+                self.keycodes.push(None);
+            }
+            if c == '\n' {
+                for _ in 0..4 {
+                    self.keycodes.push(None);
+                }
+            }
+        }
+    }
+
+    pub fn handle_keyboard(
+        &mut self,
+        keyboard: &mut ResMut<Input<KeyCode>>,
+        cpu: &mut MOS6502,
+    ) -> bool {
+        if !self.keycodes.is_empty() && self.ticks >= 15600 * 2 {
+            if let Some((keycode, pressed)) = self.keycodes.remove(0) {
+                if pressed {
+                    keyboard.press(keycode);
+                } else {
+                    keyboard.release(keycode);
+                }
+            }
+        }
+
         let mut irq = false;
         let start = keyboard.pressed(KeyCode::F2);
         let select = keyboard.pressed(KeyCode::F3);
@@ -564,5 +598,78 @@ impl Interface6502 for AtariSystem {
     #[inline(always)]
     fn write(&mut self, addr: u16, value: u8) {
         self._write(addr, value, false)
+    }
+}
+
+fn char_to_keycodes(c: char) -> &'static [KeyCode] {
+    match c {
+        'A' => &[KeyCode::A],
+        'B' => &[KeyCode::B],
+        'C' => &[KeyCode::C],
+        'D' => &[KeyCode::D],
+        'E' => &[KeyCode::E],
+        'F' => &[KeyCode::F],
+        'G' => &[KeyCode::G],
+        'H' => &[KeyCode::H],
+        'I' => &[KeyCode::I],
+        'J' => &[KeyCode::J],
+        'K' => &[KeyCode::K],
+        'L' => &[KeyCode::L],
+        'M' => &[KeyCode::M],
+        'N' => &[KeyCode::N],
+        'O' => &[KeyCode::O],
+        'P' => &[KeyCode::P],
+        'Q' => &[KeyCode::Q],
+        'R' => &[KeyCode::R],
+        'S' => &[KeyCode::S],
+        'T' => &[KeyCode::T],
+        'U' => &[KeyCode::U],
+        'V' => &[KeyCode::V],
+        'W' => &[KeyCode::W],
+        'X' => &[KeyCode::X],
+        'Y' => &[KeyCode::Y],
+        'Z' => &[KeyCode::Z],
+        '0' => &[KeyCode::Key0],
+        '1' => &[KeyCode::Key1],
+        '2' => &[KeyCode::Key2],
+        '3' => &[KeyCode::Key3],
+        '4' => &[KeyCode::Key4],
+        '5' => &[KeyCode::Key5],
+        '6' => &[KeyCode::Key6],
+        '7' => &[KeyCode::Key7],
+        '8' => &[KeyCode::Key8],
+        '9' => &[KeyCode::Key9],
+        '\'' => &[KeyCode::Apostrophe],
+        '.' => &[KeyCode::Period],
+        ',' => &[KeyCode::Comma],
+        '*' => &[KeyCode::Asterisk],
+        '\n' => &[KeyCode::Return],
+        ';' => &[KeyCode::Colon],
+        '[' => &[KeyCode::LBracket],
+        ']' => &[KeyCode::RBracket],
+        ' ' => &[KeyCode::Space],
+        '+' => &[KeyCode::Plus],
+        '-' => &[KeyCode::Minus],
+        '_' => &[KeyCode::Underline],
+        '=' => &[KeyCode::Equals],
+        '/' => &[KeyCode::Slash],
+        '\\' => &[KeyCode::Backslash],
+        '<' => return &[KeyCode::LShift, KeyCode::Comma],
+        '>' => return &[KeyCode::LShift, KeyCode::Period],
+        '|' => return &[KeyCode::LShift, KeyCode::Backslash],
+        '!' => return &[KeyCode::LShift, KeyCode::Key1],
+        '@' => return &[KeyCode::LShift, KeyCode::Key2],
+        '#' => return &[KeyCode::LShift, KeyCode::Key3],
+        '$' => return &[KeyCode::LShift, KeyCode::Key4],
+        '%' => return &[KeyCode::LShift, KeyCode::Key5],
+        '^' => return &[KeyCode::LShift, KeyCode::Key6],
+        '&' => return &[KeyCode::LShift, KeyCode::Key7],
+        // '*' => return vec![KeyCode::LShift, KeyCode::Key8],
+        '(' => return &[KeyCode::LShift, KeyCode::Key9],
+        ')' => return &[KeyCode::LShift, KeyCode::Key0],
+        '?' => return &[KeyCode::LShift, KeyCode::Slash],
+        ':' => return &[KeyCode::LShift, KeyCode::Colon],
+        '"' => return &[KeyCode::LShift, KeyCode::Apostrophe],
+        _ => return &[],
     }
 }
