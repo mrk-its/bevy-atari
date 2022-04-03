@@ -432,16 +432,26 @@ impl AtariSystem {
 
     pub fn keystrokes(&mut self, text: &str) {
         for c in text.chars() {
-            let codes = char_to_keycodes(c);
-            for c in codes {
+            if (c as u32) < 10 {
+                for _ in 0..(c as u32 + 1) * 50 {
+                    self.keycodes.push(None);
+                }
+                continue;
+            }
+            let mut codes = char_to_keycodes(c).to_owned();
+            if c.is_ascii_uppercase() {
+                codes.insert(0, KeyCode::LShift);
+            }
+            for c in &codes {
                 self.keycodes.push(Some((*c, true)));
             }
-            for c in codes {
+            for c in &codes {
                 self.keycodes.push(Some((*c, false)));
+                self.keycodes.push(None);
                 self.keycodes.push(None);
             }
             if c == '\n' {
-                for _ in 0..4 {
+                for _ in 0..16 {
                     self.keycodes.push(None);
                 }
             }
@@ -454,6 +464,7 @@ impl AtariSystem {
         cpu: &mut MOS6502,
     ) -> bool {
         if !self.keycodes.is_empty() && self.ticks >= 15600 * 2 {
+            keyboard.clear();
             if let Some((keycode, pressed)) = self.keycodes.remove(0) {
                 if pressed {
                     keyboard.press(keycode);
@@ -602,7 +613,9 @@ impl Interface6502 for AtariSystem {
 }
 
 fn char_to_keycodes(c: char) -> &'static [KeyCode] {
+    let c = c.to_ascii_uppercase();
     match c {
+        '\u{1f}' => &[KeyCode::Capital],
         'A' => &[KeyCode::A],
         'B' => &[KeyCode::B],
         'C' => &[KeyCode::C],

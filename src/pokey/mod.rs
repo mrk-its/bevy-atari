@@ -270,6 +270,7 @@ impl Pokey {
             KeyCode::Y => 0x2b,
             KeyCode::Z => 0x17,
             KeyCode::Escape => 0x1c,
+            KeyCode::Capital => 0x3c,
             // KeyCode::LControl => {}
             // KeyCode::LShift => {}
             // KeyCode::RControl => {}
