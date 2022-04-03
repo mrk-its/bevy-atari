@@ -278,7 +278,7 @@ impl target::ext::host_io::HostIoClose for Emu {
             });
             send_message(Message::Reset {
                 cold: true,
-                disable_basic: true,
+                disable_basic: Some(true),
             });
             self.state = TargetState::Running;
             send_message(Message::ClearBreakpoints);
@@ -355,23 +355,6 @@ fn wait_for_gdb_connection(port: u16) -> io::Result<TcpStream> {
     Ok(stream) // `TcpStream` implements `gdbstub::Connection`
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-pub fn init(receiver: Receiver<GdbMessage>) {
-    let mut target = Emu::new(receiver);
-
-    std::thread::spawn(move || loop {
-        if let Ok(stream) = wait_for_gdb_connection(9001) {
-            let conn: Box<dyn ConnectionExt<Error = std::io::Error>> = Box::new(stream);
-            let debugger = gdbstub::stub::GdbStub::new(conn);
-            let result = debugger.run_blocking::<MyGdbBlockingEventLoop>(&mut target);
-            info!("disconnect reason: {:?}", result);
-        }
-    });
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn init(_receiver: Receiver<GdbMessage>) {}
-
 #[derive(Debug)]
 pub struct InMemoryFile {
     pub filename: String,
@@ -391,10 +374,24 @@ impl InMemoryFile {
 pub struct GdbPlugin;
 
 impl Plugin for GdbPlugin {
+    #[cfg(not(target_arch = "wasm32"))]
     fn build(&self, app: &mut bevy::prelude::App) {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        let gdb_channel = GdbChannel(sender);
+        let gdb_channel = Some(GdbChannel(sender));
         app.insert_resource(gdb_channel);
-        init(receiver);
+
+        let mut target = Emu::new(receiver);
+        std::thread::spawn(move || loop {
+            if let Ok(stream) = wait_for_gdb_connection(9001) {
+                let conn: Box<dyn ConnectionExt<Error = std::io::Error>> = Box::new(stream);
+                let debugger = gdbstub::stub::GdbStub::new(conn);
+                let result = debugger.run_blocking::<MyGdbBlockingEventLoop>(&mut target);
+                info!("disconnect reason: {:?}", result);
+            }
+        });
+    }
+    #[cfg(target_arch = "wasm32")]
+    fn build(&self, app: &mut bevy::prelude::App) {
+        app.insert_resource(None as Option<GdbChannel>);
     }
 }

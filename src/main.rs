@@ -526,7 +526,7 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     render_device: Res<RenderDevice>,
-    gdb_channel: ResMut<gdb::GdbChannel>,
+    gdb_channel: Res<Option<gdb::GdbChannel>>,
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
@@ -544,7 +544,7 @@ fn setup(
                 slot: AtariSlot(slot),
                 antic_data_handle,
                 debugger: Debugger {
-                    gdb_sender: Some(gdb_channel.0.clone()),
+                    gdb_sender: (*gdb_channel).as_ref().map(|c| c.0.clone()),
                     ..Default::default()
                 },
                 ..Default::default()
