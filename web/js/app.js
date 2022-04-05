@@ -3,9 +3,7 @@ import init, { set_binary_data, cmd, reset as _reset, set_state, set_resolution 
 import { SAPWriter } from './sap_writer.js'
 import { initFilesystem, mkdirs, readFile, writeFile, readDir, rm } from './fs.js'
 
-const k_file_header = [150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137, 0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196, 7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0, 141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6, 165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173, 226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8, 208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0, 133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11, 133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32, 235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9, 32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172, 121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169, 82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3, 169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32, 89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11, 173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140, 118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0];
-
-const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car'];
+const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car', 'xex'];
 const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
 
 var sap_writer = null;
@@ -69,22 +67,6 @@ function pokey_post_message(msg) {
     sap_writer.handle_pokey_msg(msg)
 }
 
-
-function xex2atr(data) {
-  let n_sectors = Math.floor((data.length + 127) / 128) + 3;
-  let size = n_sectors * 128 / 16; // size in paragraphs;
-  let size_h = Math.floor(size / 256);
-  let size_l = size % 256;
-  let atr_buf = new Uint8Array(n_sectors * 128 + 16);
-  atr_buf.set(k_file_header, 0);
-  atr_buf.set(data, k_file_header.length);
-  atr_buf[2] = size_l;
-  atr_buf[3] = size_h;
-  atr_buf[25] = data.length % 256;
-  atr_buf[26] = Math.floor(data.length / 256);
-  return atr_buf;
-}
-
 function parse_part(part) {
   let m = part.match("^(\\w+)(@(\\d+))?=(.*)");
   return m && [m[1], m[4], m[3]] || [null, part, null]
@@ -127,23 +109,9 @@ function set_binary(key, url, path, data, slot) {
     } else if (ext == "car") {
       key = "car"
     } else if (ext == "atr") {
-      let is_valid = (data[0] == 0x96 && data[1] == 0x02 && data[4] == 128 && data[5] == 0);
-      if (is_valid) {
-        key = "disk_1"
-      } else {
-        console.warn("unsupported ATR file");
-        return;
-      }
+      key = "disk_1"
     } else if (ext == "xex") {
-      let is_valid = (data[0] == 255 && data[1] == 255);
-      if (is_valid) {
-        key = "disk_1"
-        data = xex2atr(data);
-        filename = filename + '.atr'
-      } else {
-        console.warn("invalid xex header");
-        return;
-      }
+      key = "xex"
       // handled below
     } else {
       console.warn("unknown type of file", filename);
@@ -173,7 +141,9 @@ function url_to_filename(url) {
 
 function fetch_url(url) {
   if (is_absolute_url(url)) {
-    url = "https://atari.ha.sed.pl/" + url;
+    if(!url.startsWith("http://localhost") && !url.startsWith("http://127.0.0.1")) {
+      url = "https://atari.ha.sed.pl/" + url;
+    }
   }
   return fetch(url).then(r => {
     let content_disposition = r.headers.get("Content-Disposition");
@@ -204,29 +174,37 @@ async function url_to_path(url) {
 }
 
 async function fetch_binary_data(key, url, slot) {
-  if (!url.startsWith("http")) return;
+  if (!url.startsWith("http") && !url.startsWith("data:")) return;
   console.log("fetch_binary_data", key, url, slot)
   let path = await url_to_path(url);
 
   var data;
-  try {
-    // if(document.location.hash.indexOf("clear-cache")>0) {
-    //   throw "skip";
-    // }
-    data = await readFile(path)
-    console.info(`${path} read from cache`)
-  } catch (err) {
-    console.log(`${err} - ${path} not in cache, fetching`)
+  if(url.startsWith("data:")) {
     data = await fetch_url(url);
-    console.log(data);
+  } else {
     try {
-      await mkdirs(path);
-      await writeFile(path, data.buffer);
-      console.log(`${path} written to cache`);
+      if(document.location.hash.indexOf("no-cache")<0) {
+        data = await readFile(path)
+      }
+      console.info(`${path} read from cache`)
     } catch (err) {
-      console.log("ERR:", err);
+      console.log(err);
     }
+    if(!data) {
+      data = await fetch_url(url);
+      console.log(data);
+      if(!url.startsWith("data:")) {
+        try {
+          await mkdirs(path);
+          await writeFile(path, data.buffer);
+          console.log(`${path} written to cache`);
+        } catch (err) {
+          console.log("ERR:", err);
+        }
+      }
+    }  
   }
+
   let type = set_binary(key, url, path, data, slot);
   console.log("set_binary", key, url, "len:", data.length);
   return type;
@@ -246,7 +224,7 @@ async function reload_from_fragment() {
   await delay(100);
   let todo = [];
   for (let [key, url, slot] of parse_fragment()) {
-    if(BINARY_KEYS.indexOf(key) >= 0) {
+    if(!key || BINARY_KEYS.indexOf(key) >= 0) {
       todo.push(fetch_binary_data(key, url, parseInt(slot)));
     } else if(key == "keystrokes") {
       keystrokes(decodeURIComponent(url))
@@ -254,6 +232,10 @@ async function reload_from_fragment() {
   };
   let result = await Promise.all(todo);
   let result_set = new Set(result);
+  if(result_set.has("xex") || result_set.has("disk_1")) {
+    result_set.add("xex");
+    result_set.add("disk_1");
+  }
   if (!result_set.has("osrom")) {
     await fetch_binary_data(null, DEFAULT_OSROM_URL);
     result_set.add("osrom");

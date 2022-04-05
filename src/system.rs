@@ -9,6 +9,8 @@ pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
 pub use std::{cell::RefCell, rc::Rc};
 
+use bevy::prelude::info;
+
 bitflags! {
     #[derive(Default)]
     pub struct PORTB: u8 {
@@ -549,6 +551,10 @@ impl AtariSystem {
     pub fn inc_cycle(&mut self) {
         self.antic.inc_cycle();
         self.pokey.total_cycles = self.antic.total_cycles;
+    }
+    pub fn set_disk(&mut self, drive: usize, atr: Option<ATR>) {
+        info!("set_disk #{}: {:?}", drive, atr.is_some());
+        self.disks[drive] = atr;
     }
 
     pub fn get_status(&mut self, drive: usize, addr: u16, len: u16) -> u8 {

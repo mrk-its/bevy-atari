@@ -334,7 +334,7 @@ impl Pokey {
                 }
             }
             KeyCode::F1 => 0x11,
-            KeyCode::Capital => 0x3c,
+            // KeyCode::Capital => 0x3c,
             KeyCode::Up => {
                 is_ctl = true;
                 0x0e

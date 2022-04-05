@@ -26,9 +26,10 @@ use resources::UIConfig;
 
 pub mod focus;
 
-pub mod sio;
+mod hooks;
 mod system;
 pub mod time_used_plugin;
+
 use crate::cartridge::Cartridge;
 
 include!(concat!(env!("OUT_DIR"), "/build_config.rs"));
@@ -292,16 +293,13 @@ fn atari_system(
 
             antic::tick(&mut *atari_system, &mut cpu, &mut *antic_data);
 
-            match cpu.get_program_counter() {
-                0xe459 => sio::sioint_hook(&mut *atari_system, &mut *cpu),
-                _ => (),
-            }
-
             if debugger.paused {
                 break;
             }
 
             cpu.cycle(&mut *atari_system);
+            hooks::hook(&mut cpu, &mut atari_system);
+
             let finished_instr = cpu.get_remaining_cycles() == 0;
             if finished_instr {
                 antic::post_instr_tick(&mut *atari_system, &antic_data.collisions_data);
@@ -400,46 +398,28 @@ fn atari_system(
 //     return atr_buf;
 //   }
 
-const K_FILE_HEADER: [u8; 400] = [
-    150, 2, 96, 17, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 7, 20, 7, 76, 20, 7, 116, 137,
-    0, 0, 169, 70, 141, 198, 2, 208, 254, 160, 0, 169, 107, 145, 88, 32, 217, 7, 176, 238, 32, 196,
-    7, 173, 122, 8, 13, 118, 8, 208, 227, 165, 128, 141, 224, 2, 165, 129, 141, 225, 2, 169, 0,
-    141, 226, 2, 141, 227, 2, 32, 235, 7, 176, 204, 160, 0, 145, 128, 165, 128, 197, 130, 208, 6,
-    165, 129, 197, 131, 240, 8, 230, 128, 208, 2, 230, 129, 208, 227, 173, 118, 8, 208, 175, 173,
-    226, 2, 141, 112, 7, 13, 227, 2, 240, 14, 173, 227, 2, 141, 113, 7, 32, 255, 255, 173, 122, 8,
-    208, 19, 169, 0, 141, 226, 2, 141, 227, 2, 32, 174, 7, 173, 122, 8, 208, 3, 76, 60, 7, 169, 0,
-    133, 128, 133, 129, 133, 130, 133, 131, 173, 224, 2, 133, 10, 133, 12, 173, 225, 2, 133, 11,
-    133, 13, 169, 1, 133, 9, 169, 0, 141, 68, 2, 108, 224, 2, 32, 235, 7, 133, 128, 32, 235, 7,
-    133, 129, 165, 128, 201, 255, 208, 16, 165, 129, 201, 255, 208, 10, 32, 235, 7, 133, 128, 32,
-    235, 7, 133, 129, 32, 235, 7, 133, 130, 32, 235, 7, 133, 131, 96, 32, 235, 7, 201, 255, 208, 9,
-    32, 235, 7, 201, 255, 208, 2, 24, 96, 56, 96, 173, 9, 7, 13, 10, 7, 13, 11, 7, 240, 121, 172,
-    121, 8, 16, 80, 238, 119, 8, 208, 3, 238, 120, 8, 169, 49, 141, 0, 3, 169, 1, 141, 1, 3, 169,
-    82, 141, 2, 3, 169, 64, 141, 3, 3, 169, 128, 141, 4, 3, 169, 8, 141, 5, 3, 169, 31, 141, 6, 3,
-    169, 128, 141, 8, 3, 169, 0, 141, 9, 3, 173, 119, 8, 141, 10, 3, 173, 120, 8, 141, 11, 3, 32,
-    89, 228, 173, 3, 3, 201, 2, 176, 34, 160, 0, 140, 121, 8, 185, 128, 8, 170, 173, 9, 7, 208, 11,
-    173, 10, 7, 208, 3, 206, 11, 7, 206, 10, 7, 206, 9, 7, 238, 121, 8, 138, 24, 96, 160, 1, 140,
-    118, 8, 56, 96, 160, 1, 140, 122, 8, 56, 96, 0, 3, 0, 128, 0, 0, 0, 0, 0, 0,
-];
-
+const XEX_LOADER: &[u8; 144] = include_bytes!("../xex_loader/xex_loader.atr");
 fn xex2atr(data: &[u8]) -> Vec<u8> {
-    let n_sectors = (data.len() + 127) / 128 + 3;
+    let n_sectors = (data.len() + 127) / 128 + 1;
     let size = n_sectors * 128 / 16; // size in paragraphs;
     let size_h = (size / 256) as u8;
     let size_l = (size % 256) as u8;
 
     let mut atr_buf = vec![0; n_sectors * 128 + 16];
 
-    atr_buf[0..400].copy_from_slice(&K_FILE_HEADER);
-    atr_buf[400..400 + data.len()].copy_from_slice(data);
+    atr_buf[0..144].copy_from_slice(XEX_LOADER);
+    atr_buf[144..144 + data.len()].copy_from_slice(data);
     atr_buf[2] = size_l;
     atr_buf[3] = size_h;
-    atr_buf[25] = (data.len() % 256) as u8;
-    atr_buf[26] = (data.len() / 256) as u8;
+
+    // the last 6 bytes of sector have special meaning
+    // first 3 is lenght of xex file
+    // remaining ones is xex reading offset, zeroed on start
+    atr_buf[144 - 6] = (data.len() & 0xff) as u8;
+    atr_buf[144 - 5] = ((data.len() >> 8) & 0xff) as u8;
+    atr_buf[144 - 4] = ((data.len() >> 16) & 0xff) as u8;
     atr_buf
 }
-
-// pub const SCANLINE_MESH_HANDLE: HandleUntyped =
-//     HandleUntyped::weak_from_u64(PipelineDescriptor::TYPE_UUID, 6039053558161382807);
 
 fn set_binary(
     atari_system: &mut AtariSystem,
@@ -458,7 +438,7 @@ fn set_binary(
         }
         "disk_1" | "disk_2" | "disk_3" | "disk_4" => {
             let n = (key.bytes().nth(5).unwrap() - 48 - 1) as usize;
-            atari_system.disks[n] = data.map(|data| atr::ATR::new(path, &data));
+            atari_system.set_disk(n, data.map(|data| atr::ATR::new(path, &data)));
         }
         "xex" => {
             let data = data.map(xex2atr);
@@ -557,6 +537,8 @@ fn setup(
             atari_bundle
                 .system
                 .reset(&mut atari_bundle.cpu.cpu, true, true);
+            // atari_bundle.debugger.breakpoints.push(BreakPoint::IndirectPC(0x2e0));
+
             let mut entity_commands = commands.spawn();
             entity_commands.insert_bundle(atari_bundle);
             if !config.is_multi() {
@@ -588,8 +570,6 @@ fn setup(
     camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
     camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
     commands.spawn_bundle(camera_bundle);
-
-    // atari_bundle.state.break_point = Some(BreakPoint::PC(0x7100));
 }
 
 pub fn resized_events(

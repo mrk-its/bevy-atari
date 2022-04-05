@@ -28,6 +28,14 @@ impl ATR {
         self.sector_size
     }
 
+    pub fn get_data(&self, start: usize, end: usize) -> Option<&[u8]> {
+        if end >= start && end + 16 <= self.data.len() {
+            Some(&self.data[start + 16..end + 16])
+        } else {
+            None
+        }
+    }
+
     pub fn get_status(&self, data: &mut [u8]) -> u8 {
         data[0] = if self.sector_size == 256 { 0x20 } else { 0 };
         data[1] = 0;

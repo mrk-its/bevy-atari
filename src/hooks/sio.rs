@@ -22,16 +22,6 @@ fn set_sio_status(cpu: &mut MOS6502, atari_system: &mut AtariSystem, status: u8)
     atari_system.write(0x303, status);
 }
 
-pub fn sio_exit(atari_system: &mut AtariSystem, cpu: &mut MOS6502, status: u8) {
-    set_sio_status(cpu, atari_system, status);
-
-    let sp = cpu.get_stack_pointer();
-    let fp = sp as u16 + 0x100;
-    let pc = atari_system.read(fp + 1) as u16 + 256 * atari_system.read(fp + 2) as u16 + 1;
-    cpu.set_stack_pointer(sp.wrapping_add(2));
-    cpu.set_program_counter(pc);
-}
-
 pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
     if !atari_system.is_rom_enabled() {
         return;
@@ -69,5 +59,6 @@ pub fn sioint_hook(atari_system: &mut AtariSystem, cpu: &mut MOS6502) {
             0xff
         }
     };
-    sio_exit(atari_system, cpu, status);
+    set_sio_status(cpu, atari_system, status);
+    super::hook_rts(atari_system, cpu);
 }
