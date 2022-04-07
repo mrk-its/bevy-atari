@@ -47,25 +47,25 @@ fn show_debugger(
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             if ui
                 .button(if debugger.paused {
-                    "Resume (F6)"
+                    "Resume (F8)"
                 } else {
-                    "Pause (F6)"
+                    "Pause (F8)"
                 })
                 .clicked()
             {
                 debugger.pause_resume();
             }
             // ui.checkbox(&mut debugger.paused, "pause (F6)");
-            if ui.button("step into (F7)").clicked() {
-                debugger.step_into();
-            }
-            if ui.button("step over (F8)").clicked() {
+            if ui.button("step over (F10)").clicked() {
                 debugger.step_over(system, &cpu.cpu);
             }
-            if ui.button("next scanline (F9)").clicked() {
+            if ui.button("step into (F11)").clicked() {
+                debugger.step_into();
+            }
+            if ui.button("next scanline (F12)").clicked() {
                 debugger.next_scanline(&system.antic)
             }
-            if ui.button("next frame (F10)").clicked() {
+            if ui.button("next frame (shift-F12)").clicked() {
                 debugger.next_frame()
             }
         })

@@ -195,7 +195,10 @@ impl Pokey {
                     // info!("POKEY reset!");
                 }
             }
-            IRQEN => self.irqen = IRQ::from_bits_truncate(value),
+            IRQEN => {
+                self.irqen = IRQ::from_bits_truncate(value);
+                self.irqst |= !self.irqen.bits;
+            },
             _ => (),
         }
     }
@@ -334,6 +337,15 @@ impl Pokey {
                 }
             }
             KeyCode::F1 => 0x11,
+            KeyCode::F7 => {
+                // break
+                if is_pressed {
+                    self.irqst &= !0x80;
+                    self.skstat = 0xff;
+                    self.kbcode = 0xff;
+                }
+                return is_pressed
+            },
             // KeyCode::Capital => 0x3c,
             KeyCode::Up => {
                 is_ctl = true;

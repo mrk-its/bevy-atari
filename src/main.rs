@@ -245,14 +245,20 @@ fn debug_keyboard(
     mut auto_repeat: Local<KeyAutoRepeater>,
     keyboard: Res<Input<KeyCode>>,
 ) {
+    let is_shift = keyboard.any_pressed([KeyCode::LShift, KeyCode::RShift]);
     if let Some((mut debugger, cpu, mut system)) = query.iter_mut().next() {
         for key_code in auto_repeat.pressed(&keyboard) {
             match key_code {
-                KeyCode::F6 => debugger.paused = !debugger.paused,
-                KeyCode::F7 => debugger.step_into(),
-                KeyCode::F8 => debugger.step_over(&mut system, &cpu.cpu),
-                KeyCode::F9 => debugger.next_scanline(&system.antic),
-                KeyCode::F10 => debugger.next_frame(),
+                KeyCode::F8 => debugger.paused = !debugger.paused,
+                KeyCode::F10 => debugger.step_over(&mut system, &cpu.cpu),
+                KeyCode::F11 => debugger.step_into(),
+                KeyCode::F12 => {
+                    if is_shift {
+                        debugger.next_frame()
+                    } else {
+                        debugger.next_scanline(&system.antic)
+                    }
+                }
                 _ => (),
             }
         }
