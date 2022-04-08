@@ -15,6 +15,24 @@ export const reset = _reset;
 
 var atr_images = {}
 
+const NO_PROXY_RE = /^data:|^https?:\/\/(localhost|127.\d+.\d+.\d+|atari.ha.sed.pl)/
+const FORCE_PROXY_RE = /^http:|^https:\/\/(atarionline.pl|atariwiki.org)\//
+const HTTP_RE = /^https?:\/\//
+
+function cors_fetch_url(url) {
+  return fetch('https://atari.ha.sed.pl/' + url)
+}
+
+function fetch_url(url) {
+  if(NO_PROXY_RE.test(url) || !HTTP_RE.test(url)) {
+    return fetch(url)
+  } else if(FORCE_PROXY_RE.test(url)) {
+    return cors_fetch_url(url)
+  } else {
+    return fetch(url).catch(cors_fetch_url)
+  }
+}
+
 export function rec_start_stop(event) {
   let button = event.target
   if (sap_writer == null) {
@@ -139,13 +157,8 @@ function url_to_filename(url) {
   return fn;
 }
 
-function fetch_url(url) {
-  if (is_absolute_url(url)) {
-    if(!url.startsWith("http://localhost") && !url.startsWith("http://127.0.0.1")) {
-      url = "https://atari.ha.sed.pl/" + url;
-    }
-  }
-  return fetch(url).then(r => {
+function fetch_buffer(url) {
+  return fetch_url(url).then(r => {
     let content_disposition = r.headers.get("Content-Disposition");
     // TODO use filename from content_disposition
     return r.arrayBuffer()
@@ -180,7 +193,7 @@ async function fetch_binary_data(key, url, slot) {
 
   var data;
   if(url.startsWith("data:")) {
-    data = await fetch_url(url);
+    data = await fetch_buffer(url);
   } else {
     try {
       if(document.location.hash.indexOf("no-cache")<0) {
@@ -191,7 +204,7 @@ async function fetch_binary_data(key, url, slot) {
       console.log(err);
     }
     if(!data) {
-      data = await fetch_url(url);
+      data = await fetch_buffer(url);
       console.log(data);
       if(!url.startsWith("data:")) {
         try {
