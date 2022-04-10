@@ -122,7 +122,6 @@ pub fn events(
                     }
                     .ok()
                     .is_some();
-                    info!("set_state: {:?}: {:?}", new_state, result);
                 }
                 Message::JoyState { port, dirs, fire } => {
                     atari_system.set_joystick(1, port, dirs, fire)
