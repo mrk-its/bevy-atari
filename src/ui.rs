@@ -8,6 +8,7 @@ use crate::focus::Focused;
 use crate::resources::UIConfig;
 use crate::AtariSlot;
 use crate::Debugger;
+use crate::EmulatorConfig;
 use crate::CPU;
 use crate::{system::AtariSystem, time_used_plugin::TimeUsedPlugin};
 
@@ -18,20 +19,34 @@ use bevy::{
 
 type Response = Option<InnerResponse<Option<()>>>;
 
-fn show_config(egui_context: &mut EguiContext, config: &mut UIConfig) -> Response {
+fn show_config(
+    egui_context: &mut EguiContext,
+    config: &mut UIConfig,
+    emulator_config: &mut EmulatorConfig,
+) -> Response {
     bevy_egui::egui::Window::new("Config")
         .anchor(egui::Align2::LEFT_TOP, egui::Vec2::new(16.0, 16.0))
         .show(egui_context.ctx_mut(), |ui| {
-            ui.checkbox(&mut config.cpu, "CPU");
-            ui.checkbox(&mut config.antic, "ANTIC");
-            ui.checkbox(&mut config.gtia, "GTIA");
-            ui.checkbox(&mut config.small_screen, "Screen Window");
-            ui.checkbox(&mut config.memory[0].enabled, "Memory1");
-            ui.checkbox(&mut config.memory[1].enabled, "Memory2");
-            ui.checkbox(&mut config.memory[2].enabled, "Memory3");
-            ui.checkbox(&mut config.memory[3].enabled, "Memory4");
-            ui.checkbox(&mut config.disasm, "Disassembler");
-            ui.checkbox(&mut config.debugger, "Debugger");
+            ui.collapsing("Windows", |ui| {
+                ui.checkbox(&mut config.cpu, "CPU");
+                ui.checkbox(&mut config.antic, "ANTIC");
+                ui.checkbox(&mut config.gtia, "GTIA");
+                ui.checkbox(&mut config.small_screen, "Screen Window");
+                ui.checkbox(&mut config.memory[0].enabled, "Memory1");
+                ui.checkbox(&mut config.memory[1].enabled, "Memory2");
+                ui.checkbox(&mut config.memory[2].enabled, "Memory3");
+                ui.checkbox(&mut config.memory[3].enabled, "Memory4");
+                ui.checkbox(&mut config.disasm, "Disassembler");
+                ui.checkbox(&mut config.debugger, "Debugger");
+            });
+            ui.collapsing("Settings", |ui| {
+                ui.group(|ui| {
+                    ui.label("Keyboard Arrows");
+                    ui.checkbox(&mut emulator_config.arrows_joystick, "emulate joy1");
+                    ui.checkbox(&mut emulator_config.arrows_force_ctl, "force Ctrl");
+                    ui.checkbox(&mut emulator_config.arrows_neg_ctl, "negate Ctrl");
+                });
+            });
         })
 }
 fn show_debugger(
@@ -396,6 +411,7 @@ pub fn show_ui(
     mut config: ResMut<UIConfig>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     windows: Res<Windows>,
+    mut emulator_config: ResMut<EmulatorConfig>,
 ) {
     let window = windows.get_primary().unwrap();
     let cursor_pos = (window.height() - window.cursor_position().unwrap_or_default().y).abs();
@@ -421,7 +437,7 @@ pub fn show_ui(
     }
     for (mut cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
         let r1 = show_fps(&mut egui_context, &mut config, &diagnostics);
-        let r2 = show_config(&mut egui_context, &mut config);
+        let r2 = show_config(&mut egui_context, &mut config, &mut emulator_config);
         show_reset(&mut egui_context, &mut config, &mut atari_system, &mut cpu);
         let is_collapsed = if let Some(InnerResponse { inner: None, .. }) = r2 {
             true

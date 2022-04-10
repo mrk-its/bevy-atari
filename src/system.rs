@@ -1,8 +1,8 @@
-use crate::EmulatorConfig;
 use crate::atr::ATR;
 use crate::cartridge::Cartridge;
 use crate::multiplexer::Multiplexer;
 use crate::platform::FileSystem;
+use crate::EmulatorConfig;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};

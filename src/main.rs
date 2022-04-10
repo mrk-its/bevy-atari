@@ -197,8 +197,8 @@ impl Default for EmulatorConfig {
             wall_size: (1, 1),
             scale: 2.0,
             arrows_force_ctl: false,
-            arrows_neg_ctl: true,
-            arrows_joystick: true,
+            arrows_neg_ctl: false,
+            arrows_joystick: false,
         }
     }
 }
@@ -299,7 +299,9 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if focused.is_some() && atari_system.handle_keyboard(&mut keyboard, &mut cpu, &config) {
+                if focused.is_some()
+                    && atari_system.handle_keyboard(&mut keyboard, &mut cpu, &config)
+                {
                     cpu.interrupt_request();
                 }
             };

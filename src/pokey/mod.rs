@@ -1,7 +1,7 @@
+use crate::EmulatorConfig;
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
-use crate::EmulatorConfig;
 #[cfg(target_arch = "wasm32")]
 #[path = "web.rs"]
 mod audio;
@@ -198,7 +198,7 @@ impl Pokey {
             IRQEN => {
                 self.irqen = IRQ::from_bits_truncate(value);
                 self.irqst |= !self.irqen.bits;
-            },
+            }
             _ => (),
         }
     }
@@ -348,8 +348,8 @@ impl Pokey {
                     self.skstat = 0xff;
                     self.kbcode = 0xff;
                 }
-                return is_pressed
-            },
+                return is_pressed;
+            }
             // KeyCode::Capital => 0x3c,
             KeyCode::Up => {
                 is_ctl = (is_ctl || config.arrows_force_ctl) ^ config.arrows_neg_ctl;
