@@ -179,6 +179,9 @@ pub struct EmulatorConfig {
     collisions: bool,
     wall_size: (i32, i32),
     scale: f32,
+    arrows_force_ctl: bool,
+    arrows_neg_ctl: bool,
+    arrows_joystick: bool,
 }
 
 impl EmulatorConfig {
@@ -192,7 +195,10 @@ impl Default for EmulatorConfig {
         Self {
             collisions: true,
             wall_size: (1, 1),
-            scale: 0.5,
+            scale: 2.0,
+            arrows_force_ctl: false,
+            arrows_neg_ctl: true,
+            arrows_joystick: true,
         }
     }
 }
@@ -276,6 +282,7 @@ fn atari_system(
     mut antic_data_assets: ResMut<Assets<AnticData>>,
     mut keyboard: ResMut<Input<KeyCode>>,
     render_device: Res<RenderDevice>,
+    config: Res<EmulatorConfig>,
 ) {
     for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
         let mut cpu = &mut cpu.cpu;
@@ -292,7 +299,7 @@ fn atari_system(
 
         loop {
             if (atari_system.antic.scan_line, atari_system.antic.cycle) == (0, 0) {
-                if focused.is_some() && atari_system.handle_keyboard(&mut keyboard, &mut cpu) {
+                if focused.is_some() && atari_system.handle_keyboard(&mut keyboard, &mut cpu, &config) {
                     cpu.interrupt_request();
                 }
             };
@@ -594,11 +601,7 @@ pub fn resized_events(
 
 // #[bevy_main]
 fn main() {
-    let config = EmulatorConfig {
-        collisions: cfg!(any(not(target_arch = "wasm32"), feature = "webgl")),
-        wall_size: (1, 1),
-        scale: 2.0,
-    };
+    let config = EmulatorConfig::default();
     let window_size = (if !config.is_multi() {
         Vec2::new(384.0, 240.0)
     } else {

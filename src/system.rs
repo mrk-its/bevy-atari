@@ -1,3 +1,4 @@
+use crate::EmulatorConfig;
 use crate::atr::ATR;
 use crate::cartridge::Cartridge;
 use crate::multiplexer::Multiplexer;
@@ -464,6 +465,7 @@ impl AtariSystem {
         &mut self,
         keyboard: &mut ResMut<Input<KeyCode>>,
         cpu: &mut MOS6502,
+        config: &EmulatorConfig,
     ) -> bool {
         if !self.keycodes.is_empty() && self.ticks >= 15600 * 2 {
             keyboard.clear();
@@ -485,12 +487,11 @@ impl AtariSystem {
         let is_shift = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
-        let map_joy = true;
         for ev in keyboard.get_just_pressed() {
             if *ev == KeyCode::F5 {
                 self.reset(cpu, false, false);
             }
-            if map_joy {
+            if config.arrows_joystick {
                 joy_changed = joy_changed
                     || *ev == KeyCode::LShift
                     || *ev == KeyCode::RShift
@@ -499,13 +500,13 @@ impl AtariSystem {
                     || *ev == KeyCode::Left
                     || *ev == KeyCode::Right;
             }
-            if !joy_changed || is_ctl {
-                irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl);
+            if !joy_changed {
+                irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl, config);
             }
         }
 
         for ev in keyboard.get_just_released() {
-            if map_joy {
+            if config.arrows_joystick {
                 joy_changed = joy_changed
                     || *ev == KeyCode::LShift
                     || *ev == KeyCode::RShift
@@ -514,11 +515,11 @@ impl AtariSystem {
                     || *ev == KeyCode::Left
                     || *ev == KeyCode::Right;
             }
-            if !joy_changed || is_ctl {
-                self.pokey.key_press(ev, false, is_shift, is_ctl);
+            if !joy_changed {
+                self.pokey.key_press(ev, false, is_shift, is_ctl, config);
             }
         }
-        if !is_ctl && joy_changed {
+        if joy_changed {
             let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
             let up = keyboard.pressed(KeyCode::Up) as u8;
             let down = keyboard.pressed(KeyCode::Down) as u8 * 2;

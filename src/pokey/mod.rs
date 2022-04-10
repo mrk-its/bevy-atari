@@ -1,7 +1,7 @@
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
-
+use crate::EmulatorConfig;
 #[cfg(target_arch = "wasm32")]
 #[path = "web.rs"]
 mod audio;
@@ -207,9 +207,13 @@ impl Pokey {
         &mut self,
         event: &KeyCode,
         is_pressed: bool,
-        mut is_shift: bool,
-        mut is_ctl: bool,
+        is_shift: bool,
+        is_ctl: bool,
+        config: &EmulatorConfig,
     ) -> bool {
+        let mut is_ctl = is_ctl;
+        let mut is_shift = is_shift;
+
         let kbcode = match *event {
             KeyCode::Key1 => 0x1f,
             KeyCode::Key2 => {
@@ -348,19 +352,19 @@ impl Pokey {
             },
             // KeyCode::Capital => 0x3c,
             KeyCode::Up => {
-                is_ctl = true;
+                is_ctl = (is_ctl || config.arrows_force_ctl) ^ config.arrows_neg_ctl;
                 0x0e
             }
             KeyCode::Down => {
-                is_ctl = true;
+                is_ctl = (is_ctl || config.arrows_force_ctl) ^ config.arrows_neg_ctl;
                 0x0f
             }
             KeyCode::Left => {
-                is_ctl = true;
+                is_ctl = (is_ctl || config.arrows_force_ctl) ^ config.arrows_neg_ctl;
                 0x06
             }
             KeyCode::Right => {
-                is_ctl = true;
+                is_ctl = (is_ctl || config.arrows_force_ctl) ^ config.arrows_neg_ctl;
                 0x07
             }
             _ => return false,
