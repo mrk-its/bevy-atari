@@ -47,6 +47,10 @@ export async function rm(path) {
     return await asyncify(fs.unlink, path)
 }
 
+export async function rmdir(path) {
+    return await asyncify(fs.rmdir, path)
+}
+
 let _fs = {}
 let fs;
 

@@ -2,6 +2,7 @@ import init, { set_binary_data, cmd, reset as _reset, set_state, set_resolution 
 
 import { SAPWriter } from './sap_writer.js'
 import { initFilesystem, mkdirs, readFile, writeFile, readDir, rm } from './fs.js'
+import { treeInit, treeShowPath } from './fs_tree.js'
 
 const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car', 'xex'];
 const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
@@ -38,7 +39,6 @@ export function rec_start_stop(event) {
   if (sap_writer == null) {
     let is_stereo = $("#sap-r-writer input.stereo").is(":checked")
     let trim = $("#sap-r-writer input.trim").is(":checked")
-    console.log("trim:", trim)
     sap_writer = new SAPWriter(is_stereo, trim)
     button.innerText = 'Stop';
     document.getElementById("download_url").innerHTML = ''
@@ -176,6 +176,9 @@ async function hash(text) {
 }
 
 async function url_to_path(url) {
+  if(url.startsWith("data:")) {
+    return null;
+  }
   let url_obj = new URL(url);
   var path = url_obj.hostname + decodeURIComponent(url_obj.pathname);
   if (url_obj.search) {
@@ -186,18 +189,24 @@ async function url_to_path(url) {
   return path
 }
 
+const VALID_URL_RE = /^data:|^fs:|^https?:\/\//
+
 async function fetch_binary_data(key, url, slot) {
-  if (!url.startsWith("http") && !url.startsWith("data:")) return;
+  if(!VALID_URL_RE.test(url)) return;
+
   console.log("fetch_binary_data", key, url, slot)
   let path = await url_to_path(url);
-
   var data;
-  if(url.startsWith("data:")) {
+  if(url.startsWith("fs:")) {
+    data = await readFile(path)
+    treeShowPath(key, path);
+  } else if(url.startsWith("data:")) {
     data = await fetch_buffer(url);
   } else {
     try {
       if(document.location.hash.indexOf("no-cache")<0) {
         data = await readFile(path)
+        treeShowPath(key, path);
       }
       console.info(`${path} read from cache`)
     } catch (err) {
@@ -210,6 +219,7 @@ async function fetch_binary_data(key, url, slot) {
         try {
           await mkdirs(path);
           await writeFile(path, data.buffer);
+          treeShowPath(key, path);
           console.log(`${path} written to cache`);
         } catch (err) {
           console.log("ERR:", err);
@@ -232,7 +242,6 @@ export function on_hash_change() {
 }
 
 async function reload_from_fragment() {
-  console.log("calling set_state: idle");
   set_state("idle");
   await delay(100);
   let todo = [];
@@ -250,7 +259,7 @@ async function reload_from_fragment() {
     result_set.add("disk_1");
   }
   if (!result_set.has("osrom")) {
-    await fetch_binary_data(null, DEFAULT_OSROM_URL);
+    await fetch_binary_data("osrom", DEFAULT_OSROM_URL);
     result_set.add("osrom");
   }
   let to_remove = BINARY_KEYS.filter(x => !result_set.has(x))
@@ -259,7 +268,6 @@ async function reload_from_fragment() {
     set_binary_data(key, "", []);
   }
   reset(true);
-  console.log("calling set_state: running");
   set_state("running");
 }
 
@@ -274,6 +282,8 @@ function auto_focus() {
 
 export async function run() {
   await initFilesystem("IndexedDB");
+
+  treeInit();
 
   console.log("initialized")
   var latencyHint = parseFloat(localStorage.latencyHint);
