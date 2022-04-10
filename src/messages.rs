@@ -115,7 +115,7 @@ pub fn events(
                     debugger.paused = false;
                 }
                 Message::SetState(new_state) => {
-                    let result = match new_state.as_ref() {
+                    let _result = match new_state.as_ref() {
                         "running" => state.set(EmulatorState::Running),
                         "idle" => state.set(EmulatorState::Idle),
                         _ => panic!("invalid state requested"),
