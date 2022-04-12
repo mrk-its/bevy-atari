@@ -24,7 +24,7 @@ fn show_config(
     config: &mut UIConfig,
     emulator_config: &mut EmulatorConfig,
 ) -> Response {
-    bevy_egui::egui::Window::new("Config")
+    bevy_egui::egui::Window::new("ui")
         .anchor(egui::Align2::LEFT_TOP, egui::Vec2::new(16.0, 16.0))
         .show(egui_context.ctx_mut(), |ui| {
             ui.collapsing("Windows", |ui| {
