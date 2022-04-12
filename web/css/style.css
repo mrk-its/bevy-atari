@@ -1,107 +1,130 @@
-input[type=file] {
-    color: rgba(0,0,0,0);
-    width: 8em;
-  }
+@media only screen and (max-width: 900px) {
   body {
-    background: linear-gradient(135deg,
-        white 0%,
-        white 49%,
-        black 49%,
-        black 51%,
-        white 51%,
-        white 100%);
-    background-repeat: repeat;
-    background-size: 20px 20px;
+    margin: 0px;
   }
+}
+input[type=file] {
+  color: rgba(0, 0, 0, 0);
+  width: 8em;
+}
 
-  canvas {
-    background-color: black;
-  }
+body {
+  background: linear-gradient(135deg,
+      white 0%,
+      white 49%,
+      black 49%,
+      black 51%,
+      white 51%,
+      white 100%);
+  background-repeat: repeat;
+  background-size: 20px 20px;
+}
 
-  #ui-container {
-    margin: 0px auto;
-    width: 768px;
-    user-select: none;
-  }
+canvas {
+  background-color: black;
+}
 
-  #analyser-container {
-    margin: 0px auto;
-    width: 1024px;
-  }
-  #sap-r-writer {
-    display: none
-  }
-  .slots>div {
-    padding: 1em;
-    margin: 1em;
-    background-color: white;
-    border: 2px solid black;
-    position: relative;
-  }
+#ui-container {
+  margin: 0px auto;
+  width: 768px;
+  user-select: none;
+}
 
-  .slots>div label {
-    float: left;
-  }
-  input[type=file] {
-    overflow: hidden;
-    -webkit-appearance: textfield;
-    -moz-appearance: textfield;
-  }
-  .files .actions {
-    float: right;
-  }
-  .files span.label {
-    margin-right: 1em;
-  }
-  .files .actions .save {
-    display: none;
-  }
-  .files .loaded .actions .save {
-    display: inline;
-    font-weight: normal;
-  }
-  .files .actions .eject {
-    display: none;
-  }
-  .files .loaded .actions .eject {
-    display: inline;
-  }
-  .files .modified .actions .save {
-    display: inline;
-    font-weight: bold;
-  }
-  .files .actions a {
-    margin-left: 1em;
-  }
-  .buttons {
-    margin: 1em 1em;
-  }
-  table.fancytree-ext-table {
-   width: 100%;
-   background-color: white;
-  }
-  table.fancytree-ext-table tbody a {
-    display: none;
-  }
-  table.fancytree-ext-table tbody tr.fancytree-active {
-    background-color: white;
-  }
-  table.fancytree-ext-table tbody tr.fancytree-active .fancytree-title {
-    /* background-color: #4169e1; */
-    background-color: #99defd;
-  }
-  table.fancytree-ext-table tbody tr.fancytree-active:not(.fancytree-has-children) a.del {
-    display: inline;
-  }
+#analyser-container {
+  margin: 0px auto;
+  width: 1024px;
+}
 
-  table.fancytree-ext-table tbody tr.fancytree-active:not(.fancytree-folder) a {
-    display: inline;
-  }
+#sap-r-writer {
+  display: none
+}
 
-  table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.mkdir {
-    display: inline;
-  }
+.slots>div {
+  padding: 1em;
+  margin: 1em;
+  background-color: white;
+  border: 2px solid black;
+  position: relative;
+}
 
-  table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.load {
-    display: inline;
-  }
+.slots>div label {
+  float: left;
+}
+
+input[type=file] {
+  overflow: hidden;
+  -webkit-appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.files .actions {
+  float: right;
+}
+
+.files span.label {
+  margin-right: 1em;
+}
+
+.files .actions .save {
+  display: none;
+}
+
+.files .loaded .actions .save {
+  display: inline;
+  font-weight: normal;
+}
+
+.files .actions .eject {
+  display: none;
+}
+
+.files .loaded .actions .eject {
+  display: inline;
+}
+
+.files .modified .actions .save {
+  display: inline;
+  font-weight: bold;
+}
+
+.files .actions a {
+  margin-left: 1em;
+}
+
+.buttons {
+  margin: 1em 1em;
+}
+
+table.fancytree-ext-table {
+  width: 100%;
+  background-color: white;
+}
+
+table.fancytree-ext-table tbody a {
+  display: none;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active {
+  background-color: white;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active .fancytree-title {
+  /* background-color: #4169e1; */
+  background-color: #99defd;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active:not(.fancytree-has-children) a.del {
+  display: inline;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active:not(.fancytree-folder) a {
+  display: inline;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.mkdir {
+  display: inline;
+}
+
+table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.load {
+  display: inline;
+}
