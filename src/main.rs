@@ -635,7 +635,8 @@ fn main() {
         title: WINDOW_TITLE.to_string(),
         width: window_size.x,
         height: window_size.y,
-        scale_factor_override: Some(1.0),
+        // scale_factor_override: Some(1.0),
+        // find out how to enable(?) it on mobile
         mode: bevy::window::WindowMode::Windowed,
         #[cfg(target_arch = "wasm32")]
         resizable: false,
