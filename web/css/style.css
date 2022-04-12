@@ -97,3 +97,11 @@ input[type=file] {
   table.fancytree-ext-table tbody tr.fancytree-active:not(.fancytree-folder) a {
     display: inline;
   }
+
+  table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.mkdir {
+    display: inline;
+  }
+
+  table.fancytree-ext-table tbody tr.fancytree-active.fancytree-folder a.load {
+    display: inline;
+  }

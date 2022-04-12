@@ -1,4 +1,4 @@
-import { readFile, writeFile, readDir, rm, rmdir } from './fs.js'
+import { readFile, writeFile, readDir, rm, rmdir, mkdirs, stat, exists } from './fs.js'
 
 async function loadPath(node) {
     let root_path = node.getPath()
@@ -6,7 +6,8 @@ async function loadPath(node) {
     let out = [];
     for (var name of items) {
         let path = `${root_path}/${name}`
-        let folder = await readDir(path).then(() => true, () => false);
+        let stats = await stat(path);
+        let folder = stats.isDirectory()
         out.push({
             title: name,
             folder,
@@ -25,11 +26,17 @@ export async function treeShowPath(key, path) {
     await node.setExpanded(true);
     let parts = path.split("/").filter(x => x.length)
     for (var part of parts) {
-        node = node.children.filter(c => c.title == part)[0]
-        if (!node)
-            break;
-        if (!node.lazy) {
-            node.setActive(true);
+        var subnode = node.children && node.children.filter(c => c.title == part)[0]
+        if (!subnode) {
+            await node.load(true);
+            subnode = node.children && node.children.filter(c => c.title == part)[0]
+            if (!subnode) {
+                break;
+            }
+        }
+        node = subnode;
+        if (!node.folder) {
+            node.setActive();
             break;
         }
         await node.setExpanded(true);
@@ -40,14 +47,27 @@ export async function treeShowPath(key, path) {
 export function treeInit() {
     $("input.file-reader").change(async function (e) {
         var file = e.target.files[0];
-        let path = $(e.target).attr("data-path");
+        var path = $(e.target).attr("data-path");
         let filename = e.target.filename;
         if (!file || !path) return;
-        let buffer = await file.arrayBuffer();
-        console.info(buffer, path, file, file.name);
-        if (confirm(`replace contents of ${path}?`)) {
-            writeFile(path, buffer);
+        if (path.endsWith("/")) {
+            path = path + file.name;
         }
+        var exists = false;
+        try {
+            let stats = await stat(path);
+            if (stats.isDirectory()) {
+                alert("destination is directory");
+                return;
+            }
+            exists = true
+        } catch (e) {
+        }
+        let buffer = await file.arrayBuffer();
+        if (!exists || confirm(`replace contents of ${path}?`)) {
+            await writeFile(path, buffer);
+        }
+        treeShowPath(null, path);
         $(e.target).val("").attr("data-path", null);
     })
 
@@ -73,16 +93,27 @@ export function treeInit() {
             })
             let load = $("<a class='load' href='#'>load</a>").click(async function (e) {
                 e.preventDefault();
-                $('input.file-reader').attr("data-path", node.getPath()).click()
+                var path = node.getPath();
+                if (node.folder) {
+                    path += "/";
+                }
+                $('input.file-reader').attr("data-path", path).click()
             })
             let del = $("<a class='del' href='#'>del</a>").click(async function (e) {
                 e.preventDefault();
                 if (!confirm(`delete ${node.title}?`)) return;
-                if(node.folder) {
+                if (node.folder) {
                     await rmdir(node.getPath());
                 } else {
                     await rm(node.getPath());
                 }
+                node.remove()
+            })
+
+            let mkdir = $("<a class='mkdir' href='#'>mkdir</a>").click(async function (e) {
+                e.preventDefault();
+                let name = prompt("Enter directory name");
+                await mkdirs(node.getPath() + "/" + name + "/");
             })
 
             $tdList.eq(1).append(save);
@@ -90,6 +121,10 @@ export function treeInit() {
             $tdList.eq(1).append(load);
             $tdList.eq(1).append(" ");
             $tdList.eq(1).append(del);
+            if (node.folder) {
+                $tdList.eq(1).append(" ");
+                $tdList.eq(1).append(mkdir);
+            }
         },
         source: [
             { title: "/", key: "root", folder: true, lazy: true },

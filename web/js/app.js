@@ -6,7 +6,7 @@ import { treeInit, treeShowPath } from './fs_tree.js'
 
 const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car', 'xex'];
 const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
-
+const DEFAULT_BASIC_URL = "https://atarionline.pl/utils/9.%20ROM-y/Języki%20programowania/Atari%20BASIC/Atari%20Basic%20vC.rom"
 var sap_writer = null;
 var pokeyNode;
 export var audio_context;
@@ -110,7 +110,7 @@ export function eject(event) {
 function set_binary(key, url, path, data, slot) {
   var filename = path
   let parts = filename.split(".")
-  let ext = parts[parts.length - 1];
+  let ext = parts[parts.length - 1].toLowerCase()
   if (!key) {
     // guess type of binary
     if (ext == "rom" || ext == "bin") {
@@ -282,7 +282,7 @@ function auto_focus() {
 
 export async function run() {
   await initFilesystem("IndexedDB");
-
+  await mkdirs("/local/");
   treeInit();
 
   console.log("initialized")

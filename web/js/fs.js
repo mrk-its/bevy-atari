@@ -51,6 +51,14 @@ export async function rmdir(path) {
     return await asyncify(fs.rmdir, path)
 }
 
+export async function stat(path) {
+    return await asyncify(fs.stat, path)
+}
+
+export async function exists(path) {
+    return await asyncify(fs.exists, path)
+}
+
 let _fs = {}
 let fs;
 
