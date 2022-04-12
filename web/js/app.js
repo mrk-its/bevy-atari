@@ -262,6 +262,10 @@ async function reload_from_fragment() {
     await fetch_binary_data("osrom", DEFAULT_OSROM_URL);
     result_set.add("osrom");
   }
+  if (!result_set.has("basic")) {
+    await fetch_binary_data("basic", DEFAULT_BASIC_URL);
+    result_set.add("basic");
+  }
   let to_remove = BINARY_KEYS.filter(x => !result_set.has(x))
   console.log("to_remove:", to_remove)
   for (let key of to_remove) {

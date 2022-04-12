@@ -58,7 +58,7 @@ pub fn events(
     mut query: Query<(&AtariSlot, &mut AtariSystem, &mut CPU, &mut Debugger)>,
     mut state: ResMut<State<EmulatorState>>,
     mut windows: ResMut<Windows>,
-    mut ui_config: ResMut<crate::resources::UIConfig>,
+    ui_config: ResMut<crate::resources::UIConfig>,
 ) {
     let mut _messages = MESSAGES.write();
     for (atari_slot, mut atari_system, mut cpu, mut debugger) in query.iter_mut() {
@@ -140,9 +140,6 @@ pub fn events(
                             Some(data) => Some(&data[..]),
                             None => None,
                         };
-                        if key == "basic" {
-                            ui_config.basic = data.is_some();
-                        }
                         crate::set_binary(&mut atari_system, &mut cpu, &key, &path, data);
                     }
                 }
