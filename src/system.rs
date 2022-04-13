@@ -500,9 +500,7 @@ impl AtariSystem {
                     || *ev == KeyCode::Left
                     || *ev == KeyCode::Right;
             }
-            if !joy_changed {
-                irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl, config);
-            }
+            irq = irq || self.pokey.key_press(ev, true, is_shift, is_ctl, config);
         }
 
         for ev in keyboard.get_just_released() {
@@ -515,9 +513,7 @@ impl AtariSystem {
                     || *ev == KeyCode::Left
                     || *ev == KeyCode::Right;
             }
-            if !joy_changed {
-                self.pokey.key_press(ev, false, is_shift, is_ctl, config);
-            }
+            self.pokey.key_press(ev, false, is_shift, is_ctl, config);
         }
         if joy_changed {
             let fire = keyboard.pressed(KeyCode::LShift) || keyboard.pressed(KeyCode::RShift);
@@ -526,7 +522,6 @@ impl AtariSystem {
             let left = keyboard.pressed(KeyCode::Left) as u8 * 4;
             let right = keyboard.pressed(KeyCode::Right) as u8 * 8;
             self.set_joystick(2, 0, up | down | left | right, fire);
-            irq = false;
         }
         return irq && self.pokey.irqen.contains(pokey::IRQ::KEY);
     }

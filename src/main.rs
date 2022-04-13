@@ -198,7 +198,7 @@ impl Default for EmulatorConfig {
             scale: 2.0,
             arrows_force_ctl: false,
             arrows_neg_ctl: false,
-            arrows_joystick: false,
+            arrows_joystick: true,
         }
     }
 }
