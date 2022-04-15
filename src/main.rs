@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate bitflags;
 use std::time::Duration;
+use serde::{Serialize, Deserialize};
 pub mod antic;
 mod atari800_state;
 // pub mod atari_text;
@@ -174,32 +175,30 @@ impl Debugger {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct EmulatorConfig {
+    #[serde(default="default_true")]
     collisions: bool,
-    wall_size: (i32, i32),
+    #[serde(default="default_scale")]
     scale: f32,
+    #[serde(default)]
     arrows_force_ctl: bool,
+    #[serde(default="default_true")]
     arrows_neg_ctl: bool,
+    #[serde(default="default_true")]
     arrows_joystick: bool,
+}
+
+fn default_scale() -> f32 {
+    2.0
+}
+fn default_true() -> bool {
+    true
 }
 
 impl EmulatorConfig {
     fn is_multi(&self) -> bool {
-        self.wall_size != (1, 1)
-    }
-}
-
-impl Default for EmulatorConfig {
-    fn default() -> Self {
-        Self {
-            collisions: true,
-            wall_size: (1, 1),
-            scale: 2.0,
-            arrows_force_ctl: false,
-            arrows_neg_ctl: false,
-            arrows_joystick: true,
-        }
+        false
     }
 }
 
@@ -525,59 +524,47 @@ fn setup(
     config: Res<EmulatorConfig>,
     #[cfg(feature = "egui")] mut egui_context: ResMut<EguiContext>,
 ) {
-    for y in 0..config.wall_size.1 {
-        for x in 0..config.wall_size.0 {
-            let slot = y * config.wall_size.0 + x;
+    let slot = 0;
 
-            let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-            let antic_data =
-                AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
-            let antic_data_handle = antic_data_assets.add(antic_data);
-            #[cfg(feature = "egui")]
-            egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
-            let mut atari_bundle = AtariBundle {
-                slot: AtariSlot(slot),
-                antic_data_handle,
-                debugger: Debugger {
-                    gdb_sender: (*gdb_channel).as_ref().map(|c| c.0.clone()),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            atari_bundle.system.pokey.mute(config.is_multi());
+    let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
+    let antic_data =
+        AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
+    let antic_data_handle = antic_data_assets.add(antic_data);
+    #[cfg(feature = "egui")]
+    egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
+    let mut atari_bundle = AtariBundle {
+        slot: AtariSlot(slot),
+        antic_data_handle,
+        debugger: Debugger {
+            gdb_sender: (*gdb_channel).as_ref().map(|c| c.0.clone()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    atari_bundle.system.pokey.mute(config.is_multi());
 
-            #[cfg(not(target_arch = "wasm32"))]
-            embed_binaries(&mut atari_bundle.system, &mut atari_bundle.cpu);
+    #[cfg(not(target_arch = "wasm32"))]
+    embed_binaries(&mut atari_bundle.system, &mut atari_bundle.cpu);
 
-            atari_bundle
-                .system
-                .reset(&mut atari_bundle.cpu.cpu, true, true);
-            // atari_bundle.debugger.breakpoints.push(BreakPoint::IndirectPC(0x2e0));
+    atari_bundle
+        .system
+        .reset(&mut atari_bundle.cpu.cpu, true, true);
+    // atari_bundle.debugger.breakpoints.push(BreakPoint::IndirectPC(0x2e0));
 
-            let mut entity_commands = commands.spawn();
-            entity_commands.insert_bundle(atari_bundle);
-            if !config.is_multi() {
-                entity_commands.insert(Focused);
-            }
-            if slot == 0 {
-                let mut full_screen_sprite = SpriteBundle {
-                    texture: main_image_handle,
-                    visibility: Visibility { is_visible: true },
-                    transform: Transform {
-                        translation: Vec3::new(
-                            -400.0 / 2.0 * (config.wall_size.0 - 1) as f32 + (400 * x) as f32,
-                            -(-256.0 / 2.0 * (config.wall_size.1 - 1) as f32 + (256 * y) as f32),
-                            0.0,
-                        ),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                };
-                full_screen_sprite.transform.scale =
-                    compute_atari_screen_scale(window_descriptor.width, window_descriptor.height);
-                commands.spawn_bundle(full_screen_sprite).insert(FullScreen);
-            }
-        }
+    let mut entity_commands = commands.spawn();
+    entity_commands.insert_bundle(atari_bundle);
+    if !config.is_multi() {
+        entity_commands.insert(Focused);
+    }
+    if slot == 0 {
+        let mut full_screen_sprite = SpriteBundle {
+            texture: main_image_handle,
+            visibility: Visibility { is_visible: true },
+            ..Default::default()
+        };
+        full_screen_sprite.transform.scale =
+            compute_atari_screen_scale(window_descriptor.width, window_descriptor.height);
+        commands.spawn_bundle(full_screen_sprite).insert(FullScreen);
     }
 
     let mut camera_bundle = OrthographicCameraBundle::new_2d();
@@ -601,17 +588,32 @@ pub fn resized_events(
     }
 }
 
+fn store_config(
+    config: Res<EmulatorConfig>,
+    mut local: Local<Option<EmulatorConfig>>,
+) {
+    if let Some(l) = &*local {
+        if *l != *config {
+            if let Ok(serialized) = serde_json::to_string_pretty(&*config) {
+                info!("config modified: {}", serialized);
+                #[cfg(target_arch = "wasm32")]
+                if let Ok(Some(local_storage)) = web_sys::window().unwrap().local_storage() {
+                    local_storage.set_item("config", &serialized).expect("written");
+                }
+            }
+            *local = Some(config.clone())
+        }
+    } else {
+        *local = Some(config.clone());
+    }
+}
+
 // #[bevy_main]
 fn main() {
-    let config = EmulatorConfig::default();
-    let window_size = (if !config.is_multi() {
-        Vec2::new(384.0, 240.0)
-    } else {
-        Vec2::new(
-            400.0 * config.wall_size.0 as f32,
-            256.0 * config.wall_size.1 as f32,
-        )
-    }) * config.scale;
+
+    let mut config: EmulatorConfig = serde_json::from_str("{}").unwrap();
+
+    let window_size = Vec2::new(384.0, 240.0) * config.scale;
 
     #[allow(unused_mut)]
     let mut log_filter = "wgpu=warn".to_string();
@@ -620,6 +622,11 @@ fn main() {
         let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
         if let Ok(Some(_log_filter)) = local_storage.get_item("log") {
             log_filter = _log_filter;
+        }
+        if let Ok(Some(config_json)) = local_storage.get_item("config") {
+            if let Ok(result) = serde_json::from_str(&config_json) {
+                config = result;
+            }
         }
     }
     let mut app = App::new();
@@ -700,5 +707,6 @@ fn main() {
                 .with_system(atari_system.system().label("run_atari")),
         )
         .add_system(debug_keyboard.system())
+        .add_system_to_stage(CoreStage::PostUpdate, store_config)
         .run();
 }
