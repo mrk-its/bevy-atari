@@ -30,7 +30,7 @@ function fetch_url(url) {
   } else if(FORCE_PROXY_RE.test(url)) {
     return cors_fetch_url(url)
   } else {
-    return fetch(url).catch(cors_fetch_url)
+    return fetch(url).catch(e => cors_fetch_url(url))
   }
 }
 

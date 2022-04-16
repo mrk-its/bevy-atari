@@ -44,7 +44,7 @@ server {
 	index index.html index.htm index.nginx-debian.html;
 	server_name atari.ha.sed.pl; # managed by Certbot
 
-	location ~ ^/(https?:)/ {
+	location ~ ^ {
 		resolver 8.8.8.8 ipv6=off;
 		proxy_hide_header Access-Control-Allow-Origin;
 		proxy_hide_header Access-Control-Expose-Headers;
