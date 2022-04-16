@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate bitflags;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use serde::{Serialize, Deserialize};
 pub mod antic;
 mod atari800_state;
 // pub mod atari_text;
@@ -177,15 +177,15 @@ impl Debugger {
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct EmulatorConfig {
-    #[serde(default="default_true")]
+    #[serde(default = "default_true")]
     collisions: bool,
-    #[serde(default="default_scale")]
+    #[serde(default = "default_scale")]
     scale: f32,
     #[serde(default)]
     arrows_force_ctl: bool,
-    #[serde(default="default_true")]
+    #[serde(default = "default_true")]
     arrows_neg_ctl: bool,
-    #[serde(default="default_true")]
+    #[serde(default = "default_true")]
     arrows_joystick: bool,
 }
 
@@ -397,22 +397,8 @@ fn atari_system(
     }
 }
 
-// function xex2atr(data) {
-//     let n_sectors = Math.floor((data.length + 127) / 128) + 3;
-//     let size = n_sectors * 128 / 16; // size in paragraphs;
-//     let size_h = Math.floor(size / 256);
-//     let size_l = size % 256;
-//     let atr_buf = new Uint8Array(n_sectors * 128 + 16);
-//     atr_buf.set(k_file_header, 0);
-//     atr_buf.set(data, k_file_header.length);
-//     atr_buf[2] = size_l;
-//     atr_buf[3] = size_h;
-//     atr_buf[25] = data.length % 256;
-//     atr_buf[26] = Math.floor(data.length / 256);
-//     return atr_buf;
-//   }
-
 const XEX_LOADER: &[u8; 144] = include_bytes!("../xex_loader/xex_loader.atr");
+
 fn xex2atr(data: &[u8]) -> Vec<u8> {
     let n_sectors = (data.len() + 127) / 128 + 1;
     let size = n_sectors * 128 / 16; // size in paragraphs;
@@ -527,8 +513,7 @@ fn setup(
     let slot = 0;
 
     let main_image_handle = bevy_atari_antic::create_main_image(&mut *images);
-    let antic_data =
-        AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
+    let antic_data = AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
     let antic_data_handle = antic_data_assets.add(antic_data);
     #[cfg(feature = "egui")]
     egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
@@ -588,17 +573,16 @@ pub fn resized_events(
     }
 }
 
-fn store_config(
-    config: Res<EmulatorConfig>,
-    mut local: Local<Option<EmulatorConfig>>,
-) {
+fn store_config(config: Res<EmulatorConfig>, mut local: Local<Option<EmulatorConfig>>) {
     if let Some(l) = &*local {
         if *l != *config {
             if let Ok(serialized) = serde_json::to_string_pretty(&*config) {
                 info!("config modified: {}", serialized);
                 #[cfg(target_arch = "wasm32")]
                 if let Ok(Some(local_storage)) = web_sys::window().unwrap().local_storage() {
-                    local_storage.set_item("config", &serialized).expect("written");
+                    local_storage
+                        .set_item("config", &serialized)
+                        .expect("written");
                 }
             }
             *local = Some(config.clone())
@@ -610,7 +594,6 @@ fn store_config(
 
 // #[bevy_main]
 fn main() {
-
     let mut config: EmulatorConfig = serde_json::from_str("{}").unwrap();
 
     let window_size = Vec2::new(384.0, 240.0) * config.scale;
