@@ -160,6 +160,7 @@ function url_to_filename(url) {
 function fetch_buffer(url) {
   return fetch_url(url).then(r => {
     let content_disposition = r.headers.get("Content-Disposition");
+    console.log("Content-Disposition:", content_disposition);
     // TODO use filename from content_disposition
     return r.arrayBuffer()
   }).then(function (data) {

@@ -1,12 +1,16 @@
 import { readFile, writeFile, readDir, rm, rmdir, mkdirs, stat, exists } from './fs.js'
 
+function normalizePath(path) {
+    return "/" + path.replace(/^IndexedDB\/?/, "")
+}
+
 async function loadPath(node) {
     let root_path = node.getPath()
-    let items = await readDir(root_path);
+    let items = await readDir(normalizePath(root_path));
     let out = [];
     for (var name of items) {
         let path = `${root_path}/${name}`
-        let stats = await stat(path);
+        let stats = await stat(normalizePath(path));
         let folder = stats.isDirectory()
         out.push({
             title: name,
@@ -18,6 +22,7 @@ async function loadPath(node) {
 }
 
 export async function treeShowPath(key, path) {
+    path = normalizePath(path)
     if (key == "basic" || key == "osrom") {
         return;
     }
@@ -55,7 +60,7 @@ export function treeInit() {
         }
         var exists = false;
         try {
-            let stats = await stat(path);
+            let stats = await stat(normalizePath(path));
             if (stats.isDirectory()) {
                 alert("destination is directory");
                 return;
@@ -65,7 +70,7 @@ export function treeInit() {
         }
         let buffer = await file.arrayBuffer();
         if (!exists || confirm(`replace contents of ${path}?`)) {
-            await writeFile(path, buffer);
+            await writeFile(normalizePath(path), buffer);
         }
         treeShowPath(null, path);
         $(e.target).val("").attr("data-path", null);
@@ -82,7 +87,7 @@ export function treeInit() {
 
             let save = $("<a class='save' href='#'>save</a>").click(async function (e) {
                 e.preventDefault();
-                let data = await readFile(node.getPath());
+                let data = await readFile(normalizePath(node.getPath()));
                 let blob = new Blob([data])
                 const a = document.createElement('a');
                 document.body.appendChild(a);
@@ -103,9 +108,9 @@ export function treeInit() {
                 e.preventDefault();
                 if (!confirm(`delete ${node.title}?`)) return;
                 if (node.folder) {
-                    await rmdir(node.getPath());
+                    await rmdir(normalizePath(node.getPath()));
                 } else {
-                    await rm(node.getPath());
+                    await rm(normalizePath(node.getPath()));
                 }
                 node.remove()
             })
@@ -113,7 +118,7 @@ export function treeInit() {
             let mkdir = $("<a class='mkdir' href='#'>mkdir</a>").click(async function (e) {
                 e.preventDefault();
                 let name = prompt("Enter directory name");
-                await mkdirs(node.getPath() + "/" + name + "/");
+                await mkdirs(normalizePath(node.getPath()) + "/" + name + "/");
             })
 
             $tdList.eq(1).append(save);
@@ -127,11 +132,11 @@ export function treeInit() {
             }
         },
         source: [
-            { title: "/", key: "root", folder: true, lazy: true },
+            { title: "IndexedDB", key: "root", folder: true, lazy: true },
         ],
         dblclick: function (event, data) {
             if (data.node.folder) return;
-            window.location.hash = "#fs:" + data.node.getPath();
+            window.location.hash = "#fs:" + normalizePath(data.node.getPath());
         },
         lazyLoad: function (event, data) {
             data.result = loadPath(data.node);
