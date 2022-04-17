@@ -90,7 +90,7 @@ pub struct Antic {
     pub dlist: u16,
     nmireq: bool,
     pub cycle: usize,
-    pub total_cycles: usize,
+    pub total_cycles: u64,
     visible_cycle: usize,
     dma_cycles: usize,
     pub scan_line: usize,
@@ -240,8 +240,13 @@ impl Antic {
     }
 
     #[inline(always)]
+    pub fn inc_total_cycles(&mut self, value: u64) {
+        self.total_cycles = self.total_cycles.wrapping_add(value);
+    }
+
+    #[inline(always)]
     pub fn inc_cycle(&mut self) {
-        self.total_cycles += 1;
+        self.inc_total_cycles(1);
         self.cycle = (self.cycle + 1) % SCAN_LINE_CYCLES;
         if self.cycle == 0 {
             self.scan_line = (self.scan_line + 1) % MAX_SCAN_LINES;
@@ -351,7 +356,7 @@ impl Antic {
     pub fn steal_cycles(&mut self) {
         if self.cycle == self.visible_cycle {
             self.cycle += self.dma_cycles;
-            self.total_cycles += self.dma_cycles;
+            self.inc_total_cycles(self.dma_cycles as u64);
         }
     }
 
@@ -420,7 +425,7 @@ impl Antic {
         self.visible_cycle = line_start_cycle.max(start_dma_cycles);
         self.dma_cycles = dma_cycles;
 
-        self.total_cycles += self.cycle;
+        self.inc_total_cycles(self.cycle as u64);
     }
 
     fn create_mode_line(&self, mode: u8, opts: MODE_OPTS) -> ModeLineDescr {
@@ -556,7 +561,7 @@ impl Antic {
         } else {
             self.cycle = SCAN_LINE_CYCLES - 1;
         }
-        self.total_cycles += self.cycle - c;
+        self.inc_total_cycles((self.cycle - c) as u64);
     }
 
     #[inline(always)]
@@ -641,7 +646,7 @@ pub fn tick(
         if atari_system.antic.wsync() {
             atari_system.antic.clear_wsync();
             atari_system.antic.cycle = 105;
-            atari_system.antic.total_cycles += 105;
+            atari_system.antic.inc_total_cycles(105);
         }
     }
     if atari_system.antic.fire_nmi() {

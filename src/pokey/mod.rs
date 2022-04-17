@@ -60,7 +60,7 @@ bitflags! {
 pub struct PokeyRegWrite {
     index: u8,
     value: u8,
-    timestamp: usize,
+    timestamp: u64,
 }
 
 pub struct Pokey {
@@ -74,7 +74,7 @@ pub struct Pokey {
     irqst: u8,
     pub irqen: IRQ,
     rng: SmallRng,
-    pub total_cycles: usize,
+    pub total_cycles: u64,
     pub reg_writes: Vec<PokeyRegWrite>,
     pub delta_t: f64,
 }
