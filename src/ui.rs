@@ -4,11 +4,11 @@ use bevy_egui::egui::InnerResponse;
 use bevy_egui::egui::RichText;
 use bevy_egui::EguiContext;
 
+use crate::config::{EmulatorConfig, GlobalEmulatorConfig};
 use crate::focus::Focused;
 use crate::resources::UIConfig;
 use crate::AtariSlot;
 use crate::Debugger;
-use crate::EmulatorConfig;
 use crate::CPU;
 use crate::{system::AtariSystem, time_used_plugin::TimeUsedPlugin};
 
@@ -40,6 +40,10 @@ fn show_config(
                 ui.checkbox(&mut config.debugger, "Debugger");
             });
             ui.collapsing("Settings", |ui| {
+                ui.group(|ui| {
+                    ui.label("Basic");
+                    ui.checkbox(&mut emulator_config.basic, "enable basic");
+                });
                 ui.group(|ui| {
                     ui.label("Keyboard Arrows");
                     ui.checkbox(&mut emulator_config.arrows_joystick, "emulate joy1");
@@ -411,7 +415,7 @@ pub fn show_ui(
     mut config: ResMut<UIConfig>,
     mut mouse_motion_events: EventReader<MouseMotion>,
     windows: Res<Windows>,
-    mut emulator_config: ResMut<EmulatorConfig>,
+    mut emulator_config: ResMut<GlobalEmulatorConfig>,
 ) {
     let window = windows.get_primary().unwrap();
     let cursor_pos = (window.height() - window.cursor_position().unwrap_or_default().y).abs();
@@ -437,7 +441,7 @@ pub fn show_ui(
     }
     for (mut cpu, mut atari_system, slot, mut debugger) in query.iter_mut() {
         let r1 = show_fps(&mut egui_context, &mut config, &diagnostics);
-        let r2 = show_config(&mut egui_context, &mut config, &mut emulator_config);
+        let r2 = show_config(&mut egui_context, &mut config, &mut emulator_config.0);
         show_reset(&mut egui_context, &mut config, &mut atari_system, &mut cpu);
         let is_collapsed = if let Some(InnerResponse { inner: None, .. }) = r2 {
             true

@@ -1,15 +1,16 @@
 #[macro_use]
 extern crate bitflags;
-use serde::{Deserialize, Serialize};
 use std::time::Duration;
 pub mod antic;
 mod atari800_state;
 // pub mod atari_text;
 pub mod atr;
 mod cartridge;
+pub mod config;
 pub mod gamepad;
 pub mod gdb;
 pub mod gtia;
+use config::EmulatorConfig;
 #[cfg(target_arch = "wasm32")]
 mod js_api;
 pub mod messages;
@@ -172,33 +173,6 @@ impl Debugger {
         if let Some(sender) = self.gdb_sender.as_ref() {
             sender.send(msg).unwrap(); // TODO
         }
-    }
-}
-
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
-pub struct EmulatorConfig {
-    #[serde(default = "default_true")]
-    collisions: bool,
-    #[serde(default = "default_scale")]
-    scale: f32,
-    #[serde(default)]
-    arrows_force_ctl: bool,
-    #[serde(default = "default_true")]
-    arrows_neg_ctl: bool,
-    #[serde(default = "default_true")]
-    arrows_joystick: bool,
-}
-
-fn default_scale() -> f32 {
-    2.0
-}
-fn default_true() -> bool {
-    true
-}
-
-impl EmulatorConfig {
-    fn is_multi(&self) -> bool {
-        false
     }
 }
 
@@ -573,28 +547,11 @@ pub fn resized_events(
     }
 }
 
-fn store_config(config: Res<EmulatorConfig>, mut local: Local<Option<EmulatorConfig>>) {
-    if let Some(l) = &*local {
-        if *l != *config {
-            if let Ok(serialized) = serde_json::to_string_pretty(&*config) {
-                info!("config modified: {}", serialized);
-                #[cfg(target_arch = "wasm32")]
-                if let Ok(Some(local_storage)) = web_sys::window().unwrap().local_storage() {
-                    local_storage
-                        .set_item("config", &serialized)
-                        .expect("written");
-                }
-            }
-            *local = Some(config.clone())
-        }
-    } else {
-        *local = Some(config.clone());
-    }
-}
-
 // #[bevy_main]
 fn main() {
-    let mut config: EmulatorConfig = serde_json::from_str("{}").unwrap();
+    let mut app = App::new();
+    app.add_plugin(config::ConfigPlugin::default());
+    let config: EmulatorConfig = app.world.get_resource::<EmulatorConfig>().unwrap().clone();
 
     let window_size = Vec2::new(384.0, 240.0) * config.scale;
 
@@ -606,20 +563,17 @@ fn main() {
         if let Ok(Some(_log_filter)) = local_storage.get_item("log") {
             log_filter = _log_filter;
         }
-        if let Ok(Some(config_json)) = local_storage.get_item("config") {
-            if let Ok(result) = serde_json::from_str(&config_json) {
-                config = result;
-            }
-        }
     }
-    let mut app = App::new();
+
     app.insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)));
-    app.insert_resource(UIConfig::default());
+    app.insert_resource(UIConfig {
+        basic: config.basic,
+        ..Default::default()
+    });
     app.insert_resource(LogSettings {
         filter: log_filter,
         level: Level::INFO,
     });
-    app.insert_resource(config.clone());
     app.insert_resource(Msaa { samples: 1 });
     app.insert_resource(WindowDescriptor {
         title: WINDOW_TITLE.to_string(),
@@ -681,6 +635,9 @@ fn main() {
 
     app.insert_resource(fs);
 
+    // #[cfg(target_arch = "wasm32")]
+    // app.add_system_to_stage(CoreStage::PreUpdate, local_config);
+
     app.add_startup_system(setup)
         // .add_startup_system(debug::setup.system())
         .add_state(EmulatorState::Running)
@@ -690,6 +647,5 @@ fn main() {
                 .with_system(atari_system.system().label("run_atari")),
         )
         .add_system(debug_keyboard.system())
-        .add_system_to_stage(CoreStage::PostUpdate, store_config)
         .run();
 }
