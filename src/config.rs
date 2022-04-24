@@ -20,6 +20,9 @@ pub struct EmulatorConfig {
     pub arrows_joystick: bool,
 
     #[serde(default)]
+    pub stereo: bool,
+
+    #[serde(default)]
     pub basic: bool,
 }
 
@@ -28,17 +31,20 @@ pub struct LocalEmulatorConfig {
     #[serde(default)]
     pub collisions: Option<bool>,
 
-    #[serde(default = "default_scale")]
-    pub scale: f32,
+    #[serde(default)]
+    pub scale: Option<f32>,
 
     #[serde(default)]
-    pub arrows_force_ctl: bool,
+    pub arrows_force_ctl: Option<bool>,
 
-    #[serde(default = "default_true")]
-    pub arrows_neg_ctl: bool,
+    #[serde(default)]
+    pub arrows_neg_ctl: Option<bool>,
 
-    #[serde(default = "default_true")]
-    pub arrows_joystick: bool,
+    #[serde(default)]
+    pub arrows_joystick: Option<bool>,
+
+    #[serde(default)]
+    pub stereo: Option<bool>,
 
     #[serde(default)]
     pub basic: Option<bool>,

@@ -50,6 +50,10 @@ fn show_config(
                     ui.checkbox(&mut emulator_config.arrows_force_ctl, "force Ctrl");
                     ui.checkbox(&mut emulator_config.arrows_neg_ctl, "negate Ctrl");
                 });
+                ui.group(|ui| {
+                    ui.label("Sound");
+                    ui.checkbox(&mut emulator_config.stereo, "stereo");
+                });
             });
         })
 }
