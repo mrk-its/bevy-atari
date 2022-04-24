@@ -220,14 +220,16 @@ impl KeyAutoRepeater {
 }
 
 fn debug_keyboard(
-    mut query: Query<(&mut Debugger, &CPU, &mut AtariSystem), With<Focused>>,
+    mut query: Query<(&mut Debugger, &mut CPU, &mut AtariSystem), With<Focused>>,
     mut auto_repeat: Local<KeyAutoRepeater>,
     keyboard: Res<Input<KeyCode>>,
+    mut config: ResMut<UIConfig>,
 ) {
     let is_shift = keyboard.any_pressed([KeyCode::LShift, KeyCode::RShift]);
-    if let Some((mut debugger, cpu, mut system)) = query.iter_mut().next() {
+    if let Some((mut debugger, mut cpu, mut system)) = query.iter_mut().next() {
         for key_code in auto_repeat.pressed(&keyboard) {
             match key_code {
+                KeyCode::F5 => system.reset(&mut cpu.cpu, false, !config.basic),
                 KeyCode::F8 => debugger.paused = !debugger.paused,
                 KeyCode::F10 => debugger.step_over(&mut system, &cpu.cpu),
                 KeyCode::F11 => debugger.step_into(),
@@ -258,6 +260,7 @@ fn atari_system(
     config: Res<EmulatorConfig>,
 ) {
     for (focused, mut atari_system, mut cpu, mut debugger, antic_data_handle) in query.iter_mut() {
+        atari_system.configure(&config);
         let mut cpu = &mut cpu.cpu;
         let antic_data = antic_data_assets.get_mut(antic_data_handle).unwrap();
 

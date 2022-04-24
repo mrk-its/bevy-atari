@@ -1,3 +1,4 @@
+use bevy::prelude::info;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::{JsCast, JsValue};
 
@@ -22,21 +23,26 @@ impl Context {
         }
     }
 
-    pub fn send_regs(&mut self, regs: &Vec<super::PokeyRegWrite>, delta_t: f64) {
-        let js_regs = regs
+    pub fn send_regs(&mut self, regs: &[Vec<super::PokeyRegWrite>], delta_t: f64) {
+        let js_arr = regs
             .iter()
-            .flat_map(|r| {
-                [
-                    r.index as f64,
-                    r.value as f64,
-                    r.timestamp as f64 / (312.0 * 114.0 * 60.0) - delta_t + Self::LATENCY,
-                ]
+            .map(|reg_writes| {
+                let js_arr = reg_writes
+                    .iter()
+                    .flat_map(|r| {
+                        [
+                            r.index as f64,
+                            r.value as f64,
+                            r.timestamp as f64 / (312.0 * 114.0 * 50.0) - delta_t + Self::LATENCY,
+                        ]
+                    })
+                    .map(|f| JsValue::from_f64(f))
+                    .collect::<js_sys::Array>();
+                JsValue::from(js_arr)
             })
-            .map(|f| JsValue::from_f64(f))
             .collect::<js_sys::Array>();
-        let js_regs = JsValue::from(js_regs);
-
-        crate::js_api::pokey_post_message(&js_regs);
+        let js_value = JsValue::from(js_arr);
+        crate::js_api::pokey_post_message(&js_value)
     }
 }
 

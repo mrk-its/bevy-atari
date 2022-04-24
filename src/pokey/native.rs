@@ -31,8 +31,8 @@ impl Context {
         }
     }
 
-    pub fn send_regs(&mut self, regs: &Vec<super::PokeyRegWrite>, delta_t: f64) {
-        for r in regs {
+    pub fn send_regs(&mut self, regs: &[Vec<super::PokeyRegWrite>], delta_t: f64) {
+        for r in &regs[0] {
             let index = r.index & 0xf;
             if index > 9 {
                 continue;

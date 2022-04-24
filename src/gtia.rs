@@ -1,7 +1,14 @@
+use std::cell::RefCell;
+use std::sync::Arc;
+
+use bevy::prelude::info;
 // use crate::render_resources::GTIARegs;
 use bevy_atari_antic::CollisionsData;
 
 use bevy_atari_antic::GTIARegs;
+
+use crate::pokey::PokeyRegQueue;
+use crate::pokey::PokeyRegWrite;
 
 // WRITE
 pub const HPOSP0: usize = 0x00;
@@ -80,6 +87,7 @@ pub struct Gtia {
     pub consol: u8,
     pub consol_mask: u8,
     pub consol_force_mask: u8,
+    pub pokey_reg_queue: Arc<RefCell<PokeyRegQueue>>,
 }
 
 impl Default for Gtia {
@@ -94,6 +102,7 @@ impl Default for Gtia {
             consol_force_mask: 0x7, // force option on start;
             scan_line: 0,
             collision_update_scanline: 0,
+            pokey_reg_queue: Default::default(),
         }
     }
 }
@@ -139,7 +148,12 @@ impl Gtia {
                     | (_size_pm(value >> 6) << 6)
             }
             _GRACTL => self.gractl = GRACTL::from_bits_truncate(value),
-            CONSOL => self.consol_mask = 0x7 & !value,
+            CONSOL => {
+                self.consol_mask = 0x7 & !value;
+                self.pokey_reg_queue
+                    .borrow_mut()
+                    .write(0x9, (value >> 3) & 1);
+            }
             HITCLR => {
                 // info!("resetting collisions, scan_line: {:?}", self.scan_line);
                 self.collisions.iter_mut().for_each(|v| *v = 0);

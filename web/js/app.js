@@ -6,7 +6,7 @@ import { treeInit, treeShowPath } from './fs_tree.js'
 
 const BINARY_KEYS = ['disk_1', 'osrom', 'basic', 'car', 'xex'];
 const DEFAULT_OSROM_URL = "https://atarionline.pl/utils/9.%20ROM-y/Systemy%20operacyjne/Atari%20OS%20v2%2083.10.05.rom"
-const DEFAULT_BASIC_URL = "https://atarionline.pl/utils/9.%20ROM-y/Języki%20programowania/Atari%20BASIC/Atari%20Basic%20vC.rom"
+const DEFAULT_BASIC_URL = "https://atarionline.pl/utils/9.%20ROM-y/Języki%20programowania/Atari%20BASIC/Atari%20Basic%20vB.rom"
 var sap_writer = null;
 var pokeyNode;
 export var audio_context;

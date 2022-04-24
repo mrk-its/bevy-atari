@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::sync::Arc;
+
 use crate::EmulatorConfig;
 pub use bevy::prelude::*;
 use rand::rngs::SmallRng;
@@ -63,19 +66,36 @@ pub struct PokeyRegWrite {
     timestamp: u64,
 }
 
+#[derive(Default)]
+pub struct PokeyRegQueue {
+    pub stereo: bool,
+    queue: [Vec<PokeyRegWrite>; 2],
+    pub total_cycles: u64,
+}
+
+impl PokeyRegQueue {
+    pub fn write(&mut self, index: u8, value: u8) {
+        let pokey_index = if !self.stereo {
+            0
+        } else {
+            ((index >> 4) & 1) as usize
+        };
+        self.queue[pokey_index].push(PokeyRegWrite {
+            index: index & 0xf,
+            value,
+            timestamp: self.total_cycles,
+        })
+    }
+}
 pub struct Pokey {
     audio_context: audio::Context,
     muted: bool,
-    freq: [u8; 4],
-    ctl: [AUDC; 4],
-    audctl: AUDCTL,
     kbcode: u8,
     skstat: u8,
     irqst: u8,
     pub irqen: IRQ,
     rng: SmallRng,
-    pub total_cycles: u64,
-    pub reg_writes: Vec<PokeyRegWrite>,
+    pub pokey_reg_queue: Arc<RefCell<PokeyRegQueue>>,
     pub delta_t: f64,
 }
 
@@ -86,15 +106,11 @@ impl Default for Pokey {
         Self {
             muted: false,
             rng,
-            ctl: [AUDC::from_bits_truncate(0); 4],
-            freq: [0; 4],
             kbcode: 0xff,
             skstat: 0xff,
             irqst: 0xff,
             irqen: IRQ::from_bits_truncate(0xff),
-            audctl: AUDCTL::from_bits_truncate(0),
-            total_cycles: 0,
-            reg_writes: Vec::new(),
+            pokey_reg_queue: Default::default(),
             delta_t: 0.0,
             audio_context: Default::default(),
         }
@@ -133,10 +149,11 @@ impl Pokey {
             // so let's ignore it for a while
             return;
         }
+        let mut reg_queue = self.pokey_reg_queue.borrow_mut();
 
         let audio_context_time = self.audio_context.current_time();
 
-        let atari_time = self.total_cycles as f64 / (312.0 * 114.0 * 50.0);
+        let atari_time = reg_queue.total_cycles as f64 / (312.0 * 114.0 * 50.0);
 
         let time_diff = atari_time - self.delta_t - audio_context_time;
         if time_diff.abs() >= 0.05 {
@@ -144,52 +161,26 @@ impl Pokey {
             info!("too big time diff: {}, syncing", time_diff,);
         }
 
-        self.audio_context.send_regs(&self.reg_writes, self.delta_t);
-        self.reg_writes.clear();
+        let reg_queues = if reg_queue.stereo {
+            &reg_queue.queue[..]
+        } else {
+            &reg_queue.queue[..1]
+        };
+
+        self.audio_context.send_regs(reg_queues, self.delta_t);
+        reg_queue.queue[0].clear();
+        reg_queue.queue[1].clear();
     }
 
     pub fn scanline_tick(&mut self, _scanline: usize) {}
 
-    pub fn update_freq(&mut self, channel: usize, value: u8) {
-        self.freq[channel] = value;
-    }
-
-    pub fn update_audctl(&mut self, value: u8) {
-        self.audctl = AUDCTL::from_bits_truncate(value);
-    }
-
-    pub fn update_ctl(&mut self, channel: usize, value: u8) {
-        self.ctl[channel] = AUDC::from_bits_truncate(value);
-    }
-
     pub fn write(&mut self, addr: usize, value: u8) {
         if addr & 0xf <= 8 {
-            self.reg_writes.push(PokeyRegWrite {
-                index: addr as u8,
-                value,
-                timestamp: self.total_cycles,
-            })
+            self.pokey_reg_queue.borrow_mut().write(addr as u8, value)
         }
 
         let addr = addr & 0xf;
-        let channel = addr / 2;
-        if addr <= 8 {
-            self.reg_writes.push(PokeyRegWrite {
-                index: addr as u8,
-                value,
-                timestamp: self.total_cycles,
-            })
-        }
         match addr {
-            0 | 2 | 4 | 6 => {
-                self.update_freq(channel, value);
-            }
-            1 | 3 | 5 | 7 => {
-                self.update_ctl(channel, value);
-            }
-            8 => {
-                self.update_audctl(value);
-            }
             SKCTL => {
                 if value & 3 == 0 {
                     // info!("POKEY reset!");

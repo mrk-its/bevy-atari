@@ -2,12 +2,14 @@ use crate::atr::ATR;
 use crate::cartridge::Cartridge;
 use crate::multiplexer::Multiplexer;
 use crate::platform::FileSystem;
+use crate::pokey::{PokeyRegQueue, PokeyRegWrite};
 use crate::EmulatorConfig;
 pub use crate::{antic, gtia};
 pub use crate::{antic::Antic, gtia::Gtia, pia::PIA, pokey::Pokey};
 use crate::{atari800_state::Atari800State, pokey};
 pub use bevy::prelude::*;
 pub use emulator_6502::{Interface6502, MOS6502};
+use std::sync::Arc;
 pub use std::{cell::RefCell, rc::Rc};
 
 use bevy::prelude::info;
@@ -47,6 +49,7 @@ pub struct AtariSystem {
     ticks: usize,
     pub cart: Option<Box<dyn Cartridge>>,
     pub keycodes: Vec<Option<(KeyCode, bool)>>,
+    pub pokey_reg_queue: Arc<RefCell<PokeyRegQueue>>,
 }
 unsafe impl Send for AtariSystem {}
 unsafe impl Sync for AtariSystem {}
@@ -69,8 +72,8 @@ impl AtariSystem {
         let osrom = vec![0; 0x4000];
         let basic = None;
         let antic = Antic::default();
-        let pokey = Pokey::default();
-        let gtia = Gtia::default();
+        let mut pokey = Pokey::default();
+        let mut gtia = Gtia::default();
         let pia = PIA::default();
         let consol = Multiplexer::new(2);
         let joystick = [Multiplexer::new(3), Multiplexer::new(3)];
@@ -78,7 +81,12 @@ impl AtariSystem {
         let read_banks = [0 as *const MemBank; 32];
         let write_banks = [0 as *mut MemBank; 32];
 
+        let pokey_reg_queue: Arc<RefCell<PokeyRegQueue>> = Default::default();
+        pokey.pokey_reg_queue = pokey_reg_queue.clone();
+        gtia.pokey_reg_queue = pokey_reg_queue.clone();
+        // gtia.pokey_reg_queue = pokey_reg_queue.clone();
         let mut atari_system = AtariSystem {
+            pokey_reg_queue: pokey_reg_queue,
             ext_mem_bank_mask: MEM_320,
             consol,
             joystick,
@@ -101,6 +109,10 @@ impl AtariSystem {
         };
         atari_system.setup_memory_banks();
         atari_system
+    }
+
+    pub fn configure(&mut self, config: &EmulatorConfig) {
+        self.pokey_reg_queue.borrow_mut().stereo = config.stereo;
     }
 
     pub fn set_cart(&mut self, cart: Option<Box<dyn Cartridge>>) {
@@ -488,9 +500,6 @@ impl AtariSystem {
         let is_ctl = keyboard.pressed(KeyCode::LControl) || keyboard.pressed(KeyCode::RControl);
         let mut joy_changed = false;
         for ev in keyboard.get_just_pressed() {
-            if *ev == KeyCode::F5 {
-                self.reset(cpu, false, false);
-            }
             if config.arrows_joystick {
                 joy_changed = joy_changed
                     || *ev == KeyCode::LShift
@@ -551,7 +560,7 @@ impl AtariSystem {
     #[inline(always)]
     pub fn inc_cycle(&mut self) {
         self.antic.inc_cycle();
-        self.pokey.total_cycles = self.antic.total_cycles;
+        self.pokey_reg_queue.borrow_mut().total_cycles = self.antic.total_cycles;
     }
     pub fn set_disk(&mut self, drive: usize, atr: Option<ATR>) {
         info!("set_disk #{}: {:?}", drive, atr.is_some());
