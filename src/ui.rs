@@ -7,10 +7,11 @@ use bevy_egui::EguiContext;
 use crate::config::{EmulatorConfig, GlobalEmulatorConfig};
 use crate::focus::Focused;
 use crate::resources::UIConfig;
+use crate::system::AtariSystem;
+use crate::time_used_plugin::TimeUsedPlugin;
 use crate::AtariSlot;
 use crate::Debugger;
 use crate::CPU;
-use crate::{system::AtariSystem, time_used_plugin::TimeUsedPlugin};
 
 use bevy::{
     diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},

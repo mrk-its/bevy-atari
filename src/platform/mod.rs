@@ -3,7 +3,7 @@ use crossbeam_channel::{Receiver, Sender};
 use std::future::Future;
 use std::sync::Arc;
 
-use bevy::tasks::TaskPool;
+use bevy::tasks::{IoTaskPool, TaskPool};
 use bevy::utils::BoxedFuture;
 
 #[cfg(target_arch = "wasm32")]
@@ -42,7 +42,7 @@ pub trait FileApi {
 
 pub struct FileSystemInternal {
     api: fs_impl::FileApiImpl,
-    task_pool: TaskPool,
+    task_pool: &'static IoTaskPool,
     pub sender: Sender<Option<FsEvent>>,
     pub receiver: Receiver<Option<FsEvent>>,
 }
@@ -107,7 +107,7 @@ pub struct FileSystem {
 }
 
 impl FileSystem {
-    pub fn new(task_pool: TaskPool) -> Self {
+    pub fn new(task_pool: &'static IoTaskPool) -> Self {
         let (sender, receiver) = crossbeam_channel::unbounded();
         Self {
             inner: Arc::new(FileSystemInternal {

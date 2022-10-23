@@ -23,7 +23,7 @@ webgpu = []
 
 [dependencies]
 crossbeam-channel = "0.5.0"
-bevy_egui = {version="0.11.1", optional=true}
+bevy_egui = {version="0.16.1", optional=true}
 # winit = {version = "0.25.0", features = ["web-sys"], default-features = false}
 emulator_6502 = {version="1.1.0", features=["binary_coded_decimal", "implementation_transparency", "illegal_opcodes"]}
 disasm6502 = "0.2"
@@ -46,7 +46,7 @@ winit = {version = "0.26", features = ["x11"], default-features = false}
 
 [target.'cfg(target_arch="wasm32")'.dependencies]
 js-sys = "0.3"
-wasm-bindgen = "0.2.78"
+wasm-bindgen = "0.2.83"
 wasm-bindgen-futures = "0"
 tracing-wasm = "0.2.1"
 
@@ -55,7 +55,7 @@ web-audio-api = {version="0.15", default-features = false}
 
 
 [dependencies.bevy]
-version = "0.6"
+version = "0.8.1"
 # git = "https://github.com/bevyengine/bevy"
 # branch = "main"
 # path = "../bevy"
@@ -84,7 +84,7 @@ features = [
 [patch.crates-io]
 gilrs = {git="https://gitlab.com/mrk2/gilrs.git", branch="remove_stdweb"}
 gilrs-core = {git="https://gitlab.com/mrk2/gilrs.git", branch="remove_stdweb"}
-bevy = {git = "https://github.com/mrk-its/bevy.git", branch="0.6.1-fps"}
+# bevy = {git = "https://github.com/mrk-its/bevy.git", branch="0.6.1-fps"}
 
 # glow = {git="https://github.com/grovesNL/glow"}
 # glow = {path="../glow"}

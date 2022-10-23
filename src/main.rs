@@ -47,13 +47,14 @@ use bevy::{
     log::{Level, LogSettings},
     prelude::*,
     render::view::Msaa,
-    winit::WinitConfig,
+    // winit::WinitConfig,
     DefaultPlugins,
 };
 
 use bevy::{
-    render::{camera::OrthographicCameraBundle, renderer::RenderDevice, texture::Image},
+    render::{renderer::RenderDevice, texture::Image},
     sprite::SpriteBundle,
+    tasks::TaskPool,
 };
 use bevy_atari_antic::AtariAnticPlugin;
 use emulator_6502::{Interface6502, MOS6502};
@@ -493,7 +494,8 @@ fn setup(
     let antic_data = AnticData::new(&render_device, main_image_handle.clone(), config.collisions);
     let antic_data_handle = antic_data_assets.add(antic_data);
     #[cfg(feature = "egui")]
-    egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
+    let texture_id = egui_context.add_image(main_image_handle.clone());
+    //    egui_context.set_egui_texture(slot as u64, main_image_handle.clone());
     let mut atari_bundle = AtariBundle {
         slot: AtariSlot(slot),
         antic_data_handle,
@@ -529,7 +531,7 @@ fn setup(
         commands.spawn_bundle(full_screen_sprite).insert(FullScreen);
     }
 
-    let mut camera_bundle = OrthographicCameraBundle::new_2d();
+    let mut camera_bundle = Camera2dBundle::default();
     // camera_bundle.transform.scale = Vec3::new(1.0 / config.scale, 1.0 / config.scale, 1.0);
     camera_bundle.transform.scale = Vec3::new(1.0, 1.0, 1.0);
     camera_bundle.transform.translation = Vec3::new(0.0, 0.0, 0.0);
@@ -589,52 +591,45 @@ fn main() {
         resizable: false,
         #[cfg(target_arch = "wasm32")]
         canvas: Some("#bevy-canvas".to_string()),
-        vsync: false,
+        // vsync: false,
         ..Default::default()
     });
 
     app.add_plugins(DefaultPlugins);
 
     #[cfg(feature = "egui")]
-    app.add_plugin(EguiPlugin).add_system(ui::show_ui.system());
-    app.add_system(resized_events.system());
+    app.add_plugin(EguiPlugin).add_system(ui::show_ui);
+    app.add_system(resized_events);
 
     app.add_plugin(AtariAnticPlugin {
         collisions: config.collisions,
     });
 
     app.add_plugin(time_used_plugin::TimeUsedPlugin);
-    app.insert_resource(WinitConfig {
-        force_fps: Some(50.0),
-        ..Default::default()
-    });
+    // app.insert_resource(WinitConfig {
+    //     force_fps: Some(50.0),
+    //     ..Default::default()
+    // });
 
     app.add_plugin(FrameTimeDiagnosticsPlugin::default());
     // app.add_plugin(LogDiagnosticsPlugin::default());
 
     if config.is_multi() {
-        app.add_system(focus::update.system())
-            .add_startup_system(focus::setup.system());
+        app.add_system(focus::update)
+            .add_startup_system(focus::setup);
     }
 
     app.add_plugin(gdb::GdbPlugin::default());
 
-    app.add_system(messages::events.system());
-
-    let task_pool = app
-        .world
-        .get_resource::<IoTaskPool>()
-        .expect("IoTaskPool")
-        .0
-        .clone();
+    app.add_system(messages::events);
 
     app.add_event::<platform::FsEvent>();
     app.add_system(platform::pump_fs_events);
     app.add_system(fs_events);
 
-    let fs = platform::FileSystem::new(task_pool.clone());
-    // fs.attach_binary("osrom", "os.rom");
-    // fs.attach_binary("car", "flob.1.0.3b.car");
+    let fs = platform::FileSystem::new(IoTaskPool::get());
+    // // fs.attach_binary("osrom", "os.rom");
+    // // fs.attach_binary("car", "flob.1.0.3b.car");
 
     app.insert_resource(fs);
 
@@ -644,11 +639,11 @@ fn main() {
     app.add_startup_system(setup)
         // .add_startup_system(debug::setup.system())
         .add_state(EmulatorState::Running)
-        .add_system_to_stage(CoreStage::PreUpdate, gamepad::update.system())
+        .add_system_to_stage(CoreStage::PreUpdate, gamepad::update)
         .add_system_set(
             SystemSet::on_update(EmulatorState::Running)
-                .with_system(atari_system.system().label("run_atari")),
+                .with_system(atari_system.label("run_atari")),
         )
-        .add_system(debug_keyboard.system())
+        .add_system(debug_keyboard)
         .run();
 }

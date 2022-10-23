@@ -18,7 +18,7 @@ install_crate = {crate_name = "basic-http-server", binary = "basic-http-server",
 
 [tasks.wasm-bindgen-cli]
 command = "cargo"
-args = ["install", "wasm-bindgen-cli", "--version", "0.2.80", "--root", "."]
+args = ["install", "wasm-bindgen-cli", "--version", "0.2.83", "--root", "."]
 
 [tasks.add-wasm32-target]
 args = ["target", "install", "wasm32-unknown-unknown"]

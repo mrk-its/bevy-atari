@@ -1,4 +1,4 @@
-use bevy::core::Time;
+use bevy::time::Time;
 use bevy::{
     diagnostic::{Diagnostic, DiagnosticId, Diagnostics},
     prelude::*,
@@ -21,8 +21,7 @@ impl TimeUsedPlugin {
     }
     fn time_used_end(mut time: ResMut<TimeUsed>, mut diagnostics: ResMut<Diagnostics>) {
         time.0.update();
-        let dt = time.0.delta_seconds_f64();
-        diagnostics.add_measurement(Self::TIME_USED, dt);
+        diagnostics.add_measurement(Self::TIME_USED, || time.0.delta_seconds_f64());
     }
 }
 
@@ -34,9 +33,9 @@ impl Plugin for TimeUsedPlugin {
             SystemStage::single_threaded(),
         )
         .add_stage_after(CoreStage::Last, "very_last", SystemStage::single_threaded())
-        .add_system_to_stage("very_first", Self::time_used_start.system())
-        .add_system_to_stage("very_last", Self::time_used_end.system())
-        .add_startup_system(Self::setup_system.system())
+        .add_system_to_stage("very_first", Self::time_used_start)
+        .add_system_to_stage("very_last", Self::time_used_end)
+        .add_startup_system(Self::setup_system)
         .init_resource::<TimeUsed>();
     }
 }
