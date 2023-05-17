@@ -1,0 +1,84 @@
+<!DOCTYPE html> 
+<html lang="en-us">
+  	<head>
+    	<title>...</title>
+    	<meta name="robots" content="noindex,nofollow">
+    	<meta http-equiv="content-Type" content="text/html; charset=UTF-8" />
+    	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, maximum-scale=1.0" />
+    	<meta name="theme-color" content="#000000">
+		<link rel="manifest" href="assets/manifest.webmanifest" />
+		<link rel="icon" type="image/x-icon" href="assets/images/app_icon_512.png" />
+		<link rel="apple-touch-icon" href="assets/images/app_icon_512.png" />
+		<link rel="stylesheet" type="text/css" href="assets/styles/styles.css" />
+		<script type="text/javascript" src="assets/scripts/dom.js"></script>
+		<script type="text/javascript" src="assets/scripts/quickjoy.js"></script>
+		<script type="module">
+			import init, {set_joystick} from './target_fred/wasm.js';
+			async function run() {
+				try {
+					await init();
+				} catch (e) {
+				}
+			}
+
+			domReady(() => {
+				run();
+				setupOverlay();
+				initQuickJoy();
+				auto_focus();
+			});
+
+			function auto_focus() {
+				let canvas = document.getElementsByTagName("canvas");
+				if (!canvas.length) {
+					setTimeout(auto_focus, 100);
+				} else {
+					canvas[0].focus();
+				}
+			}
+
+			function setupOverlay() {
+				show("#screen");
+				show("#overlay");
+			}
+
+			function initQuickJoy() {
+				const JOY_1 = 0, JOY_2 = 1;
+				const JOY_FIRE = 0, JOY_LEFT = 1, JOY_UP = 2, JOY_RIGHT = 3, JOY_DOWN = 4; 
+				var joyStates = [[false, false, false, false, false],[false, false, false, false, false]]; 
+
+				var joyEvent = function(controller, action, state) {
+					if (joyStates[controller][action] != state) {
+						joyStates[controller][action] = state;
+						set_joystick(controller, joyStates[controller][JOY_UP], joyStates[controller][JOY_DOWN], joyStates[controller][JOY_LEFT], joyStates[controller][JOY_RIGHT], joyStates[controller][JOY_FIRE]);
+					}
+				}
+
+				new DualTouchButton('#lr', '#l', 'LEFT', '#r', 'RIGHT', true, new DualTouchButtonJoyListener(JOY_1, JOY_LEFT, JOY_RIGHT, joyEvent));
+				new DualTouchButton('#ud', '#u', 'UP', '#d', 'DOWN', false, new DualTouchButtonJoyListener(JOY_1, JOY_UP, JOY_DOWN, joyEvent));
+				new SingleTouchButton('#fire', '#f', 'FIRE', new SingleTouchButtonJoyListener(JOY_1, JOY_FIRE, joyEvent));
+			}
+		</script>
+	</head>
+	<body>
+    <div id="screen">
+      	<div id="overlay">
+			<div id="controls_container">
+				<div id="quickjoy">
+					<div id="lr">
+						<div class="btn" id="l"></div>
+						<div class="btn" id="r"></div>
+					</div>
+					<div id="fire">
+						<div class="btn" id="f"></div>
+					</div>
+					<div id="ud">
+						<div class="btn" id="u"></div>
+						<div class="btn" id="d"></div>
+					</div>
+				</div>
+			</div>
+			<canvas id="bevy-canvas"></div>
+  		</div>
+	</body>
+</html>

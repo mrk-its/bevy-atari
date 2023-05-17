@@ -1,0 +1,12 @@
+{
+    "manifest_version": 2,
+    "name": "Atari test",
+    "version": "0.0.1",
+    "description": "...",
+    "display": "standalone",
+    "orientation":  "landscape",
+    "icons": [{
+       "src": "app_icon_512.png",
+       "sizes": "512x512"
+      }]
+ }
